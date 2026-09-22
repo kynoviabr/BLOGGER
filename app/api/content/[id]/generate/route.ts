@@ -1,0 +1,138 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/supabase/auth';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { createAIProvider } from '@/services/ai';
+import { AIProviderError } from '@/lib/errors/ai.errors';
+import { logger } from '@/lib/logger';
+import { LogService } from '@/services/log.service';
+
+export const maxDuration = 60; // 60 segundos para Vercel Serverless
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const startTime = Date.now();
+
+  try {
+    // 1. Validar sessão do usuário
+    const user = await requireAuth();
+
+    const supabase = await getSupabaseServerClient();
+
+    // 2. Buscar content_item e dados de pauta/editorial
+    const { data: contentItem, error: contentError } = await supabase
+      .from('content_items')
+      .select('*, editorial_calendar(*), blog:blogs(*)')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (contentError || !contentItem) {
+      logger.error('API.generate', `Artigo ${id} não encontrado`, { error: contentError });
+      return NextResponse.json(
+        { success: false, error: 'Artigo não encontrado.' },
+        { status: 404 }
+      );
+    }
+
+    const blog = contentItem.blog;
+    const calendar = contentItem.editorial_calendar;
+
+    const topic = calendar?.topic || contentItem.title;
+    const keywords = (calendar?.keywords && calendar.keywords.length > 0)
+      ? calendar.keywords
+      : [contentItem.title];
+
+    // 3. Instanciar AIProvider via Factory
+    const aiProvider = createAIProvider();
+
+    logger.info('API.generate', `Iniciando geração de texto com ${aiProvider.name} para contentId: ${id}`);
+
+    // 4. Executar geração do artigo
+    const generated = await aiProvider.generateArticle(topic, keywords, {
+      niche: blog?.niche,
+      audience: blog?.audience || undefined,
+      language: contentItem.language || blog?.default_language || 'pt-BR',
+      category: calendar?.category_id || undefined,
+      notes: calendar?.notes || undefined,
+    });
+
+    const durationMs = Date.now() - startTime;
+
+    // 5. Atualizar content_items no Supabase com novo texto, slug, meta_description e status 'ready'
+    const { data: updatedItem, error: updateError } = await supabase
+      .from('content_items')
+      .update({
+        title: generated.title,
+        slug: generated.slug,
+        meta_description: generated.metaDescription,
+        body: generated.content,
+        status: 'ready',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*, featured_image:media_assets(*)')
+      .single();
+
+    if (updateError) {
+      logger.error('API.generate', `Falha ao persistir artigo gerado ${id}`, { error: updateError });
+      throw new Error(`Falha ao salvar conteúdo no banco: ${updateError.message}`);
+    }
+
+    // 6. Registrar execução em ai_runs
+    await supabase.from('ai_runs').insert({
+      content_id: id,
+      agent: 'WriterAgent (Gemini)',
+      provider: aiProvider.name,
+      model: aiProvider.defaultModel,
+      status: 'completed',
+      input_summary: `Topic: ${topic} | Keywords: ${keywords.join(', ')}`,
+      output_summary: `Gerado artigo com ${generated.content.length} caracteres e ${generated.readingTimeMinutes || 5} min de leitura.`,
+      estimated_cost: 0.0015,
+      duration_ms: durationMs,
+    });
+
+    // 7. Registrar em system_logs
+    await LogService.recordLog(
+      'info',
+      'API.generate',
+      `Artigo ${id} gerado com sucesso pelo ${aiProvider.name}`,
+      { contentId: id, title: generated.title, durationMs, userId: user.id }
+    );
+
+    return NextResponse.json({
+      success: true,
+      data: updatedItem,
+      message: 'Artigo gerado com sucesso!',
+    });
+  } catch (error: unknown) {
+    const durationMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido na geração de artigo.';
+    const statusCode = error instanceof AIProviderError ? (error.statusCode || 500) : 500;
+
+    logger.error('API.generate', `Erro durante o processo de geração: ${errorMessage}`, { error });
+
+    try {
+      const supabase = await getSupabaseServerClient();
+      await supabase.from('ai_runs').insert({
+        content_id: id,
+        agent: 'WriterAgent (Gemini)',
+        provider: 'GeminiProvider',
+        model: 'gemini-2.5-flash',
+        status: 'failed',
+        error: errorMessage,
+        duration_ms: durationMs,
+        estimated_cost: 0,
+      });
+      await LogService.recordLog('error', 'API.generate', `Falha ao gerar artigo ${id}: ${errorMessage}`, { error });
+    } catch (logErr) {
+      logger.warn('API.generate', `Falha ao registrar log de erro: ${String(logErr)}`);
+    }
+
+    return NextResponse.json(
+      { success: false, error: errorMessage },
+      { status: statusCode }
+    );
+  }
+}

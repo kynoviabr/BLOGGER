@@ -1,37 +1,309 @@
 "use client";
 
 import * as React from "react";
-import { useActionState } from "react";
-import { AlertCircle, Loader2, Sparkles, ExternalLink, ShieldCheck, Image as ImageIcon } from "lucide-react";
-import { updateContentAction, ActionResult } from "@/app/actions/content";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  Sparkles,
+  ExternalLink,
+  ShieldCheck,
+  Image as ImageIcon,
+  Send,
+  Zap,
+} from "lucide-react";
 import { ContentItemWithRelations } from "@/types/content";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
+import { updateContentAction } from "@/app/actions/content";
 
 interface ContentEditFormProps {
   content: ContentItemWithRelations;
 }
 
-const initialState: ActionResult = {};
+export function ContentEditForm({ content: initialContent }: ContentEditFormProps) {
+  const router = useRouter();
+  const [content, setContent] = useState<ContentItemWithRelations>(initialContent);
+  const [formData, setFormData] = useState({
+    title: initialContent.title,
+    slug: initialContent.slug,
+    excerpt: initialContent.excerpt || "",
+    body: initialContent.body || "",
+    seo_title: initialContent.seo_title || "",
+    meta_description: initialContent.meta_description || "",
+    status: initialContent.status,
+  });
 
-export function ContentEditForm({ content }: ContentEditFormProps) {
-  const updateWithId = updateContentAction.bind(null, content.id);
-  const [state, formAction, isPending] = useActionState(updateWithId, initialState);
+  // Feedback e Loading States
+  const [isSaving, startSaving] = useTransition();
+  const [isGeneratingText, setIsGeneratingText] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [notification, setNotification] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const showNotification = (type: "success" | "error", message: string) => {
+    setNotification({ type, message });
+    if (type === "success") {
+      setTimeout(() => setNotification(null), 6000);
+    }
+  };
+
+  // 1. Salvar alterações manuais do formulário
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNotification(null);
+
+    startSaving(async () => {
+      try {
+        const result = await updateContentAction(content.id, null, formData);
+        if (result.success) {
+          showNotification("success", "Artigo salvo com sucesso!");
+          router.refresh();
+        } else {
+          showNotification("error", result.error || "Falha ao salvar artigo.");
+        }
+      } catch (err) {
+        showNotification("error", err instanceof Error ? err.message : "Erro ao salvar.");
+      }
+    });
+  };
+
+  // 2. Disparar Endpoint de Geração de Artigo com IA (Gemini)
+  const handleGenerateText = async () => {
+    setNotification(null);
+    setIsGeneratingText(true);
+
+    try {
+      const res = await fetch(`/api/content/${content.id}/generate`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Falha ao gerar artigo com IA.");
+      }
+
+      // Atualiza estado local imediatamente na UI
+      const updated = data.data;
+      setContent((prev) => ({
+        ...prev,
+        title: updated.title,
+        slug: updated.slug,
+        meta_description: updated.meta_description,
+        body: updated.body,
+        status: updated.status,
+      }));
+      setFormData((prev) => ({
+        ...prev,
+        title: updated.title,
+        slug: updated.slug,
+        meta_description: updated.meta_description || "",
+        body: updated.body,
+        status: updated.status,
+      }));
+
+      showNotification("success", "Artigo gerado com sucesso pelo Gemini! Status atualizado para READY.");
+      router.refresh();
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Erro ao gerar artigo com IA.");
+    } finally {
+      setIsGeneratingText(false);
+    }
+  };
+
+  // 3. Disparar Endpoint de Geração de Imagem de Destaque
+  const handleGenerateImage = async () => {
+    setNotification(null);
+    setIsGeneratingImage(true);
+
+    try {
+      const res = await fetch(`/api/content/${content.id}/image`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Falha ao gerar imagem de destaque.");
+      }
+
+      if (data.media) {
+        setContent((prev) => ({
+          ...prev,
+          featured_image_id: data.media.id,
+          featured_image: data.media,
+        }));
+      }
+
+      showNotification("success", "Imagem de destaque gerada e vinculada ao artigo com sucesso!");
+      router.refresh();
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Erro ao gerar imagem.");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  // 4. Disparar Endpoint de Publicação no WordPress
+  const handlePublish = async () => {
+    if (!formData.body || formData.body.trim().length === 0) {
+      showNotification("error", "O artigo precisa ter corpo de texto antes de ser publicado.");
+      return;
+    }
+
+    setNotification(null);
+    setIsPublishing(true);
+
+    try {
+      const res = await fetch(`/api/content/${content.id}/publish`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Falha ao publicar post no WordPress.");
+      }
+
+      setContent((prev) => ({
+        ...prev,
+        status: "published",
+        published_at: data.publishResult?.publishedAt || new Date().toISOString(),
+      }));
+      setFormData((prev) => ({
+        ...prev,
+        status: "published",
+      }));
+
+      showNotification(
+        "success",
+        `Artigo publicado com sucesso no WordPress! ID: ${data.publishResult?.postId || ""}`
+      );
+      router.refresh();
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Erro ao publicar no WordPress.");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const isAnyActionRunning = isSaving || isGeneratingText || isGeneratingImage || isPublishing;
 
   return (
-    <div>
-      {state?.error && (
-        <div className="mb-6 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span>{state.error}</span>
+    <div className="space-y-6">
+      {/* Alerta de Notificação / Toast Inline */}
+      {notification && (
+        <div
+          className={`flex items-start gap-3 rounded-lg border p-4 text-xs ${
+            notification.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+              : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300"
+          }`}
+        >
+          {notification.type === "success" ? (
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+          ) : (
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+          )}
+          <span className="font-medium">{notification.message}</span>
         </div>
       )}
 
-      <form action={formAction} className="space-y-6">
+      {/* PAINEL DE AÇÕES DO MAESTRO / ORQUESTRADOR */}
+      <Card className="border-blue-200 bg-blue-50/40 dark:border-blue-900/50 dark:bg-blue-950/20 shadow-sm">
+        <CardContent className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-blue-600" />
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Painel do Maestro de Conteúdo
+              </h2>
+              <StatusBadge status={content.status} />
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Dispare sob demanda as etapas de produção de inteligência artificial e publicação remota.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* 1. Gerar Artigo com IA */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleGenerateText}
+              disabled={isAnyActionRunning}
+              className="bg-white hover:bg-slate-50 border-blue-200 text-blue-700 hover:text-blue-800 dark:bg-slate-900 dark:border-blue-900 dark:text-blue-300"
+            >
+              {isGeneratingText ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Gerando Artigo...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5 text-purple-600" />
+                  Gerar Artigo com IA
+                </>
+              )}
+            </Button>
+
+            {/* 2. Gerar Imagem de Destaque */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleGenerateImage}
+              disabled={isAnyActionRunning}
+              className="bg-white hover:bg-slate-50 border-amber-200 text-amber-700 hover:text-amber-800 dark:bg-slate-900 dark:border-amber-900 dark:text-amber-300"
+            >
+              {isGeneratingImage ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Gerando Imagem...
+                </>
+              ) : (
+                <>
+                  <ImageIcon className="mr-1.5 h-3.5 w-3.5 text-amber-600" />
+                  Gerar Imagem de Destaque
+                </>
+              )}
+            </Button>
+
+            {/* 3. Publicar no WordPress */}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handlePublish}
+              disabled={isAnyActionRunning || !formData.body}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+            >
+              {isPublishing ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Publicando no WP...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-1.5 h-3.5 w-3.5" />
+                  Publicar no WordPress
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <form onSubmit={handleSave} className="space-y-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Coluna Principal: Editor de Conteúdo (2 colunas) */}
           <div className="lg:col-span-2 space-y-6">
@@ -39,7 +311,7 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
               <CardHeader>
                 <CardTitle>Corpo do Artigo</CardTitle>
                 <CardDescription>
-                  Edite o conteúdo em texto estruturado / Markdown.
+                  Edite o conteúdo em texto estruturado / Markdown gerado pelo pipeline.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -47,14 +319,26 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Título Principal
                   </label>
-                  <Input name="title" defaultValue={content.title} required disabled={isPending} />
+                  <Input
+                    name="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    required
+                    disabled={isAnyActionRunning}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Slug da URL
                   </label>
-                  <Input name="slug" defaultValue={content.slug} required disabled={isPending} />
+                  <Input
+                    name="slug"
+                    value={formData.slug}
+                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                    required
+                    disabled={isAnyActionRunning}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
@@ -63,23 +347,31 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
                   </label>
                   <Textarea
                     name="excerpt"
-                    defaultValue={content.excerpt || ""}
+                    value={formData.excerpt}
+                    onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
                     rows={2}
                     placeholder="Breve resumo introdutório do artigo..."
-                    disabled={isPending}
+                    disabled={isAnyActionRunning}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Corpo do Artigo (Markdown / Texto)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Corpo do Artigo (Markdown / HTML)
+                    </label>
+                    <span className="text-[11px] text-slate-400">
+                      {formData.body ? `${formData.body.split(/\s+/).filter(Boolean).length} palavras` : "0 palavras"}
+                    </span>
+                  </div>
                   <Textarea
                     name="body"
-                    defaultValue={content.body}
-                    rows={14}
+                    value={formData.body}
+                    onChange={(e) => setFormData({ ...formData, body: e.target.value })}
+                    rows={16}
                     className="font-mono text-xs leading-relaxed"
-                    disabled={isPending}
+                    placeholder="Clique no botão 'Gerar Artigo com IA' acima ou digite o texto aqui..."
+                    disabled={isAnyActionRunning}
                   />
                 </div>
               </CardContent>
@@ -90,7 +382,7 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
               <CardHeader>
                 <CardTitle>Otimização SEO (Search Engine Optimization)</CardTitle>
                 <CardDescription>
-                  Campos essenciais para indexação e mecanismos de resposta com IA.
+                  Metadados gerados automaticamente para motores de busca e indexação.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -100,9 +392,10 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
                   </label>
                   <Input
                     name="seo_title"
-                    defaultValue={content.seo_title || ""}
+                    value={formData.seo_title}
+                    onChange={(e) => setFormData({ ...formData, seo_title: e.target.value })}
                     placeholder="Título otimizado para SERPs..."
-                    disabled={isPending}
+                    disabled={isAnyActionRunning}
                   />
                 </div>
 
@@ -112,10 +405,11 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
                   </label>
                   <Textarea
                     name="meta_description"
-                    defaultValue={content.meta_description || ""}
+                    value={formData.meta_description}
+                    onChange={(e) => setFormData({ ...formData, meta_description: e.target.value })}
                     rows={2}
                     placeholder="Descrição para snippets do Google..."
-                    disabled={isPending}
+                    disabled={isAnyActionRunning}
                   />
                 </div>
               </CardContent>
@@ -124,7 +418,7 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
 
           {/* Coluna Lateral: Status, Mídia, Fontes e AI Runs (1 coluna) */}
           <div className="space-y-6">
-            {/* Status & Publicação */}
+            {/* Ciclo Editorial & Salvar Manual */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Ciclo Editorial</CardTitle>
@@ -134,7 +428,12 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
                   <label className="text-xs font-medium text-slate-500">
                     Status Atual
                   </label>
-                  <Select name="status" defaultValue={content.status} disabled={isPending}>
+                  <Select
+                    name="status"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                    disabled={isAnyActionRunning}
+                  >
                     <option value="draft">Rascunho (Draft)</option>
                     <option value="reviewing">Em Revisão</option>
                     <option value="ready">Pronto para Publicar</option>
@@ -147,18 +446,20 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
                 <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/40 text-xs space-y-1 text-slate-500">
                   <div>Criado em: {formatDate(content.created_at)}</div>
                   {content.published_at && (
-                    <div>Publicado em: {formatDate(content.published_at)}</div>
+                    <div className="text-emerald-600 font-medium">
+                      Publicado em: {formatDate(content.published_at)}
+                    </div>
                   )}
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isPending}>
-                  {isPending ? (
+                <Button type="submit" className="w-full" disabled={isAnyActionRunning}>
+                  {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Salvando Artigo...
                     </>
                   ) : (
-                    "Salvar Artigo"
+                    "Salvar Alterações Manuais"
                   )}
                 </Button>
               </CardContent>
@@ -187,13 +488,13 @@ export function ContentEditForm({ content }: ContentEditFormProps) {
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400">
-                    Nenhuma imagem associada
+                    Nenhuma imagem associada. Clique em &quot;Gerar Imagem de Destaque&quot;.
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* AI Runs Executadas */}
+            {/* Histórico de IA (AI Runs) */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
