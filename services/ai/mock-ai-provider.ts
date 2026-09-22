@@ -1,0 +1,59 @@
+import {
+  AIProvider,
+  GeneratedArticle,
+  ArticleGenerationContext,
+} from './ai-provider.interface';
+import {
+  ImageProvider,
+  GeneratedImage,
+  ImageGenerationOptions,
+} from './image-provider.interface';
+import { logger } from '@/lib/logger';
+
+export class MockAIProvider implements AIProvider {
+  readonly name = 'MockAIProvider';
+  readonly defaultModel = 'mock-text-v1';
+
+  async generateArticle(
+    title: string,
+    keywords: string[],
+    context?: ArticleGenerationContext
+  ): Promise<GeneratedArticle> {
+    logger.info(this.name, `Geração simulada de artigo: "${title}"`, { keywords, context });
+
+    const slug = title
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    return {
+      title,
+      slug,
+      metaDescription: `Guia completo e descomplicado sobre ${title}. Descubra dicas financeiras práticas e estratégias comprovadas.`,
+      content: `## Introdução\n\nNeste artigo prático sobre **${title}**, vamos analisar os principais fundamentos econômicos e passos essenciais para tomada de decisão consciente.\n\n## Principais Vantagens e Riscos\n\n- **Rentabilidade e Liquidez:** Compreenda o impacto no seu orçamento.\n- **Taxas e Custos Ocultos:** Mantenha o foco na eficiência patrimonial.\n\n## Conclusão e Isenção de Responsabilidade\n\nEste material tem caráter educativo e informativo.`,
+      keywords,
+      readingTimeMinutes: 5,
+    };
+  }
+}
+
+export class MockImageProvider implements ImageProvider {
+  readonly name = 'MockImageProvider';
+
+  async generateFeaturedImage(
+    prompt: string,
+    options?: ImageGenerationOptions
+  ): Promise<GeneratedImage> {
+    logger.info(this.name, `Geração simulada de imagem`, { prompt, options });
+
+    return {
+      imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
+      base64: undefined,
+      mimeType: 'image/webp',
+      altText: `Imagem de destaque simulada para: ${prompt.slice(0, 40)}`,
+      provider: this.name,
+    };
+  }
+}

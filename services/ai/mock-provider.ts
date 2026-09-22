@@ -1,4 +1,4 @@
-import { AIProvider } from './provider.interface';
+import { LegacyAIProvider } from './legacy-provider.interface';
 import {
   AITextOptions,
   AITextResult,
@@ -10,12 +10,12 @@ import {
 } from '@/types/ai';
 import { logger } from '@/lib/logger';
 
-export class MockAIProvider implements AIProvider {
-  readonly name = 'MockAIProvider';
+export class LegacyMockAIProvider implements LegacyAIProvider {
+  readonly name = 'LegacyMockAIProvider';
   readonly supportedModels = ['mock-fast', 'mock-deep', 'gemini-2.5-flash-stub'];
 
   async generateText(prompt: string, options?: AITextOptions): Promise<AITextResult> {
-    logger.info('MockAIProvider', 'generateText called', { promptSnippet: prompt.slice(0, 60), options });
+    logger.info('LegacyMockAIProvider', 'generateText called', { promptSnippet: prompt.slice(0, 60), options });
 
     return {
       text: `[MOCK AI OUTPUT] Conteúdo gerado para o prompt: "${prompt.slice(0, 80)}..."\n\nEste é um texto de fundação estruturado com introdução, tópicos e conclusão formatados para validação da pipeline.`,
@@ -32,9 +32,8 @@ export class MockAIProvider implements AIProvider {
   }
 
   async generateStructuredOutput<T>(prompt: string, schema: unknown, options?: AIOptions): Promise<T> {
-    logger.info('MockAIProvider', 'generateStructuredOutput called', { promptSnippet: prompt.slice(0, 60) });
+    logger.info('LegacyMockAIProvider', 'generateStructuredOutput called', { promptSnippet: prompt.slice(0, 60) });
 
-    // Retorna payload tipado genérico simulado
     const mockOutput = {
       title: 'Título Sugerido pela IA',
       metaDescription: 'Descrição gerada para fins de SEO e indexação em motores de busca.',
@@ -49,7 +48,7 @@ export class MockAIProvider implements AIProvider {
   }
 
   async generateImage(prompt: string, options?: AIImageOptions): Promise<AIImageResult> {
-    logger.info('MockAIProvider', 'generateImage called', { prompt, options });
+    logger.info('LegacyMockAIProvider', 'generateImage called', { prompt, options });
 
     return {
       imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
@@ -61,7 +60,7 @@ export class MockAIProvider implements AIProvider {
   }
 
   async generateVideo(prompt: string, options?: AIVideoOptions): Promise<AIVideoResult> {
-    logger.info('MockAIProvider', 'generateVideo called', { prompt, options });
+    logger.info('LegacyMockAIProvider', 'generateVideo called', { prompt, options });
 
     return {
       videoUrl: 'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
