@@ -8,10 +8,17 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  const pathname = request.nextUrl.pathname;
+  const isLoginPage = pathname === '/login';
+  const isCronRoute = pathname.startsWith('/api/cron');
+
+  // Rotas de Cron validam a autenticação via Bearer CRON_SECRET no próprio endpoint
+  if (isCronRoute) {
+    return response;
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  const isLoginPage = request.nextUrl.pathname === '/login';
 
   // Se as variáveis essenciais não estiverem definidas, redireciona para login seguro
   if (!supabaseUrl || !supabaseAnonKey) {
