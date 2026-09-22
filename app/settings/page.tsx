@@ -100,7 +100,7 @@ export default function SettingsPage() {
                       ) : (
                         <Badge variant="warning" className="gap-1">
                           <XCircle className="h-3 w-3" />
-                          Não Definido (Mock Ativo)
+                          Não Configurado
                         </Badge>
                       )}
                     </div>
