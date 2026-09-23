@@ -138,18 +138,21 @@ export class NanoBananaProvider implements ImageProvider {
         errorMessage.toLowerCase().includes('abort') ||
         errorMessage.toLowerCase().includes('timeout');
 
-      logger.warn(this.name, `Falha na API NanoBanana (${errorMessage}). Aplicando fallback de imagem editorial de segurança.`);
+      logger.error(this.name, `Falha na geração de imagem: ${errorMessage}`, {
+        isTimeout,
+        apiUrl: this.apiUrl,
+      });
 
-      // Fallback gracioso: imagem editorial com curadoria para evitar interrupção no fluxo de publicação
-      const encodedKeyword = encodeURIComponent('finance,banking,credit-card');
-      const fallbackUrl = `https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=1200&h=675&q=80&sig=${Date.now()}`;
-
-      return {
-        imageUrl: fallbackUrl,
-        mimeType: 'image/jpeg',
-        altText: `Imagem de destaque: ${prompt.slice(0, 80)}`,
-        provider: `${this.name} (Fallback)`,
-      };
+      throw new ImageProviderError(
+        isTimeout
+          ? 'Tempo limite excedido ao gerar imagem.'
+          : `Falha ao gerar imagem: ${errorMessage}`,
+        {
+          provider: this.name,
+          statusCode: isTimeout ? 504 : 502,
+          isRetryable: true,
+        }
+      );
     }
   }
 }
