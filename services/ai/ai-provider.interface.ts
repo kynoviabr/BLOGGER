@@ -20,6 +20,7 @@ export interface ArticleGenerationContext {
 export interface AIProvider {
   readonly name: string;
   readonly defaultModel: string;
+  readonly fallbackModel?: string;
 
   /**
    * Gera um artigo completo otimizado para SEO baseado em tema, palavras-chave e contexto do blog.
