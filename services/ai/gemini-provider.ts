@@ -32,7 +32,7 @@ export class GeminiProvider implements AIProvider {
       );
     }
 
-    this.defaultModel = config.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    this.defaultModel = config.model || process.env.GEMINI_MODEL || 'gemini-3.6-flash';
     this.temperature = config.temperature ?? 0.4;
     this.client = new GoogleGenAI({ apiKey });
   }

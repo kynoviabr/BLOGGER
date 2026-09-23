@@ -12,7 +12,7 @@ import { logger } from '@/lib/logger';
 
 export class LegacyMockAIProvider implements LegacyAIProvider {
   readonly name = 'LegacyMockAIProvider';
-  readonly supportedModels = ['mock-fast', 'mock-deep', 'gemini-2.5-flash-stub'];
+  readonly supportedModels = ['mock-fast', 'mock-deep', 'gemini-3.6-flash-stub'];
 
   async generateText(prompt: string, options?: AITextOptions): Promise<AITextResult> {
     logger.info('LegacyMockAIProvider', 'generateText called', { promptSnippet: prompt.slice(0, 60), options });

@@ -197,7 +197,7 @@ INSERT INTO ai_runs (
     'f1eebc99-9c0b-4ef8-bb6d-6bb9bd380a61',
     'WriterAgent',
     'gemini',
-    'gemini-2.5-flash',
+    'gemini-3.6-flash',
     'completed',
     'Prompt editorial com pauta "SEO em 2026", tom autoritário e palavras-chave específicas.',
     'Artigo gerado com 1.650 palavras, 4 seções principais e metadados SEO.',

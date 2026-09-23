@@ -14,6 +14,7 @@ export async function POST(
 ) {
   const { id } = await params;
   const startTime = Date.now();
+  let aiProvider: ReturnType<typeof createAIProvider> | null = null;
 
   try {
     // 1. Validar sessão do usuário
@@ -45,7 +46,7 @@ export async function POST(
       : [contentItem.title];
 
     // 3. Instanciar AIProvider via Factory
-    const aiProvider = createAIProvider();
+    aiProvider = createAIProvider();
 
     logger.info('API.generate', `Iniciando geração de texto com ${aiProvider.name} para contentId: ${id}`);
 
@@ -119,7 +120,7 @@ export async function POST(
         content_id: id,
         agent: 'WriterAgent (Gemini)',
         provider: 'GeminiProvider',
-        model: 'gemini-2.5-flash',
+        model: aiProvider?.defaultModel || 'gemini-3.6-flash',
         status: 'failed',
         error: errorMessage,
         duration_ms: durationMs,
