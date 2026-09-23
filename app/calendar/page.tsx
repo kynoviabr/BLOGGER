@@ -1,15 +1,13 @@
 import Link from "next/link";
-import { Plus, Calendar as CalendarIcon, Filter, AlertCircle } from "lucide-react";
+import { Plus, Filter, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { CalendarService } from "@/services/calendar.service";
-import { formatDate } from "@/lib/utils";
 import { CalendarStatus, CalendarItemWithRelations } from "@/types/calendar";
 import { EmptyState } from "@/components/shared/empty-state";
+import { CalendarTableView } from "@/components/calendar/calendar-table-view";
 
 export default async function CalendarPage({
   searchParams,
@@ -40,7 +38,7 @@ export default async function CalendarPage({
     <div className="space-y-6">
       <PageHeader
         title="Calendário Editorial"
-        description="Planeje pautas, defina datas e horários de publicação e acompanhe o ciclo de produção de cada artigo."
+        description="Planeje pautas, defina datas de publicação e acompanhe ou execute o ciclo completo de produção de cada artigo."
         actions={
           <Link href="/calendar/new">
             <Button size="sm" className="gap-1.5">
@@ -88,77 +86,8 @@ export default async function CalendarPage({
           actionLabel="Cadastrar Pauta"
         />
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Pauta & Título Proposto</TableHead>
-                <TableHead>Blog / Idioma</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Prioridade</TableHead>
-                <TableHead>Agendamento</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium max-w-sm">
-                    <Link
-                      href={`/calendar/${item.id}`}
-                      className="text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 block truncate"
-                    >
-                      {item.proposed_title || item.topic}
-                    </Link>
-                    <span className="text-xs text-slate-400 block truncate mt-0.5">
-                      Tema: {item.topic}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <span className="font-medium text-slate-800 dark:text-slate-200 block">
-                      {item.blog?.name || "Blog"}
-                    </span>
-                    <span className="text-slate-400 font-mono text-[11px]">
-                      {item.language}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-600 dark:text-slate-300">
-                    {item.category?.name || "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        item.priority === "high"
-                          ? "error"
-                          : item.priority === "medium"
-                          ? "warning"
-                          : "default"
-                      }
-                    >
-                      {item.priority.toUpperCase()}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
-                      <CalendarIcon className="h-3.5 w-3.5 text-slate-400" />
-                      {formatDate(item.scheduled_at)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={item.status} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Link href={`/calendar/${item.id}`}>
-                      <Button variant="ghost" size="sm" className="text-xs">
-                        Editar
-                      </Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <Card className="overflow-hidden">
+          <CalendarTableView initialItems={items} />
         </Card>
       )}
     </div>

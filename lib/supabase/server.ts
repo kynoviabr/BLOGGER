@@ -28,8 +28,7 @@ export async function getSupabaseServerClient() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Em Server Components read-only a tentativa de setar cookies pode ser ignorada,
-            // pois o middleware é quem atualiza a sessão via resposta HTTP.
+            // Em Server Components read-only a tentativa de setar cookies pode ser ignorada
           }
         },
       },

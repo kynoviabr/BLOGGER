@@ -16,11 +16,21 @@ interface CalendarItemFormProps {
   blogs: BlogWithRelations[];
 }
 
+const DEFAULT_CATEGORIES = [
+  { id: "cartoes-de-credito", name: "Cartões de Crédito" },
+  { id: "emprestimos", name: "Empréstimos" },
+  { id: "saindo-das-dividas", name: "Saindo das Dívidas" },
+  { id: "renda-e-milhas", name: "Renda e Milhas" },
+];
+
 const initialState: ActionResult = {};
 
 export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
   const [state, formAction, isPending] = useActionState(createCalendarItemAction, initialState);
-  const allCategories = blogs.flatMap((b) => b.categories || []);
+  const dbCategories = blogs.flatMap((b) => b.categories || []);
+
+  // Utiliza as categorias vindas do banco de dados se existirem, ou o fallback das novas categorias padrão
+  const categoriesToDisplay = dbCategories.length > 0 ? dbCategories : DEFAULT_CATEGORIES;
 
   return (
     <div>
@@ -52,7 +62,7 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
             </label>
             <Select name="category_id" disabled={isPending}>
               <option value="">Nenhuma / Geral</option>
-              {allCategories.map((c) => (
+              {categoriesToDisplay.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -76,11 +86,11 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Tema / Assunto Principal *
+            Tema / Assunto do Artigo *
           </label>
           <Input
             name="topic"
-            placeholder="Ex: Como criar agentes autônomos com LLMs locais em 2026"
+            placeholder="Ex: Como Escolher o Melhor Cartão Sem Anuidade em 2026"
             required
             disabled={isPending}
           />
@@ -88,11 +98,12 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Título Proposto
+            Título Proposto (SEO H1) *
           </label>
           <Input
             name="proposed_title"
-            placeholder="Ex: Guia Completo: Construindo Agentes Autônomos em 2026"
+            placeholder="Ex: Guia Completo dos Melhores Cartões de Crédito Sem Anuidade"
+            required
             disabled={isPending}
           />
         </div>
@@ -100,11 +111,11 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Palavras-Chave (separadas por vírgula)
+              Palavras-chave (separadas por vírgula)
             </label>
             <Input
               name="keywords"
-              placeholder="ia, agentes inteligentes, llm, automacao"
+              placeholder="cartao sem anuidade, cashback, milhas, score de credito"
               disabled={isPending}
             />
           </div>
@@ -114,10 +125,11 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
               Tipo de Artigo
             </label>
             <Select name="article_type" defaultValue="standard" disabled={isPending}>
-              <option value="standard">Padrão / Notícia</option>
-              <option value="deep_dive">Artigo Aprofundado (Deep Dive)</option>
-              <option value="tutorial">Tutorial Prático (Passo a Passo)</option>
-              <option value="listicle">Lista / Comparativo (Top 10)</option>
+              <option value="standard">Artigo Padrão (1.200 a 1.500 palavras)</option>
+              <option value="listicle">Lista / Ranking (Top Melhores)</option>
+              <option value="how-to">Passo a Passo / Tutorial</option>
+              <option value="review">Análise Detalhada / Review</option>
+              <option value="pillar">Pilar / Guia Definitivo (+2.000 palavras)</option>
             </Select>
           </div>
         </div>
@@ -125,9 +137,13 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Data e Hora Agendada
+              Data e Hora Programada de Publicação
             </label>
-            <Input type="datetime-local" name="scheduled_at" disabled={isPending} />
+            <Input
+              type="datetime-local"
+              name="scheduled_at"
+              disabled={isPending}
+            />
           </div>
 
           <div className="space-y-1.5">
@@ -137,7 +153,7 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
             <Select name="priority" defaultValue="medium" disabled={isPending}>
               <option value="low">Baixa</option>
               <option value="medium">Média</option>
-              <option value="high">Alta</option>
+              <option value="high">Alta (Fura-fila)</option>
             </Select>
           </div>
 
@@ -146,23 +162,20 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
               Status Inicial
             </label>
             <Select name="status" defaultValue="PLANNED" disabled={isPending}>
-              <option value="IDEA">IDEA (Ideia)</option>
-              <option value="PLANNED">PLANNED (Planejada)</option>
-              <option value="IN_PROGRESS">IN_PROGRESS (Em Produção)</option>
-              <option value="READY">READY (Pronta para Revisão)</option>
-              <option value="SCHEDULED">SCHEDULED (Agendada)</option>
+              <option value="IDEA">Ideia (Banco de Ideias)</option>
+              <option value="PLANNED">Planejado (Pronto para Automação)</option>
             </Select>
           </div>
         </div>
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Notas / Instruções Específicas
+            Observações / Diretrizes Específicas
           </label>
           <Textarea
             name="notes"
-            placeholder="Ex: Citar benchmarks atualizados, incluir diagrama conceitual, focar em casos reais..."
             rows={3}
+            placeholder="Orientações específicas para o LLM sobre tom, concorrentes a citar ou fontes..."
             disabled={isPending}
           />
         </div>
@@ -177,10 +190,10 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
             {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Cadastrando...
+                Cadastrando Pauta...
               </>
             ) : (
-              "Cadastrar Pauta no Calendário"
+              "Salvar Pauta no Calendário"
             )}
           </Button>
         </div>
