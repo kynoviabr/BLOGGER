@@ -1,3 +1,4 @@
+import { marked } from 'marked';
 import {
   PublisherProvider,
   MediaUploadInput,
@@ -156,9 +157,14 @@ export class WordPressProvider implements PublisherProvider {
       categories: article.categories,
     });
 
+    // Converte Markdown cru para HTML semântico limpo para o WordPress
+    const htmlContent = article.content
+      ? await marked.parse(article.content, { gfm: true, breaks: true })
+      : '';
+
     const payload: Record<string, unknown> = {
       title: article.title,
-      content: article.content,
+      content: htmlContent,
       status: article.status,
     };
 
