@@ -8,6 +8,7 @@ export type CalendarItemUpdate = Database['public']['Tables']['editorial_calenda
 export interface CalendarItemWithRelations extends CalendarItem {
   blog?: Pick<Blog, 'id' | 'name' | 'slug'>;
   category?: { id: string; name: string; slug: string } | null;
+  last_error?: string | null;
 }
 
 export type { CalendarStatus, CalendarPriority };

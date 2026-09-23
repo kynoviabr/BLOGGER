@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { BlogService } from "@/services/blog.service";
 import { BlogEditForm } from "@/components/blogs/blog-edit-form";
+import { AutopilotSettingsCard } from "@/components/blogs/autopilot-settings-card";
 
 export default async function BlogDetailsPage({
   params,
@@ -48,6 +49,9 @@ export default async function BlogDetailsPage({
               <BlogEditForm blog={blog} />
             </CardContent>
           </Card>
+
+          {/* Painel Autopilot Settings */}
+          <AutopilotSettingsCard blog={blog} />
         </div>
 
         {/* Informações Laterais: Categorias e Idiomas (1 coluna) */}

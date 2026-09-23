@@ -24,7 +24,40 @@ export class CalendarService {
       throw new Error(`Falha ao carregar calendário editorial: ${error.message}`);
     }
 
-    return (data || []) as CalendarItemWithRelations[];
+    const items = (data || []) as CalendarItemWithRelations[];
+
+    // Se houver itens com status FAILED, busca a mensagem do último erro registrado em system_logs
+    const failedItems = items.filter((it) => it.status === 'FAILED');
+    if (failedItems.length > 0) {
+      try {
+        const { data: logs } = await supabase
+          .from('system_logs')
+          .select('message, metadata, created_at')
+          .eq('level', 'error')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (logs && logs.length > 0) {
+          for (const item of failedItems) {
+            const match = logs.find((l) => {
+              const meta = l.metadata as { calendarId?: string; error?: string } | null;
+              if (meta && meta.calendarId === item.id) return true;
+              return l.message?.includes(item.id);
+            });
+            if (match) {
+              const meta = match.metadata as { error?: string } | null;
+              item.last_error = meta?.error || match.message;
+            } else {
+              item.last_error = 'Falha registrada durante a execução do pipeline editorial.';
+            }
+          }
+        }
+      } catch (logErr) {
+        logger.warn('CalendarService.listCalendarItems', `Aviso ao consultar logs de erro: ${String(logErr)}`);
+      }
+    }
+
+    return items;
   }
 
   static async getCalendarItemById(id: string): Promise<CalendarItemWithRelations | null> {

@@ -45,6 +45,10 @@ export type Database = {
           editorial_config: Json;
           seo_config: Json;
           monetization_config: Json;
+          autopilot_enabled?: boolean;
+          autopilot_start_time?: string;
+          autopilot_interval_minutes?: number;
+          autopilot_daily_limit?: number;
           created_at: string;
           updated_at: string;
         };
@@ -62,6 +66,10 @@ export type Database = {
           editorial_config?: Json;
           seo_config?: Json;
           monetization_config?: Json;
+          autopilot_enabled?: boolean;
+          autopilot_start_time?: string;
+          autopilot_interval_minutes?: number;
+          autopilot_daily_limit?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -79,6 +87,10 @@ export type Database = {
           editorial_config?: Json;
           seo_config?: Json;
           monetization_config?: Json;
+          autopilot_enabled?: boolean;
+          autopilot_start_time?: string;
+          autopilot_interval_minutes?: number;
+          autopilot_daily_limit?: number;
           created_at?: string;
           updated_at?: string;
         };

@@ -1,4 +1,6 @@
-import 'server-only';
+if (typeof window !== 'undefined') {
+  throw new Error('Supabase admin client cannot be used in browser context.');
+}
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/types/database';
 
