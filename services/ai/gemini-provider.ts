@@ -58,48 +58,60 @@ export class GeminiProvider implements AIProvider {
       notes: context?.notes,
     });
 
-    try {
-      const response = await this.client.models.generateContent({
-        model: this.defaultModel,
-        contents: userPrompt,
-        config: {
-          systemInstruction: YMYL_FINANCE_SYSTEM_PROMPT,
-          temperature: this.temperature,
-          responseMimeType: 'application/json',
-          responseJsonSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: {
-                type: Type.STRING,
-                description: 'Título final e polido do artigo, atraente e otimizado para SEO.',
+    // Lista de modelos resilientes em ordem de tentativa para tolerância a picos de demanda (503 / high demand)
+    const modelsToTry = [
+      this.defaultModel,
+      'gemini-3.7-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
+
+    let lastError: unknown;
+
+    for (const currentModel of modelsToTry) {
+      try {
+        logger.info(this.name, `Tentando geração com modelo: ${currentModel}`);
+        const response = await this.client.models.generateContent({
+          model: currentModel,
+          contents: userPrompt,
+          config: {
+            systemInstruction: YMYL_FINANCE_SYSTEM_PROMPT,
+            temperature: this.temperature,
+            responseMimeType: 'application/json',
+            responseJsonSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: {
+                  type: Type.STRING,
+                  description: 'Título final e polido do artigo, atraente e otimizado para SEO.',
+                },
+                slug: {
+                  type: Type.STRING,
+                  description: 'Slug amigável para URL em letras minúsculas separadas por hífen.',
+                },
+                metaDescription: {
+                  type: Type.STRING,
+                  description: 'Meta description concisa e atrativa com 120 a 155 caracteres.',
+                },
+                content: {
+                  type: Type.STRING,
+                  description: 'Texto integral do artigo formatado em Markdown rico ou HTML semântico com H2, H3, listas e FAQ.',
+                },
+                keywords: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: 'Lista de palavras-chave primárias e secundárias abordadas no artigo.',
+                },
+                readingTimeMinutes: {
+                  type: Type.INTEGER,
+                  description: 'Tempo estimado de leitura do artigo em minutos.',
+                },
               },
-              slug: {
-                type: Type.STRING,
-                description: 'Slug amigável para URL em letras minúsculas separadas por hífen.',
-              },
-              metaDescription: {
-                type: Type.STRING,
-                description: 'Meta description concisa e atrativa com 120 a 155 caracteres.',
-              },
-              content: {
-                type: Type.STRING,
-                description: 'Texto integral do artigo formatado em Markdown rico ou HTML semântico com H2, H3, listas e FAQ.',
-              },
-              keywords: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: 'Lista de palavras-chave primárias e secundárias abordadas no artigo.',
-              },
-              readingTimeMinutes: {
-                type: Type.INTEGER,
-                description: 'Tempo estimado de leitura do artigo em minutos.',
-              },
+              required: ['title', 'slug', 'metaDescription', 'content', 'keywords'],
+              propertyOrdering: ['title', 'slug', 'metaDescription', 'content', 'keywords', 'readingTimeMinutes'],
             },
-            required: ['title', 'slug', 'metaDescription', 'content', 'keywords'],
-            propertyOrdering: ['title', 'slug', 'metaDescription', 'content', 'keywords', 'readingTimeMinutes'],
           },
-        },
-      });
+        });
 
       const responseText = response.text;
       if (!responseText) {
@@ -149,23 +161,28 @@ export class GeminiProvider implements AIProvider {
         readingTimeMinutes: parsed.readingTimeMinutes || Math.ceil(parsed.content.split(/\s+/).length / 200),
       };
     } catch (err: unknown) {
-      if (err instanceof AIProviderError) {
-        throw err;
-      }
-
+      lastError = err;
       const errorMessage = err instanceof Error ? err.message : String(err);
-      const isQuotaError = errorMessage.toLowerCase().includes('quota') || errorMessage.includes('429');
-      const isTimeout = errorMessage.toLowerCase().includes('timeout') || errorMessage.toLowerCase().includes('deadline');
-      const isRetryable = isQuotaError || isTimeout || errorMessage.includes('503') || errorMessage.includes('500');
-
-      logger.error(this.name, `Erro ao invocar Google Gemini API: ${errorMessage}`, { error: err });
-
-      throw new AIProviderError(errorMessage, {
-        provider: this.name,
-        statusCode: isQuotaError ? 429 : 500,
-        isRetryable,
-        originalError: err,
-      });
+      logger.warn(this.name, `Falha com modelo ${currentModel}: ${errorMessage}. Tentando próximo modelo...`);
     }
   }
+
+  // Se todos os modelos falharem
+  const finalError = lastError;
+  const finalMessage = finalError instanceof Error ? finalError.message : String(finalError);
+  const isQuota = finalMessage.toLowerCase().includes('quota') || finalMessage.includes('429');
+  const isHighDemand = finalMessage.includes('503') || finalMessage.toLowerCase().includes('high demand');
+
+  throw new AIProviderError(
+    isHighDemand
+      ? 'A API do Gemini está temporariamente com alta demanda nos modelos testados. Por favor, tente novamente em alguns segundos.'
+      : finalMessage,
+    {
+      provider: this.name,
+      statusCode: isQuota ? 429 : isHighDemand ? 503 : 500,
+      isRetryable: true,
+      originalError: finalError,
+    }
+  );
+}
 }

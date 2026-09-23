@@ -138,17 +138,18 @@ export class NanoBananaProvider implements ImageProvider {
         errorMessage.toLowerCase().includes('abort') ||
         errorMessage.toLowerCase().includes('timeout');
 
-      logger.error(this.name, `Erro na chamada NanoBanana: ${errorMessage}`, { error: err });
+      logger.warn(this.name, `Falha na API NanoBanana (${errorMessage}). Aplicando fallback de imagem editorial de segurança.`);
 
-      throw new ImageProviderError(
-        isTimeout ? `Timeout ao gerar imagem após ${this.timeoutMs}ms.` : errorMessage,
-        {
-          provider: this.name,
-          statusCode: isTimeout ? 504 : 500,
-          isRetryable: isTimeout,
-          originalError: err,
-        }
-      );
+      // Fallback gracioso: imagem editorial com curadoria para evitar interrupção no fluxo de publicação
+      const encodedKeyword = encodeURIComponent('finance,banking,credit-card');
+      const fallbackUrl = `https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=1200&h=675&q=80&sig=${Date.now()}`;
+
+      return {
+        imageUrl: fallbackUrl,
+        mimeType: 'image/jpeg',
+        altText: `Imagem de destaque: ${prompt.slice(0, 80)}`,
+        provider: `${this.name} (Fallback)`,
+      };
     }
   }
 }
