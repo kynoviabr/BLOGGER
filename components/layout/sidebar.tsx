@@ -24,6 +24,7 @@ const iconMap: Record<string, React.ElementType> = {
   LayoutDashboard,
   Globe,
   Calendar,
+  Sparkles,
   FileText,
   Image: ImageIcon,
   ScrollText,

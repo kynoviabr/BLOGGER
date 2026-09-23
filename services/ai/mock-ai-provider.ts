@@ -37,6 +37,28 @@ export class MockAIProvider implements AIProvider {
       readingTimeMinutes: 5,
     };
   }
+
+  async generateIdeas(context: {
+    niche?: string;
+    category?: string;
+    count?: number;
+  }): Promise<Array<{ title: string; keywords: string; description: string; type: string }>> {
+    const cat = context.category || 'Finanças';
+    return [
+      {
+        title: `Como escolher o melhor produto de ${cat} em 2026`,
+        keywords: `${cat}, dicas financeiras, economia, planejamento`,
+        description: `Guia comparativo detalhado analisando opções de ${cat}, vantagens, desvantagens e taxas.`,
+        type: 'Guia Completo',
+      },
+      {
+        title: `5 Erros comuns ao lidar com ${cat} e como evitá-los`,
+        keywords: `erros financeiros, ${cat}, como economizar, score`,
+        description: `Lista prática com os 5 erros mais frequentes dos brasileiros ao contratar ${cat}.`,
+        type: 'Lista / Dicas',
+      },
+    ];
+  }
 }
 
 export class MockImageProvider implements ImageProvider {

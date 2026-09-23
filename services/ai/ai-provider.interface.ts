@@ -29,4 +29,18 @@ export interface AIProvider {
     keywords: string[],
     context?: ArticleGenerationContext
   ): Promise<GeneratedArticle>;
+
+  /**
+   * Gera ideias de pautas estruturadas em lote para um blog e nicho específico.
+   */
+  generateIdeas?(
+    context: {
+      niche?: string;
+      audience?: string;
+      purpose?: string;
+      category?: string;
+      language?: string;
+      count?: number;
+    }
+  ): Promise<Array<{ title: string; keywords: string; description: string; type: string }>>;
 }

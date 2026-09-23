@@ -185,4 +185,102 @@ export class GeminiProvider implements AIProvider {
     }
   );
 }
+
+  async generateIdeas(context: {
+    niche?: string;
+    audience?: string;
+    purpose?: string;
+    category?: string;
+    language?: string;
+    count?: number;
+  }): Promise<Array<{ title: string; keywords: string; description: string; type: string }>> {
+    const count = Math.min(Math.max(context.count || 7, 5), 10);
+    const niche = context.niche || 'Finanças Pessoais e Educação Financeira';
+    const audience = context.audience || 'Pessoas que buscam organização financeira, cartões de crédito e sair das dívidas';
+    const purpose = context.purpose || 'Informar, educar e gerar valor com alto nível de autoridade e clareza';
+    const category = context.category ? `na categoria "${context.category}"` : 'em tópicos de alta demanda e relevância';
+    const language = context.language || 'pt-BR';
+
+    logger.info(this.name, `Gerando ${count} ideias de pautas para nicho: ${niche}, categoria: ${context.category || 'todas'}`);
+
+    const prompt = `Você é um Estrategista de Conteúdo e Especialista em SEO Editorial.
+Gere exatamente ${count} ideias inovadoras, atraentes e de alto potencial de tráfego orgânico ${category}.
+
+Contexto do Blog:
+- Nicho: ${niche}
+- Público-Alvo: ${audience}
+- Propósito/Linha Editorial: ${purpose}
+- Idioma: ${language}
+
+Cada ideia deve conter:
+- title: Título proposto chamativo e otimizado para clique e SEO (até 65 caracteres).
+- keywords: Lista de 3 a 5 palavras-chave estratégicas separadas por vírgulas.
+- description: Notas detalhadas e orientações de estrutura/conteúdo para a IA escrever o artigo posteriormente.
+- type: Tipo do artigo (ex: "Guia Completo", "Lista / Comparativo", "Passo a Passo", "Análise Crítica", "Dicas Práticas").`;
+
+    const modelsToTry = [
+      this.defaultModel,
+      'gemini-3.7-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
+
+    let lastError: unknown;
+
+    for (const currentModel of modelsToTry) {
+      try {
+        const response = await this.client.models.generateContent({
+          model: currentModel,
+          contents: prompt,
+          config: {
+            temperature: 0.7,
+            responseMimeType: 'application/json',
+            responseJsonSchema: {
+              type: Type.ARRAY,
+              description: 'Lista de ideias de pautas estruturadas para o blog',
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: {
+                    type: Type.STRING,
+                    description: 'Título proposto para o artigo',
+                  },
+                  keywords: {
+                    type: Type.STRING,
+                    description: 'Palavras-chave separadas por vírgula',
+                  },
+                  description: {
+                    type: Type.STRING,
+                    description: 'Notas e instruções detalhadas para orientar a redação posterior',
+                  },
+                  type: {
+                    type: Type.STRING,
+                    description: 'Tipo ou formato do artigo (ex: Tutorial, Lista, Comparativo)',
+                  },
+                },
+                required: ['title', 'keywords', 'description', 'type'],
+              },
+            },
+          },
+        });
+
+        const text = response.text;
+        if (!text) continue;
+
+        const ideas = JSON.parse(text);
+        if (Array.isArray(ideas) && ideas.length > 0) {
+          logger.info(this.name, `${ideas.length} ideias geradas com sucesso usando ${currentModel}`);
+          return ideas;
+        }
+      } catch (err) {
+        lastError = err;
+        logger.warn(this.name, `Falha ao gerar ideias com modelo ${currentModel}: ${String(err)}`);
+      }
+    }
+
+    throw new AIProviderError(
+      `Falha ao gerar ideias com os modelos disponíveis: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      { provider: this.name, statusCode: 500, isRetryable: true, originalError: lastError }
+    );
+  }
 }

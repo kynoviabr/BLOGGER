@@ -22,6 +22,11 @@ export const navigationItems: NavItem[] = [
     icon: "Calendar",
   },
   {
+    title: "Ideation Engine",
+    href: "/ideas",
+    icon: "Sparkles",
+  },
+  {
     title: "Content",
     href: "/content",
     icon: "FileText",

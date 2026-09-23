@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Filter, AlertCircle } from "lucide-react";
+import { Plus, Filter, AlertCircle, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,12 +40,20 @@ export default async function CalendarPage({
         title="Calendário Editorial"
         description="Planeje pautas, defina datas de publicação e acompanhe ou execute o ciclo completo de produção de cada artigo."
         actions={
-          <Link href="/calendar/new">
-            <Button size="sm" className="gap-1.5">
-              <Plus className="h-4 w-4" />
-              Nova Pauta
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2.5">
+            <Link href="/ideas">
+              <Button size="sm" variant="outline" className="gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/40">
+                <Sparkles className="h-4 w-4 text-blue-500" />
+                Gerar Ideias com IA
+              </Button>
+            </Link>
+            <Link href="/calendar/new">
+              <Button size="sm" className="gap-1.5">
+                <Plus className="h-4 w-4" />
+                Nova Pauta
+              </Button>
+            </Link>
+          </div>
         }
       />
 
