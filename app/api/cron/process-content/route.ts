@@ -120,20 +120,39 @@ export async function GET(request: NextRequest) {
           notes: calendarItem.notes || undefined,
         });
 
-        // 3.4. Gerar Imagem de Destaque com ImageProvider (NanoBanana)
-        const { data: recentAssets } = await adminSupabase
-          .from('media_assets')
-          .select('prompt')
-          .eq('blog_id', calendarItem.blog_id)
-          .order('created_at', { ascending: false })
-          .limit(8);
+        // 3.4. Salvar o artigo gerado imediatamente (garante integridade do texto contra falhas de mídia)
+        const { error: contentSaveError } = await adminSupabase
+          .from('content_items')
+          .update({
+            title: generatedArticle.title,
+            slug: generatedArticle.slug,
+            meta_description: generatedArticle.metaDescription,
+            body: generatedArticle.content,
+            status: 'ready',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contentItem.id);
 
-        const recentVisuals = (recentAssets || [])
-          .map((asset) => asset.prompt)
-          .filter(Boolean)
-          .join('\n- ');
+        if (contentSaveError) {
+          throw new Error(`Falha ao salvar texto do artigo no banco: ${contentSaveError.message}`);
+        }
 
-        const imagePrompt = `Crie uma imagem de destaque editorial única e específica para o artigo "${generatedArticle.title}".
+        // 3.5. Gerar Imagem de Destaque com ImageProvider (Não Bloqueante)
+        let mediaAssetId: string | null = null;
+        try {
+          const { data: recentAssets } = await adminSupabase
+            .from('media_assets')
+            .select('prompt')
+            .eq('blog_id', calendarItem.blog_id)
+            .order('created_at', { ascending: false })
+            .limit(8);
+
+          const recentVisuals = (recentAssets || [])
+            .map((asset) => asset.prompt)
+            .filter(Boolean)
+            .join('\n- ');
+
+          const imagePrompt = `Crie uma imagem de destaque editorial única e específica para o artigo "${generatedArticle.title}".
 Tema original: ${calendarItem.topic}.
 Palavras-chave: ${keywords.join(', ')}.
 Nicho do blog: ${blog?.niche || 'não informado'}.
@@ -145,54 +164,76 @@ Varie enquadramento, ambiente, objetos principais e metáfora em relação às i
 Prompts recentes a não repetir:
 - ${recentVisuals || 'nenhum'}
 Estilo: fotografia editorial cinematográfica, elegante, natural, alta resolução, composição limpa, 16:9.`;
-        const generatedImage = await imageProvider.generateFeaturedImage(imagePrompt, {
-          aspectRatio: '16:9',
-          style: 'editorial',
-        });
 
-        // 3.5. Salvar asset de imagem
-        const { data: mediaAsset, error: mediaError } = await adminSupabase
-          .from('media_assets')
-          .insert({
-            blog_id: calendarItem.blog_id,
-            content_id: contentItem.id,
-            type: 'image',
-            storage_path: generatedImage.imageUrl,
-            public_url: generatedImage.imageUrl,
-            alt_text: generatedImage.altText || `Imagem de destaque para ${generatedArticle.title}`,
-            prompt: imagePrompt,
-            provider: generatedImage.provider,
-          })
-          .select()
-          .single();
+          const generatedImage = await imageProvider.generateFeaturedImage(imagePrompt, {
+            aspectRatio: '16:9',
+            style: 'editorial',
+          });
 
-        if (mediaError) {
-          logger.warn('Cron.processContent', `Falha ao salvar media_asset: ${mediaError.message}`);
+          let storagePath = generatedImage.imageUrl;
+          let publicUrl = generatedImage.imageUrl;
+
+          if (generatedImage.buffer) {
+            try {
+              const ext = generatedImage.mimeType === 'image/png' ? 'png' : generatedImage.mimeType === 'image/webp' ? 'webp' : 'jpg';
+              const filePath = `${calendarItem.blog_id}/${contentItem.id}/featured-${Date.now()}.${ext}`;
+              const { data: uploadData, error: uploadErr } = await adminSupabase.storage
+                .from('blog-assets')
+                .upload(filePath, generatedImage.buffer, {
+                  contentType: generatedImage.mimeType,
+                  upsert: true,
+                });
+
+              if (!uploadErr && uploadData) {
+                storagePath = uploadData.path;
+                const { data: pubUrlData } = adminSupabase.storage
+                  .from('blog-assets')
+                  .getPublicUrl(uploadData.path);
+                publicUrl = pubUrlData.publicUrl;
+              }
+            } catch (storageErr) {
+              logger.warn('Cron.processContent', `Falha ao persistir no storage blog-assets: ${String(storageErr)}`);
+            }
+          }
+
+          // Salva asset de imagem
+          const { data: mediaAsset, error: mediaError } = await adminSupabase
+            .from('media_assets')
+            .insert({
+              blog_id: calendarItem.blog_id,
+              content_id: contentItem.id,
+              type: 'image',
+              storage_path: storagePath,
+              public_url: publicUrl,
+              alt_text: generatedImage.altText || `Imagem de destaque para ${generatedArticle.title}`,
+              prompt: imagePrompt,
+              provider: generatedImage.provider,
+            })
+            .select()
+            .single();
+
+          if (mediaError) {
+            logger.warn('Cron.processContent', `Falha ao salvar media_asset: ${mediaError.message}`);
+          } else if (mediaAsset) {
+            mediaAssetId = mediaAsset.id;
+            await adminSupabase
+              .from('content_items')
+              .update({
+                featured_image_id: mediaAsset.id,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', contentItem.id);
+          }
+        } catch (imageErr) {
+          logger.warn('Cron.processContent', `Aviso: Geração de imagem falhou de forma não bloqueante para pauta ${calendarItem.id}: ${String(imageErr)}`);
         }
 
-        // 3.6. Atualizar content_items com o artigo completo e status 'ready'
-        const { error: contentUpdateError } = await adminSupabase
-          .from('content_items')
-          .update({
-            title: generatedArticle.title,
-            slug: generatedArticle.slug,
-            meta_description: generatedArticle.metaDescription,
-            body: generatedArticle.content,
-            status: 'ready',
-            featured_image_id: mediaAsset?.id || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', contentItem.id);
-
-        if (contentUpdateError) {
-          throw new Error(`Falha ao atualizar content_item final: ${contentUpdateError.message}`);
-        }
-
-        // 3.7. Atualizar status do editorial_calendar para 'READY'
+        // 3.6. Atualizar status do editorial_calendar para 'READY'
         await adminSupabase
           .from('editorial_calendar')
           .update({ status: 'READY', updated_at: new Date().toISOString() })
           .eq('id', calendarItem.id);
+
 
         // 3.8. Registrar ai_runs
         const itemDuration = Date.now() - itemStartTime;

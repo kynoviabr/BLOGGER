@@ -1,7 +1,7 @@
 import { AIProvider } from './ai-provider.interface';
 import { ImageProvider } from './image-provider.interface';
 import { GeminiProvider } from './gemini-provider';
-import { NanoBananaProvider } from './nano-banana-provider';
+import { PollinationsImageProvider } from './pollinations-image-provider';
 import { MockAIProvider, MockImageProvider } from './mock-ai-provider';
 import { logger } from '@/lib/logger';
 
@@ -36,18 +36,18 @@ export function createAIProvider(options: AIFactoryOptions = {}): AIProvider {
 
 /**
  * Factory para criação do provedor de geração de imagens.
+ * Utiliza Pollinations.ai (100% gratuito e sem necessidade de chaves de API).
  */
 export function createImageProvider(options: AIFactoryOptions = {}): ImageProvider {
-  const apiKey = options.imageApiKey || process.env.IMAGE_API_KEY;
-  const isMock = options.forceMock || process.env.IMAGE_PROVIDER_TYPE === 'mock' || !apiKey;
+  const isMock = options.forceMock || process.env.IMAGE_PROVIDER_TYPE === 'mock';
 
   if (isMock) {
-    logger.info('AIFactory', 'Instanciando MockImageProvider (sem chave de API configurada ou mock forçado)');
+    logger.info('AIFactory', 'Instanciando MockImageProvider (mock forçado)');
     return new MockImageProvider();
   }
 
-  return new NanoBananaProvider({
-    apiKey,
-    apiUrl: options.imageApiUrl,
+  return new PollinationsImageProvider({
+    baseUrl: options.imageApiUrl,
   });
 }
+

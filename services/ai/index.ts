@@ -15,7 +15,9 @@ export function registerAIProvider(provider: LegacyAIProvider): void {
 export * from './ai-provider.interface';
 export * from './image-provider.interface';
 export * from './gemini-provider';
+export * from './pollinations-image-provider';
 export * from './nano-banana-provider';
 export * from './mock-ai-provider';
 export * from './factory';
 export * from './legacy-provider.interface';
+
