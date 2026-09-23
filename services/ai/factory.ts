@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 export interface AIFactoryOptions {
   geminiApiKey?: string;
   geminiModel?: string;
+  geminiFallbackModel?: string;
   imageApiKey?: string;
   imageApiUrl?: string;
   forceMock?: boolean;
@@ -29,6 +30,7 @@ export function createAIProvider(options: AIFactoryOptions = {}): AIProvider {
   return new GeminiProvider({
     apiKey,
     model: options.geminiModel,
+    fallbackModel: options.geminiFallbackModel,
   });
 }
 
