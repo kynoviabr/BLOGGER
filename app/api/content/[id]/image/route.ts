@@ -73,15 +73,43 @@ Estilo: fotografia editorial cinematográfica, elegante, natural, alta resoluç�
 
     const durationMs = Date.now() - startTime;
 
-    // 5. Salvar asset em media_assets
+    // 5. Upload para Supabase Storage (blog-assets) e salvar asset em media_assets
+    let storagePath = generatedImage.imageUrl;
+    let publicUrl = generatedImage.imageUrl;
+
+    if (generatedImage.buffer) {
+      try {
+        const ext = generatedImage.mimeType === 'image/png' ? 'png' : generatedImage.mimeType === 'image/webp' ? 'webp' : 'jpg';
+        const filePath = `${contentItem.blog_id}/${id}/featured-${Date.now()}.${ext}`;
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('blog-assets')
+          .upload(filePath, generatedImage.buffer, {
+            contentType: generatedImage.mimeType,
+            upsert: true,
+          });
+
+        if (!uploadErr && uploadData) {
+          storagePath = uploadData.path;
+          const { data: pubUrlData } = supabase.storage
+            .from('blog-assets')
+            .getPublicUrl(uploadData.path);
+          publicUrl = pubUrlData.publicUrl;
+        } else if (uploadErr) {
+          logger.warn('API.image', `Aviso: Upload para blog-assets falhou (${uploadErr.message}). Utilizando URL direta do provedor.`);
+        }
+      } catch (storageErr) {
+        logger.warn('API.image', `Aviso: Erro no upload para storage: ${String(storageErr)}`);
+      }
+    }
+
     const { data: mediaAsset, error: mediaError } = await supabase
       .from('media_assets')
       .insert({
         blog_id: contentItem.blog_id,
         content_id: id,
         type: 'image',
-        storage_path: generatedImage.imageUrl,
-        public_url: generatedImage.imageUrl,
+        storage_path: storagePath,
+        public_url: publicUrl,
         alt_text: generatedImage.altText || `Imagem de destaque para ${contentItem.title}`,
         prompt,
         provider: generatedImage.provider,
@@ -102,7 +130,7 @@ Estilo: fotografia editorial cinematográfica, elegante, natural, alta resoluç�
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .select('*, featured_image:media_assets(*)')
+      .select('*, featured_image:media_assets!content_items_featured_image_id_fkey(*)')
       .single();
 
     if (updateError) {
@@ -113,13 +141,13 @@ Estilo: fotografia editorial cinematográfica, elegante, natural, alta resoluç�
     // 7. Registrar execução em ai_runs
     await supabase.from('ai_runs').insert({
       content_id: id,
-      agent: 'ImageAgent (NanoBanana)',
+      agent: 'ImageAgent (Pollinations)',
       provider: imageProvider.name,
-      model: 'image-gen-v1',
+      model: 'pollinations',
       status: 'completed',
       input_summary: prompt.slice(0, 150),
-      output_summary: `Imagem gerada: ${generatedImage.imageUrl.slice(0, 80)}`,
-      estimated_cost: 0.02,
+      output_summary: `Imagem gerada: ${publicUrl.slice(0, 80)}`,
+      estimated_cost: 0,
       duration_ms: durationMs,
     });
 
@@ -148,9 +176,9 @@ Estilo: fotografia editorial cinematográfica, elegante, natural, alta resoluç�
       const supabase = await getSupabaseServerClient();
       await supabase.from('ai_runs').insert({
         content_id: id,
-        agent: 'ImageAgent (NanoBanana)',
-        provider: 'NanoBananaProvider',
-        model: 'image-gen-v1',
+        agent: 'ImageAgent (Pollinations)',
+        provider: 'PollinationsImageProvider',
+        model: 'pollinations',
         status: 'failed',
         error: errorMessage,
         duration_ms: durationMs,

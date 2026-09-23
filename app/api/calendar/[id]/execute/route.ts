@@ -103,35 +103,7 @@ export async function POST(
       notes: calendarItem.notes || undefined,
     });
 
-    // 6. ETAPA 2: Gerar Imagem de Destaque com IA (NanoBanana)
-    const imageProvider = createImageProvider();
-    const imagePrompt = `Fotografia editorial cinematográfica e elegante de alta resolução para artigo de finanças com o tema: "${generatedArticle.title}". Estilo limpo e profissional.`;
-    const generatedImage = await imageProvider.generateFeaturedImage(imagePrompt, {
-      aspectRatio: '16:9',
-      style: 'editorial',
-    });
-
-    // Salva o asset de imagem
-    const { data: mediaAsset, error: mediaError } = await adminSupabase
-      .from('media_assets')
-      .insert({
-        blog_id: calendarItem.blog_id,
-        content_id: contentId,
-        type: 'image',
-        storage_path: generatedImage.imageUrl,
-        public_url: generatedImage.imageUrl,
-        alt_text: generatedImage.altText || `Imagem de destaque para ${generatedArticle.title}`,
-        prompt: imagePrompt,
-        provider: generatedImage.provider,
-      })
-      .select()
-      .single();
-
-    if (mediaError) {
-      logger.warn('API.calendarExecute', `Aviso: Falha ao salvar asset de imagem: ${mediaError.message}`);
-    }
-
-    // Atualiza content_items com o artigo completo e imagem associada
+    // Salva o artigo gerado imediatamente (garante que falhas na imagem não destruam o artigo)
     await adminSupabase
       .from('content_items')
       .update({
@@ -140,23 +112,117 @@ export async function POST(
         meta_description: generatedArticle.metaDescription,
         body: generatedArticle.content,
         status: 'ready',
-        featured_image_id: mediaAsset?.id || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contentId);
+
+    // 6. ETAPA 2: Gerar Imagem de Destaque com IA (Não Bloqueante)
+    let generatedImage: { imageUrl?: string; buffer?: Buffer; mimeType?: string; altText?: string; provider?: string } | null = null;
+    let mediaAssetId: string | null = null;
+
+    try {
+      const imageProvider = createImageProvider();
+      const imagePrompt = `Fotografia editorial cinematográfica e elegante de alta resolução para artigo de finanças com o tema: "${generatedArticle.title}". Estilo limpo e profissional.`;
+      const imgResult = await imageProvider.generateFeaturedImage(imagePrompt, {
+        aspectRatio: '16:9',
+        style: 'editorial',
+      });
+      generatedImage = imgResult;
+
+      let storagePath = imgResult.imageUrl;
+      let publicUrl = imgResult.imageUrl;
+
+      // Upload server-side para o bucket blog-assets
+      if (imgResult.buffer) {
+        try {
+          const ext = imgResult.mimeType === 'image/png' ? 'png' : imgResult.mimeType === 'image/webp' ? 'webp' : 'jpg';
+          const filePath = `${calendarItem.blog_id}/${contentId}/featured-${Date.now()}.${ext}`;
+          const { data: uploadData, error: uploadErr } = await adminSupabase.storage
+            .from('blog-assets')
+            .upload(filePath, imgResult.buffer, {
+              contentType: imgResult.mimeType,
+              upsert: true,
+            });
+
+          if (!uploadErr && uploadData) {
+            storagePath = uploadData.path;
+            const { data: pubUrlData } = adminSupabase.storage
+              .from('blog-assets')
+              .getPublicUrl(uploadData.path);
+            publicUrl = pubUrlData.publicUrl;
+          }
+        } catch (storageErr) {
+          logger.warn('API.calendarExecute', `Aviso: Falha ao persistir no storage blog-assets: ${String(storageErr)}`);
+        }
+      }
+
+      // Salva o asset de imagem
+      const { data: insertedAsset, error: mediaError } = await adminSupabase
+        .from('media_assets')
+        .insert({
+          blog_id: calendarItem.blog_id,
+          content_id: contentId,
+          type: 'image',
+          storage_path: storagePath,
+          public_url: publicUrl,
+          alt_text: imgResult.altText || `Imagem de destaque para ${generatedArticle.title}`,
+          prompt: imagePrompt,
+          provider: imgResult.provider,
+        })
+        .select()
+        .single();
+
+      if (mediaError) {
+        logger.warn('API.calendarExecute', `Aviso: Falha ao salvar asset de imagem: ${mediaError.message}`);
+      } else if (insertedAsset) {
+        mediaAssetId = insertedAsset.id;
+        await adminSupabase
+          .from('content_items')
+          .update({
+            featured_image_id: insertedAsset.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contentId);
+      }
+    } catch (imageError) {
+      logger.warn('API.calendarExecute', `Aviso: Falha na geração de imagem (não bloqueante): ${String(imageError)}`);
+      await adminSupabase.from('system_logs').insert({
+        level: 'warn',
+        service: 'API.calendarExecute',
+        message: `Falha na geração de imagem (não bloqueante) para a pauta ${calendarId}: ${imageError instanceof Error ? imageError.message : String(imageError)}`,
+        metadata: { calendarId, contentId, error: String(imageError) } as Json,
+      });
+    }
 
     // 7. ETAPA 3: Publicar no WordPress
     const publisher = createPublisherProvider();
     let wpFeaturedMediaId: string | number | undefined;
 
-    if (generatedImage.imageUrl) {
+    if (generatedImage?.buffer) {
+      try {
+        const mimeType = generatedImage.mimeType || 'image/jpeg';
+        const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+        const fileName = `${generatedArticle.slug}-${Date.now()}.${ext}`;
+
+        const mediaUploadResult = await publisher.uploadMedia({
+          fileName,
+          mimeType,
+          data: generatedImage.buffer,
+          title: generatedArticle.title,
+          altText: generatedImage.altText || generatedArticle.title,
+        });
+        wpFeaturedMediaId = mediaUploadResult.mediaId;
+      } catch (mediaErr) {
+        logger.warn('API.calendarExecute', `Falha ao enviar mídia para WP: ${String(mediaErr)}`);
+      }
+    } else if (generatedImage?.imageUrl) {
       try {
         const imgFetch = await fetch(generatedImage.imageUrl);
         if (imgFetch.ok) {
           const arrayBuf = await imgFetch.arrayBuffer();
           const buffer = Buffer.from(arrayBuf);
-          const mimeType = imgFetch.headers.get('content-type') || 'image/webp';
-          const fileName = `${generatedArticle.slug}-${Date.now()}.webp`;
+          const mimeType = imgFetch.headers.get('content-type') || 'image/jpeg';
+          const fileName = `${generatedArticle.slug}-${Date.now()}.jpg`;
 
           const mediaUploadResult = await publisher.uploadMedia({
             fileName,
