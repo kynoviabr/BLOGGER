@@ -7,7 +7,7 @@ export class ContentService {
     const supabase = await getSupabaseServerClient();
     let query = supabase
       .from('content_items')
-      .select('*, blog:blogs(id, name, slug), featured_image:media_assets(*)')
+      .select('*, blog:blogs(id, name, slug), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
       .order('created_at', { ascending: false });
 
     if (filters?.blogId) {
@@ -31,7 +31,7 @@ export class ContentService {
     const supabase = await getSupabaseServerClient();
     const { data, error } = await supabase
       .from('content_items')
-      .select('*, blog:blogs(id, name, slug), featured_image:media_assets(*), content_sources(*), ai_runs(*)')
+      .select('*, blog:blogs(id, name, slug), featured_image:media_assets!content_items_featured_image_id_fkey(*), content_sources(*), ai_runs(*)')
       .eq('id', id)
       .maybeSingle();
 
