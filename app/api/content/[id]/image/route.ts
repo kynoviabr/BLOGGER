@@ -37,7 +37,28 @@ export async function POST(
     }
 
     const blog = contentItem.blog;
-    const prompt = `Uma fotografia editorial cinematográfica e elegante de alta resolução para artigo de finanças com o tema: "${contentItem.title}". Estilo limpo, profissional, sem textos sobrepostos.`;
+    const recentAssets = await supabase
+      .from('media_assets')
+      .select('prompt')
+      .eq('blog_id', contentItem.blog_id)
+      .order('created_at', { ascending: false })
+      .limit(8);
+
+    const recentVisuals = (recentAssets.data || [])
+      .map((asset) => asset.prompt)
+      .filter(Boolean)
+      .join('\n- ');
+
+    const prompt = `Crie uma imagem de destaque editorial única e específica para o artigo "${contentItem.title}".
+Nicho do blog: ${blog?.niche || 'não informado'}.
+Público: ${blog?.audience || 'não informado'}.
+Use uma metáfora visual diretamente relacionada ao assunto do título, com cenário, objetos e composição específicos.
+Evite imagens genéricas de finanças e clichês como pilhas de moedas, cofrinhos, cartões sobre mesa, executivos olhando notebook e gráficos genéricos, salvo quando forem essenciais ao assunto.
+Não inclua texto, letras, números, logotipos ou marcas na imagem.
+Varie enquadramento, ambiente, objetos principais e metáfora em relação às imagens recentes.
+Prompts recentes a não repetir:
+- ${recentVisuals || 'nenhum'}
+Estilo: fotografia editorial cinematográfica, elegante, natural, alta resolução, composição limpa, 16:9.`;
 
     // 3. Instanciar ImageProvider via Factory
     const imageProvider = createImageProvider();
