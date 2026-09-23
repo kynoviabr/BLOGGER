@@ -78,13 +78,19 @@ export default async function CalendarPage({
             Todos
           </Badge>
         </Link>
-        {statuses.map((st) => (
-          <Link key={st} href={`/calendar?status=${st}${blogId ? `&blogId=${blogId}` : ""}`}>
-            <Badge variant={status === st ? "info" : "outline"} className="cursor-pointer">
-              {st}
-            </Badge>
-          </Link>
-        ))}
+        {statuses.map((st) => {
+          const count = items.filter((i) => i.status === st).length;
+          return (
+            <Link key={st} href={`/calendar?status=${st}${blogId ? `&blogId=${blogId}` : ""}`}>
+              <Badge
+                variant={status === st ? "info" : st === "FAILED" && count > 0 ? "error" : "outline"}
+                className="cursor-pointer"
+              >
+                {st} {count > 0 ? `(${count})` : ""}
+              </Badge>
+            </Link>
+          );
+        })}
       </div>
 
       {items.length === 0 && !loadError ? (

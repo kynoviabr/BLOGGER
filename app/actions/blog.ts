@@ -116,3 +116,70 @@ export async function toggleBlogStatusAction(id: string) {
   revalidatePath("/blogs");
   revalidatePath("/");
 }
+
+export async function updateAutopilotConfigAction(
+  id: string,
+  prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  try {
+    await requireAuth();
+
+    const autopilot_enabled =
+      formData.get("autopilot_enabled") === "true" ||
+      formData.get("autopilot_enabled") === "on";
+    const autopilot_start_time =
+      formData.get("autopilot_start_time")?.toString().trim() || "06:00";
+    const autopilot_interval_minutes = Math.max(
+      1,
+      parseInt(formData.get("autopilot_interval_minutes")?.toString() || "30", 10)
+    );
+    const autopilot_daily_limit = Math.max(
+      1,
+      parseInt(formData.get("autopilot_daily_limit")?.toString() || "5", 10)
+    );
+
+    const blog = await BlogService.getBlogById(id);
+    if (!blog) {
+      return { error: "Blog não encontrado." };
+    }
+
+    const currentEd = (blog.editorial_config as Record<string, unknown>) || {};
+    const updatedEd = {
+      ...currentEd,
+      autopilot: {
+        autopilot_enabled,
+        autopilot_start_time,
+        autopilot_interval_minutes,
+        autopilot_daily_limit,
+      },
+    };
+
+    // Atualiza editorial_config e tenta atualizar colunas se existirem
+    try {
+      await BlogService.updateBlog(id, {
+        editorial_config: updatedEd,
+        autopilot_enabled,
+        autopilot_start_time,
+        autopilot_interval_minutes,
+        autopilot_daily_limit,
+      } as BlogUpdate);
+    } catch {
+      await BlogService.updateBlog(id, {
+        editorial_config: updatedEd,
+      });
+    }
+
+    revalidatePath(`/blogs/${id}`);
+    revalidatePath("/blogs");
+    return { success: true };
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Erro ao salvar configurações do Autopilot.";
+    logger.error("BlogAction.updateAutopilot", `Erro ao configurar autopilot no blog ${id}`, { err });
+    return { error: message };
+  }
+}
+

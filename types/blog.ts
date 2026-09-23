@@ -14,12 +14,20 @@ export interface ThemeConfig {
   logo_url?: string;
 }
 
+export interface AutopilotConfig {
+  autopilot_enabled?: boolean;
+  autopilot_start_time?: string;
+  autopilot_interval_minutes?: number;
+  autopilot_daily_limit?: number;
+}
+
 export interface EditorialConfig {
   tone?: string;
   min_words?: number;
   max_words?: number;
   target_reading_level?: string;
   include_code_examples?: boolean;
+  autopilot?: AutopilotConfig;
 }
 
 export interface SeoConfig {
@@ -39,3 +47,5 @@ export interface BlogWithRelations extends Blog {
   languages?: BlogLanguage[];
   categories?: Category[];
 }
+
+export type { BlogStatus };
