@@ -5,13 +5,6 @@ import { Button } from "@/components/ui/button";
 import { BlogService } from "@/services/blog.service";
 import { IdeasGeneratorView } from "@/components/ideas/ideas-generator-view";
 
-const DEFAULT_CATEGORIES = [
-  { id: "cartoes-de-credito", name: "Cartões de Crédito" },
-  { id: "emprestimos", name: "Empréstimos" },
-  { id: "saindo-das-dividas", name: "Saindo das Dívidas" },
-  { id: "renda-e-milhas", name: "Renda e Milhas" },
-];
-
 export default async function IdeasPage() {
   const blogs = await BlogService.listBlogs();
 
@@ -30,10 +23,7 @@ export default async function IdeasPage() {
         }
       />
 
-      <IdeasGeneratorView
-        blogs={blogs}
-        defaultCategories={DEFAULT_CATEGORIES}
-      />
+      <IdeasGeneratorView blogs={blogs} />
     </div>
   );
 }

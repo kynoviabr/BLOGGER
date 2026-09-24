@@ -16,21 +16,15 @@ interface CalendarItemFormProps {
   blogs: BlogWithRelations[];
 }
 
-const DEFAULT_CATEGORIES = [
-  { id: "cartoes-de-credito", name: "Cartões de Crédito" },
-  { id: "emprestimos", name: "Empréstimos" },
-  { id: "saindo-das-dividas", name: "Saindo das Dívidas" },
-  { id: "renda-e-milhas", name: "Renda e Milhas" },
-];
-
 const initialState: ActionResult = {};
 
 export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
   const [state, formAction, isPending] = useActionState(createCalendarItemAction, initialState);
-  const dbCategories = blogs.flatMap((b) => b.categories || []);
+  const [selectedBlogId, setSelectedBlogId] = React.useState<string>(blogs[0]?.id || "");
+  const [selectedCategoryId, setSelectedCategoryId] = React.useState<string>("");
 
-  // Utiliza as categorias vindas do banco de dados se existirem, ou o fallback das novas categorias padrão
-  const categoriesToDisplay = dbCategories.length > 0 ? dbCategories : DEFAULT_CATEGORIES;
+  const currentBlog = blogs.find((b) => b.id === selectedBlogId);
+  const categoriesToDisplay = currentBlog?.categories || [];
 
   return (
     <div>
@@ -47,7 +41,16 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Blog de Destino *
             </label>
-            <Select name="blog_id" required disabled={isPending}>
+            <Select
+              name="blog_id"
+              value={selectedBlogId}
+              onChange={(e) => {
+                setSelectedBlogId(e.target.value);
+                setSelectedCategoryId("");
+              }}
+              required
+              disabled={isPending}
+            >
               {blogs.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -60,7 +63,12 @@ export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Categoria
             </label>
-            <Select name="category_id" disabled={isPending}>
+            <Select
+              name="category_id"
+              value={selectedCategoryId}
+              onChange={(e) => setSelectedCategoryId(e.target.value)}
+              disabled={isPending}
+            >
               <option value="">Nenhuma / Geral</option>
               {categoriesToDisplay.map((c) => (
                 <option key={c.id} value={c.id}>

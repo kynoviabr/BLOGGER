@@ -13,10 +13,9 @@ import { Select } from "@/components/ui/select";
 
 interface IdeasGeneratorViewProps {
   blogs: BlogWithRelations[];
-  defaultCategories: { id: string; name: string }[];
 }
 
-export function IdeasGeneratorView({ blogs, defaultCategories }: IdeasGeneratorViewProps) {
+export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
   const router = useRouter();
 
   const [selectedBlogId, setSelectedBlogId] = useState<string>(blogs[0]?.id || "");
@@ -37,12 +36,9 @@ export function IdeasGeneratorView({ blogs, defaultCategories }: IdeasGeneratorV
   const [hasInterrupted, setHasInterrupted] = useState<boolean>(false);
   const [remainingCount, setRemainingCount] = useState<number>(0);
 
-  // Categorias disponíveis a partir dos blogs ou padrão
+  // Categorias disponíveis pertencentes ESTRITAMENTE ao blog selecionado
   const currentBlog = blogs.find((b) => b.id === selectedBlogId);
-  const categoriesToDisplay =
-    currentBlog && currentBlog.categories && currentBlog.categories.length > 0
-      ? currentBlog.categories
-      : defaultCategories;
+  const categoriesToDisplay = currentBlog?.categories || [];
 
   /**
    * Executa a fila de geração unitária sequencial.
@@ -299,7 +295,10 @@ export function IdeasGeneratorView({ blogs, defaultCategories }: IdeasGeneratorV
               </label>
               <Select
                 value={selectedBlogId}
-                onChange={(e) => setSelectedBlogId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedBlogId(e.target.value);
+                  setSelectedCategory("");
+                }}
                 disabled={isLoading || isSaving}
                 required
               >
