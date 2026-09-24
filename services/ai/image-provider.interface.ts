@@ -13,6 +13,8 @@ export interface ImageGenerationOptions {
   negativePrompt?: string;
   width?: number;
   height?: number;
+  seed?: number;
+  model?: string;
 }
 
 export interface ImageProvider {

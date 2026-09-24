@@ -2,6 +2,7 @@ import { AIProvider } from './ai-provider.interface';
 import { ImageProvider } from './image-provider.interface';
 import { GeminiProvider } from './gemini-provider';
 import { PollinationsImageProvider } from './pollinations-image-provider';
+import { NanoBananaProvider } from './nano-banana-provider';
 import { MockAIProvider, MockImageProvider } from './mock-ai-provider';
 import { logger } from '@/lib/logger';
 
@@ -11,6 +12,7 @@ export interface AIFactoryOptions {
   geminiFallbackModel?: string;
   imageApiKey?: string;
   imageApiUrl?: string;
+  imageProvider?: string;
   forceMock?: boolean;
 }
 
@@ -36,18 +38,32 @@ export function createAIProvider(options: AIFactoryOptions = {}): AIProvider {
 
 /**
  * Factory para criação do provedor de geração de imagens.
- * Utiliza Pollinations.ai (100% gratuito e sem necessidade de chaves de API).
+ * Utiliza seleção explícita via IMAGE_PROVIDER, tendo Pollinations.ai como padrão gratuito.
+ * A existência de IMAGE_API_KEY NÃO afeta a seleção automática do provider.
  */
 export function createImageProvider(options: AIFactoryOptions = {}): ImageProvider {
-  const isMock = options.forceMock || process.env.IMAGE_PROVIDER_TYPE === 'mock';
+  const isMock =
+    options.forceMock ||
+    process.env.IMAGE_PROVIDER_TYPE === 'mock' ||
+    process.env.IMAGE_PROVIDER === 'mock';
 
   if (isMock) {
     logger.info('AIFactory', 'Instanciando MockImageProvider (mock forçado)');
     return new MockImageProvider();
   }
 
+  const providerType = (options.imageProvider || process.env.IMAGE_PROVIDER || 'pollinations').toLowerCase();
+
+  if (providerType === 'nanobanana') {
+    logger.info('AIFactory', 'Instanciando NanoBananaProvider explicitamente configurado');
+    return new NanoBananaProvider({
+      apiUrl: options.imageApiUrl,
+      apiKey: options.imageApiKey,
+    });
+  }
+
+  // Padrão: PollinationsImageProvider (FLUX gratuito, sem exigência de API Key ou billing)
   return new PollinationsImageProvider({
     baseUrl: options.imageApiUrl,
   });
 }
-
