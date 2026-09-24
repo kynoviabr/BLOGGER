@@ -28,7 +28,7 @@ export default async function ContentListPage() {
       />
 
       {loadError && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+        <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold block">Erro ao consultar artigos no Supabase:</span>
@@ -63,37 +63,37 @@ export default async function ContentListPage() {
                   <TableCell className="font-medium max-w-md">
                     <Link
                       href={`/content/${item.id}`}
-                      className="text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 block truncate"
+                      className="text-foreground hover:text-primary dark:hover:text-blue-400 block truncate"
                     >
                       {item.title}
                     </Link>
-                    <span className="text-xs text-slate-400 font-mono block truncate mt-0.5">
+                    <span className="text-xs text-muted-foreground font-mono block truncate mt-0.5">
                       /{item.slug}
                     </span>
                   </TableCell>
-                  <TableCell className="text-xs text-slate-700 dark:text-slate-300">
+                  <TableCell className="text-xs text-foreground">
                     {item.blog?.name || "Blog"}
                   </TableCell>
-                  <TableCell className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                  <TableCell className="text-xs font-mono text-muted-foreground">
                     {item.language}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={item.status} />
                   </TableCell>
-                  <TableCell className="text-xs text-slate-500 whitespace-nowrap">
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {item.published_at ? (
-                      <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                      <div className="flex items-center gap-1.5 text-success">
                         <CheckCircle className="h-3.5 w-3.5" />
                         {formatDate(item.published_at)}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-slate-400">
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Clock className="h-3.5 w-3.5" />
                         Não publicado
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-xs text-slate-500 whitespace-nowrap">
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {formatDate(item.updated_at)}
                   </TableCell>
                   <TableCell className="text-right">
