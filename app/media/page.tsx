@@ -6,6 +6,7 @@ import { MediaService } from "@/services/media.service";
 import { formatDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MediaAsset } from "@/types/media";
+import { DeleteMediaButton } from "@/components/media/delete-media-button";
 
 export default async function MediaPage() {
   let mediaAssets: MediaAsset[] = [];
@@ -44,17 +45,18 @@ export default async function MediaPage() {
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {mediaAssets.map((asset) => (
             <Card key={asset.id} className="overflow-hidden group">
-              <div className="relative aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+              <div className="relative aspect-video w-full overflow-hidden bg-[hsl(var(--bg-subtle))]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={asset.public_url}
                   alt={asset.alt_text || "Asset de mídia"}
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
-                <div className="absolute top-2 right-2">
+                <div className="absolute top-2 right-2 flex items-center gap-2">
                   <Badge variant="default" className="backdrop-blur-md bg-black/60 text-white border-0">
                     {asset.type.toUpperCase()}
                   </Badge>
+                  <DeleteMediaButton id={asset.id} />
                 </div>
               </div>
               <CardContent className="p-4 space-y-3">
@@ -68,7 +70,7 @@ export default async function MediaPage() {
                 </div>
 
                 {asset.prompt && (
-                  <div className="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-800/40 text-[11px] text-muted-foreground">
+                  <div className="rounded-brand-card bg-[hsl(var(--bg-subtle))] p-2.5 text-[11px] text-muted-foreground">
                     <div className="flex items-center gap-1 font-semibold text-foreground mb-1">
                       <Sparkles className="h-3 w-3 text-primary" />
                       Prompt de Geração:

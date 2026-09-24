@@ -24,6 +24,33 @@ export class MediaService {
     return (data || []) as MediaAsset[];
   }
 
+  static async deleteMedia(id: string): Promise<void> {
+    const supabase = await getSupabaseServerClient();
+
+    const { data: asset, error: lookupError } = await supabase
+      .from('media_assets')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (lookupError || !asset) {
+      logger.error('MediaService.deleteMedia', 'Asset não encontrado para exclusão', { id, error: lookupError });
+      throw new Error('Asset de mídia não encontrado.');
+    }
+
+    const { error } = await supabase
+      .from('media_assets')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      logger.error('MediaService.deleteMedia', 'Erro ao excluir asset de mídia', { id, error });
+      throw new Error(`Não foi possível excluir o asset de mídia: ${error.message}`);
+    }
+
+    logger.info('MediaService', `Asset de mídia excluído: ${id}`);
+  }
+
   static async createMedia(input: MediaAssetInsert): Promise<MediaAsset> {
     const supabase = await getSupabaseServerClient();
     const { data, error } = await supabase
