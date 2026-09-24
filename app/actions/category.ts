@@ -45,6 +45,43 @@ export async function createCategoryAction(
   }
 }
 
+export async function updateCategoryAction(
+  prevState: CategoryActionResult | null,
+  formData: FormData
+): Promise<CategoryActionResult> {
+  try {
+    await requireAuth();
+
+    const categoryId = formData.get("category_id") as string;
+    const blogId = formData.get("blog_id") as string;
+    const name = formData.get("name") as string;
+    const slug = formData.get("slug") as string | undefined;
+    const description = formData.get("description") as string | undefined;
+
+    if (!categoryId || !name || !name.trim()) {
+      return { error: "ID da categoria e nome são obrigatórios." };
+    }
+
+    await CategoryService.updateCategory(categoryId, {
+      name: name.trim(),
+      slug: slug?.trim() || undefined,
+      description: description !== undefined ? (description?.trim() || null) : undefined,
+    });
+
+    if (blogId) {
+      revalidatePath(`/blogs/${blogId}`);
+    }
+    revalidatePath("/ideas");
+    revalidatePath("/calendar");
+
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro ao atualizar categoria.";
+    logger.error("CategoryAction.update", "Erro ao atualizar categoria", { err });
+    return { error: message };
+  }
+}
+
 export async function deleteCategoryAction(
   categoryId: string,
   blogId: string
