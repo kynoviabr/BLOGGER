@@ -243,10 +243,10 @@ export class OpenAIImageProvider implements ImageProvider {
           attempt,
         });
 
-        // Otimização para WebP (preserva buffer original caso falhe)
+        // Otimização para JPEG (preserva buffer original caso falhe)
         const optimized = await ImageOptimizer.optimize(rawBuffer, detectedMime, {
-          format: 'webp',
-          quality: 82,
+          format: 'jpeg',
+          quality: 85,
         });
 
         return {

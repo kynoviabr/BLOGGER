@@ -45,13 +45,17 @@ async function runTests() {
   }
 
   const optResult = await ImageOptimizer.optimize(sampleBuffer, 'image/png', {
-    format: 'webp',
-    quality: 82,
+    format: 'jpeg',
+    quality: 85,
   });
 
-  assert(optResult.mimeType === 'image/webp', 'Formato de saída deve ser image/webp');
+  assert(optResult.mimeType === 'image/jpeg', 'Formato de saída deve ser image/jpeg');
   assert(optResult.buffer.length > 0, 'Buffer otimizado deve ter tamanho > 0');
   assert(optResult.optimizedBytes === optResult.buffer.length, 'optimizedBytes corresponde ao tamanho do buffer');
+  assert(
+    optResult.buffer[0] === 0xFF && optResult.buffer[1] === 0xD8 && optResult.buffer[2] === 0xFF,
+    'Magic bytes de JPEG validados (FF D8 FF)'
+  );
   console.log(`  ℹ Redução obtida: ${optResult.reductionPercentage}% (${optResult.originalBytes} -> ${optResult.optimizedBytes} bytes)`);
 
   // Teste de fallback do optimizer com buffer corrompido
@@ -116,7 +120,7 @@ async function runTests() {
   });
   const res429 = await retryProvider429.generateFeaturedImage('Test prompt 429');
   assert(attempts429 === 3, '429 deve acionar retry e completar na 3ª tentativa');
-  assert(res429.mimeType === 'image/webp', 'Resultado final após retry é imagem válida');
+  assert(res429.mimeType === 'image/jpeg', 'Resultado final após retry é imagem JPEG válida');
 
   // 3.2. 500 falhando em todas as tentativas (3 tentativas)
   let attempts500 = 0;
