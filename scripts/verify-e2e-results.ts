@@ -31,11 +31,10 @@ function detectMime(buffer: Buffer): string | null {
 }
 
 async function verifyAll() {
-  const contentId = '3fff35e0-f3a3-404b-8806-e7c9217fbd5e';
-  const calendarId = 'd2eebc99-9c0b-4ef8-bb6d-6bb9bd380a42';
+  const calendarId = 'befcd0c1-e936-4b87-a4e7-bbac15bb023a';
 
   console.log('==================================================');
-  console.log('VERIFICAÇÃO COMPLETA DO PIPELINE E2E');
+  console.log('VERIFICAÇÃO COMPLETA DO PIPELINE E2E (JPEG)');
   console.log('==================================================\n');
 
   // 1. CONTENT_ITEMS
@@ -43,7 +42,7 @@ async function verifyAll() {
   const { data: contentItem, error: contentErr } = await supabaseAdmin
     .from('content_items')
     .select('*')
-    .eq('id', contentId)
+    .eq('editorial_calendar_id', calendarId)
     .single();
 
   console.log('ID:', contentItem?.id);
@@ -78,9 +77,10 @@ async function verifyAll() {
   console.log('Storage Magic Bytes detectados:', storageDetectedMime);
 
   // Salvar imagem para inspeção visual local
-  const localImagePath = '/tmp/blogger-e2e-published-image.webp';
-  fs.writeFileSync(localImagePath, storageBuf);
-  console.log(`Imagem salva localmente em: ${localImagePath}`);
+  // Salvar imagem para inspeção visual local
+  const artifactImagePath = '/Users/dempas/.gemini/antigravity/brain/54fc6caf-413a-489d-9a79-529ac0c9d04f/blogger-e2e-published-image.jpg';
+  fs.writeFileSync(artifactImagePath, storageBuf);
+  console.log(`Imagem salva localmente em: ${artifactImagePath}`);
 
   // 4. WORDPRESS POST & MEDIA
   console.log('\n--- 4. WORDPRESS REST API ---');
@@ -89,10 +89,29 @@ async function verifyAll() {
   const wpPass = envMap.WORDPRESS_APPLICATION_PASSWORD;
   const wpAuth = 'Basic ' + Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
 
-  const postRes = await fetch(`${wpSiteUrl}/wp-json/wp/v2/posts/43`, {
+  // Recupera wpPostId do log de sucesso do pipeline
+  const { data: pipelineLogs } = await supabaseAdmin
+    .from('system_logs')
+    .select('metadata')
+    .eq('service', 'PipelineService')
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const matchedLog = pipelineLogs?.find((l: any) => l.metadata?.calendarId === calendarId);
+  const targetPostId = matchedLog?.metadata?.wpPostId;
+
+  console.log('Target WP Post ID detectado:', targetPostId);
+
+  const postUrl = targetPostId
+    ? `${wpSiteUrl}/wp-json/wp/v2/posts/${targetPostId}`
+    : `${wpSiteUrl}/wp-json/wp/v2/posts?per_page=1&orderby=date&order=desc`;
+
+  const postRes = await fetch(postUrl, {
     headers: { Authorization: wpAuth },
   });
-  const postData = await postRes.json();
+  const postResultRaw = await postRes.json();
+  const postData = Array.isArray(postResultRaw) ? postResultRaw[0] : postResultRaw;
+
   console.log('WP Post ID:', postData.id);
   console.log('WP Post Link:', postData.link);
   console.log('WP Post Status:', postData.status);

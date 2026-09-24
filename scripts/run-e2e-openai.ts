@@ -18,7 +18,7 @@ async function runE2E() {
   console.log('Provedor de Imagem Alvo: OpenAIImageProvider (gpt-image-1-mini)');
   console.log('==================================================\n');
 
-  const targetId = 'd2eebc99-9c0b-4ef8-bb6d-6bb9bd380a42';
+  const targetId = 'befcd0c1-e936-4b87-a4e7-bbac15bb023a';
 
   console.log('1. Gerando sessão de autenticação...');
   const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
