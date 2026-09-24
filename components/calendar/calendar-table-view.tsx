@@ -242,19 +242,19 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
       {/* Toast / Alerta de Notificação */}
       {notification && (
         <div
-          className={`flex items-start justify-between gap-3 rounded-xl border p-4 text-xs ${
+          className={`flex items-start justify-between gap-3 rounded-brand-card border p-4 text-xs ${
             notification.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+              ? "border-success/25 bg-[hsl(var(--success-bg))] text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
               : notification.type === "info"
-              ? "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300"
-              : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300"
+              ? "border-primary/25 bg-blue-50 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300"
+              : "border-destructive/25 bg-[hsl(var(--danger-bg))] text-rose-800 "
           }`}
         >
           <div className="flex items-start gap-2.5">
             {notification.type === "success" ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-success mt-0.5" />
             ) : notification.type === "info" ? (
-              <Clock className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
+              <Clock className="h-4 w-4 shrink-0 text-primary mt-0.5" />
             ) : (
               <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
             )}
@@ -265,7 +265,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                   href={notification.wpUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-400"
+                  className="mt-1 inline-flex items-center gap-1 font-medium text-primary hover:underline dark:text-blue-400"
                 >
                   Ver Artigo Publicado no WordPress
                   <ExternalLink className="h-3 w-3" />
@@ -275,7 +275,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
           </div>
           <button
             onClick={() => setNotification(null)}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            className="text-[hsl(var(--text-muted))] hover:text-slate-600 dark:hover:text-slate-200"
           >
             ✕
           </button>
@@ -284,10 +284,10 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
 
       {/* Painel de Progresso da Fila em Lote */}
       {isProcessingQueue && queueProgress && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 shadow-sm space-y-2">
+        <div className="rounded-brand-card border border-primary/25 bg-[hsl(var(--info-bg))] p-4 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 shadow-sm space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 font-semibold">
-              <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+              <Loader2 className="h-4 w-4 animate-spin text-primary dark:text-blue-400" />
               <span>
                 Processando Lote: {queueProgress.current} de {queueProgress.total} pautas
               </span>
@@ -297,19 +297,19 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
               variant="outline"
               size="sm"
               onClick={handleStopQueue}
-              className="h-7 text-xs border-rose-200 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300"
+              className="h-7 text-xs border-rose-200 text-destructive hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300"
             >
               <SquareX className="mr-1 h-3.5 w-3.5" />
               Parar Fila
             </Button>
           </div>
 
-          <div className="text-[11px] text-slate-600 dark:text-slate-300 flex items-center justify-between">
+          <div className="text-[11px] text-muted-foreground flex items-center justify-between">
             <span className="truncate max-w-md">
               Pauta atual: <strong>{queueProgress.currentTitle}</strong>
             </span>
             {queueProgress.countdownSeconds !== undefined && queueProgress.countdownSeconds > 0 && (
-              <span className="inline-flex items-center gap-1 font-mono text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/60">
+              <span className="inline-flex items-center gap-1 font-mono text-warning dark:text-amber-300 bg-[hsl(var(--warning-bg))] dark:bg-amber-950/50 px-2 py-0.5 rounded border border-warning/25 dark:border-amber-900/60">
                 <Clock className="h-3 w-3 animate-pulse" />
                 Delay anti rate-limit: {queueProgress.countdownSeconds}s para próxima pauta
               </span>
@@ -319,7 +319,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
           {/* Barra de Progresso */}
           <div className="w-full bg-blue-200/60 dark:bg-blue-900/40 rounded-full h-2 overflow-hidden">
             <div
-              className="bg-blue-600 h-2 transition-all duration-300 rounded-full"
+              className="bg-primary h-2 transition-all duration-300 rounded-full"
               style={{
                 width: `${((queueProgress.current - 1) / queueProgress.total) * 100}%`,
               }}
@@ -329,11 +329,11 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
       )}
 
       {/* Barra de Ações Rápidas & Ações em Lote */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-brand-card border border-slate-100  text-xs">
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 ? (
             <div className="flex items-center gap-2">
-              <span className="font-medium text-slate-700 dark:text-slate-300">
+              <span className="font-medium text-foreground">
                 {selectedIds.size} pauta(s) selecionada(s)
               </span>
               <Button
@@ -341,7 +341,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                 size="sm"
                 onClick={handleExecuteSelected}
                 disabled={isProcessingQueue}
-                className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                className="h-8 gap-1.5 bg-success hover:brightness-95 text-white font-medium"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
                 Executar Selecionados ({selectedIds.size})
@@ -358,7 +358,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
               </Button>
             </div>
           ) : (
-            <span className="text-slate-500 dark:text-slate-400">
+            <span className="text-muted-foreground">
               Selecione checkboxes para ações em lote ou execute pautas individualmente.
             </span>
           )}
@@ -372,7 +372,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
             size="sm"
             onClick={handleReprocessFailed}
             disabled={isProcessingQueue}
-            className="h-8 gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
+            className="h-8 gap-1.5 border-rose-200 text-destructive hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
             title="Selecionar e executar novamente todas as pautas com status FAILED"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -390,13 +390,13 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                 type="button"
                 onClick={handleToggleSelectAll}
                 disabled={isProcessingQueue || items.length === 0}
-                className="p-1 hover:text-blue-600 text-slate-400 dark:text-slate-500 transition-colors"
+                className="p-1 hover:text-primary text-[hsl(var(--text-muted))] dark:text-slate-500 transition-colors"
                 title={isAllSelected ? "Desmarcar todos" : "Selecionar todos"}
               >
                 {isAllSelected ? (
-                  <CheckSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <CheckSquare className="h-4 w-4 text-primary dark:text-blue-400" />
                 ) : isSomeSelected ? (
-                  <MinusSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <MinusSquare className="h-4 w-4 text-primary dark:text-blue-400" />
                 ) : (
                   <Square className="h-4 w-4" />
                 )}
@@ -420,7 +420,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
             return (
               <TableRow
                 key={item.id}
-                className={isSelected ? "bg-blue-50/40 dark:bg-blue-950/20" : undefined}
+                className={isSelected ? "bg-[hsl(var(--primary-light))] dark:bg-blue-950/20" : undefined}
               >
                 {/* Coluna Checkbox da Linha */}
                 <TableCell className="w-10">
@@ -429,29 +429,29 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                     checked={isSelected}
                     onChange={() => handleToggleSelectOne(item.id)}
                     disabled={isProcessingQueue}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring cursor-pointer"
                   />
                 </TableCell>
                 <TableCell className="font-medium max-w-sm">
                   <Link
                     href={`/calendar/${item.id}`}
-                    className="text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 block truncate"
+                    className="text-foreground hover:text-primary dark:hover:text-blue-400 block truncate"
                   >
                     {item.proposed_title || item.topic}
                   </Link>
-                  <span className="text-xs text-slate-400 block truncate mt-0.5">
+                  <span className="text-xs text-[hsl(var(--text-muted))] block truncate mt-0.5">
                     Tema: {item.topic}
                   </span>
                 </TableCell>
                 <TableCell className="text-xs">
-                  <span className="font-medium text-slate-800 dark:text-slate-200 block">
+                  <span className="font-medium text-foreground block">
                     {item.blog?.name || "Blog"}
                   </span>
-                  <span className="text-slate-400 font-mono text-[11px]">
+                  <span className="text-[hsl(var(--text-muted))] font-mono text-[11px]">
                     {item.language}
                   </span>
                 </TableCell>
-                <TableCell className="text-xs text-slate-600 dark:text-slate-300">
+                <TableCell className="text-xs text-muted-foreground">
                   {item.category?.name || "—"}
                 </TableCell>
                 <TableCell>
@@ -467,9 +467,9 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                     {item.priority.toUpperCase()}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                   <div className="flex items-center gap-1.5">
-                    <CalendarIcon className="h-3.5 w-3.5 text-slate-400" />
+                    <CalendarIcon className="h-3.5 w-3.5 text-[hsl(var(--text-muted))]" />
                     {formatDate(item.scheduled_at)}
                   </div>
                 </TableCell>
@@ -487,7 +487,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                         variant="outline"
                         onClick={() => handleExecuteNow(item)}
                         disabled={isRunning || runningId !== null || isProcessingQueue}
-                        className="h-8 px-2.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
+                        className="h-8 px-2.5 text-xs bg-[hsl(var(--success-bg))] text-success hover:bg-emerald-100 hover:text-emerald-800 border-success/25 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
                         title="Executar pipeline completo agora (Gerar Artigo -> Gerar Imagem -> Publicar no WordPress)"
                       >
                         {isRunning ? (

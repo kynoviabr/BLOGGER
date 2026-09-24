@@ -37,7 +37,7 @@ export default async function BlogsPage() {
       />
 
       {loadError && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+        <div className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-[hsl(var(--danger-bg))] p-4 text-xs text-destructive ">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold block">Erro ao conectar com a base de dados:</span>
@@ -77,7 +77,7 @@ export default async function BlogsPage() {
                       {blog.description || "Sem descrição informada."}
                     </p>
 
-                    <div className="space-y-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 border border-border">
+                    <div className="space-y-2 rounded-lg bg-[hsl(var(--bg-subtle))] p-3 border border-border">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Nicho:</span>
                         <span className="font-medium text-foreground">
@@ -110,13 +110,13 @@ export default async function BlogsPage() {
                   </CardContent>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-slate-100 p-4 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 rounded-b-xl">
+                <div className="flex items-center justify-between border-t border-border p-4  bg-[hsl(var(--bg-subtle))] rounded-b-xl">
                   <form action={toggleWithId}>
                     <Button
                       type="submit"
                       variant="ghost"
                       size="sm"
-                      className="text-xs gap-1 text-slate-600 hover:text-slate-900"
+                      className="text-xs gap-1 text-muted-foreground hover:text-foreground"
                     >
                       <Power className="h-3.5 w-3.5" />
                       {blog.status === "active" ? "Desativar" : "Ativar"}
