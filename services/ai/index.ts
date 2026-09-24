@@ -20,6 +20,7 @@ export * from './openai-image-provider';
 export * from './fallback-image-provider';
 export * from './nano-banana-provider';
 export * from './mock-ai-provider';
+export * from './deepseek-provider';
 export * from './factory';
 export * from './legacy-provider.interface';
 
