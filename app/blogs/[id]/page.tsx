@@ -27,7 +27,7 @@ export default async function BlogDetailsPage({
     <div className="space-y-8 max-w-4xl">
       <Link
         href="/blogs"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-slate-800 dark:text-muted-foreground dark:hover:text-slate-200"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary"
       >
         <ArrowLeft className="h-4 w-4" />
         Voltar para Blogs
@@ -75,7 +75,7 @@ export default async function BlogDetailsPage({
                 blog.languages.map((l) => (
                   <div
                     key={l.id}
-                    className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-800/40 text-xs"
+                    className="flex items-center justify-between rounded-brand-btn border border-border bg-[hsl(var(--bg-subtle))] p-2.5 text-xs"
                   >
                     <span className="font-mono font-medium text-foreground">
                       {l.language}
@@ -88,7 +88,7 @@ export default async function BlogDetailsPage({
                   </div>
                 ))
               ) : (
-                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <CheckCircle2 className="h-3.5 w-3.5 text-success" />
                   {blog.default_language} (Padrão)
                 </div>
