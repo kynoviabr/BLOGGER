@@ -1,4 +1,3 @@
-import sharp from 'sharp';
 import { logger } from '@/lib/logger';
 
 export interface OptimizeImageOptions {
@@ -18,7 +17,8 @@ export class ImageOptimizer {
   /**
    * Otimiza um buffer de imagem convertendo para WebP (ou formato configurado).
    * Mantém as dimensões originais sem upscale e registra métricas de compressão.
-   * Em caso de falha no processador, retorna de forma segura o buffer e mimeType originais.
+   * Em caso de falha no processador ou indisponibilidade da biblioteca nativa,
+   * retorna de forma segura o buffer e mimeType originais como fallback.
    */
   static async optimize(
     inputBuffer: Buffer,
@@ -30,6 +30,9 @@ export class ImageOptimizer {
     const originalBytes = inputBuffer.length;
 
     try {
+      const sharpModule = await import('sharp');
+      const sharp = sharpModule.default || sharpModule;
+
       let pipeline = sharp(inputBuffer);
       let outputMime = 'image/webp';
 
