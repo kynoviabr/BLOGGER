@@ -24,6 +24,10 @@ interface GenerateParams {
   systemInstruction?: string;
   temperature?: number;
   responseJsonSchema: unknown;
+  overrideModel?: string;
+  disableFallback?: boolean;
+  maxRetries?: number;
+  timeoutMs?: number;
 }
 
 interface ClassifiedError {
@@ -168,12 +172,17 @@ export class GeminiProvider implements AIProvider {
     operation: string,
     params: GenerateParams
   ): Promise<T> {
-    const modelsToExecute: string[] = [this.defaultModel];
-    if (this.fallbackModel && this.fallbackModel !== this.defaultModel) {
-      modelsToExecute.push(this.fallbackModel);
+    const primaryModel = params.overrideModel || this.defaultModel;
+    const modelsToExecute: string[] = [primaryModel];
+    if (!params.disableFallback) {
+      const alternateModel = primaryModel === this.defaultModel ? this.fallbackModel : this.defaultModel;
+      if (alternateModel && alternateModel !== primaryModel && !modelsToExecute.includes(alternateModel)) {
+        modelsToExecute.push(alternateModel);
+      }
     }
 
     let lastError: ClassifiedError | null = null;
+    const retriesLimit = params.maxRetries ?? this.maxRetriesPerModel;
 
     for (let modelIndex = 0; modelIndex < modelsToExecute.length; modelIndex++) {
       const currentModel = modelsToExecute[modelIndex];
@@ -186,11 +195,19 @@ export class GeminiProvider implements AIProvider {
         );
       }
 
-      for (let attempt = 0; attempt <= this.maxRetriesPerModel; attempt++) {
+      for (let attempt = 0; attempt <= retriesLimit; attempt++) {
         const attemptStartTime = Date.now();
 
         try {
-          const response = await this.client.models.generateContent({
+          const timeoutMs = params.timeoutMs || (operation === 'generateIdea' ? 20000 : 45000);
+          let timeoutHandle: NodeJS.Timeout | null = null;
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(() => {
+              reject(new Error(`Timeout de ${timeoutMs}ms excedido aguardando resposta da API Gemini.`));
+            }, timeoutMs);
+          });
+
+          const generatePromise = this.client.models.generateContent({
             model: currentModel,
             contents: params.contents,
             config: {
@@ -199,6 +216,10 @@ export class GeminiProvider implements AIProvider {
               responseMimeType: 'application/json',
               responseJsonSchema: params.responseJsonSchema as any,
             },
+          });
+
+          const response = await Promise.race([generatePromise, timeoutPromise]).finally(() => {
+            if (timeoutHandle) clearTimeout(timeoutHandle);
           });
 
           const durationMs = Date.now() - attemptStartTime;
@@ -438,5 +459,111 @@ Cada ideia deve conter:
 
     logger.info(this.name, `${ideas.length} ideias geradas com sucesso`);
     return ideas;
+  }
+
+  /**
+   * Gera EXATAMENTE UMA ideia de pauta estruturada de forma rápida e com prevenção ativa de duplicidades.
+   */
+  async generateIdea(context: {
+    niche?: string;
+    audience?: string;
+    purpose?: string;
+    category?: string;
+    language?: string;
+    blogName?: string;
+    existingIdeas?: Array<{ title: string; keywords?: string; type?: string }>;
+    queuePosition?: number;
+    totalRequested?: number;
+  }): Promise<{ title: string; keywords: string; description: string; type: string }> {
+    const niche = context.niche || 'Finanças Pessoais e Educação Financeira';
+    const audience = context.audience || 'Pessoas que buscam organização financeira, cartões de crédito e sair das dívidas';
+    const purpose = context.purpose || 'Informar, educar e gerar valor com alto nível de autoridade e clareza';
+    const category = context.category ? `na categoria "${context.category}"` : 'em tópicos de alta demanda e relevância editorial';
+    const language = context.language || 'pt-BR';
+    const blogName = context.blogName ? `do blog "${context.blogName}"` : '';
+    const pos = context.queuePosition ? ` (Pauta ${context.queuePosition} de ${context.totalRequested || 'N'})` : '';
+
+    let existingBlock = '';
+    if (context.existingIdeas && context.existingIdeas.length > 0) {
+      const list = context.existingIdeas
+        .slice(-20) // últimas 20 para diversidade robusta
+        .map((item, idx) => `${idx + 1}. "${item.title}" [Palavras-chave: ${item.keywords || 'N/A'}] (Tipo: ${item.type || 'N/A'})`)
+        .join('\n');
+      existingBlock = `\nPAUTAS JÁ EXISTENTES / GERADAS NESTA SESSÃO (NÃO REPETIR OU VARIAR SUTILMENTE ESTES TEMAS):\n${list}\n`;
+    }
+
+    const ideasModel = process.env.GEMINI_IDEAS_MODEL || 'gemini-3.5-flash';
+
+    logger.info(this.name, `Gerando 1 pauta unitária${pos} para blog: ${blogName || niche} usando modelo ${ideasModel}`);
+
+    const prompt = `Você é um Estrategista de Conteúdo e Especialista em SEO Editorial.
+Crie EXATAMENTE UMA ideia inovadora, atraente e de alto potencial de tráfego orgânico ${category} para o blog ${blogName}.
+
+Contexto Editorial:
+- Nicho: ${niche}
+- Público-Alvo: ${audience}
+- Propósito/Linha Editorial: ${purpose}
+- Idioma: ${language}
+${existingBlock}
+INSTRUÇÕES CRÍTICAS DE DIVERSIDADE E FORMATO:
+- Crie exatamente UMA nova pauta.
+- Ela deve ser SUBSTANCIALMENTE DIFERENTE das pautas já existentes listadas acima.
+- NÃO reutilize o mesmo assunto principal, intenção de busca ou ângulo editorial.
+- Forneça:
+  - title: Título proposto atraente, conciso e otimizado para CTR e SEO (até 65 caracteres).
+  - keywords: 3 a 5 palavras-chave estratégicas separadas por vírgulas.
+  - description: Resumo objetivo de 2 a 3 frases com o ângulo e pontos-chave a abordar no artigo.
+  - type: Tipo do artigo (ex: "Guia Completo", "Lista Comparativa", "Passo a Passo", "Análise Prática").
+- Retorne EXATAMENTE UM objeto JSON correspondente a esta única pauta.`;
+
+    const idea = await this.generateWithResilience<{ title: string; keywords: string; description: string; type: string }>(
+      'generateIdea',
+      {
+        contents: prompt,
+        temperature: 0.7,
+        overrideModel: ideasModel,
+        disableFallback: true,
+        maxRetries: 1,
+        timeoutMs: 20000,
+        responseJsonSchema: {
+          type: Type.OBJECT,
+          description: 'Uma única ideia de pauta estruturada para o blog',
+          properties: {
+            title: {
+              type: Type.STRING,
+              description: 'Título proposto para o artigo (até 65 caracteres)',
+            },
+            keywords: {
+              type: Type.STRING,
+              description: 'Palavras-chave separadas por vírgula',
+            },
+            description: {
+              type: Type.STRING,
+              description: 'Resumo objetivo e instruções para o artigo',
+            },
+            type: {
+              type: Type.STRING,
+              description: 'Tipo ou formato do artigo (ex: Guia Completo, Passo a Passo)',
+            },
+          },
+          required: ['title', 'keywords', 'description', 'type'],
+        },
+      }
+    );
+
+    if (!idea || !idea.title) {
+      throw new AIProviderError('Resposta inválida: nenhuma ideia gerada.', {
+        provider: this.name,
+        statusCode: 502,
+        isRetryable: true,
+      });
+    }
+
+    return {
+      title: idea.title.trim(),
+      keywords: idea.keywords.trim(),
+      description: idea.description.trim(),
+      type: idea.type.trim(),
+    };
   }
 }

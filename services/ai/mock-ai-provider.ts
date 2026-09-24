@@ -59,6 +59,50 @@ export class MockAIProvider implements AIProvider {
       },
     ];
   }
+
+  async generateIdea(context: {
+    category?: string;
+    queuePosition?: number;
+    existingIdeas?: Array<{ title: string }>;
+  }): Promise<{ title: string; keywords: string; description: string; type: string }> {
+    const cat = context.category || 'Empréstimos';
+    const pos = ((context.queuePosition || 1) - 1) % 5;
+
+    const templates = [
+      {
+        title: `Guia Definitivo do ${cat} Consignado: Regras e Taxas 2026`,
+        keywords: `${cat}, crédito consignado, taxas de juros, aposentados`,
+        description: `Visão aprofundada sobre funcionamento, limites de margem e cuidados contra fraudes no ${cat}.`,
+        type: 'Guia Completo',
+      },
+      {
+        title: `${cat} com Garantia de Imóvel vs Veículo: Qual Vale Mais a Pena?`,
+        keywords: `garantia de imóvel, refinanciamento de veículo, ${cat}, juros baixos`,
+        description: `Comparativo detalhado de taxas, prazos de amortização e análise de risco para cada modalidade.`,
+        type: 'Lista Comparativa',
+      },
+      {
+        title: `5 Cuidados Cruciais Antes de Contratar ${cat} Pessoal Online`,
+        keywords: `segurança financeira, ${cat} online, evitar golpes, score`,
+        description: `Orientações práticas para checar a idoneidade da financeira e não cair no golpe do depósito antecipado.`,
+        type: 'Dicas Práticas',
+      },
+      {
+        title: `Portabilidade de ${cat}: Como Reduzir os Juros da Sua Dívida`,
+        keywords: `portabilidade de crédito, renegociação, taxa selic, ${cat}`,
+        description: `Passo a passo descomplicado para migrar contratos de crédito para instituições com juros menores.`,
+        type: 'Passo a Passo',
+      },
+      {
+        title: `${cat} para Negativados: Riscos, Direitos e Alternativas Reais`,
+        keywords: `crédito para negativados, score baixo, sair das dívidas, ${cat}`,
+        description: `Análise franca sobre o custo efetivo total, riscos de superendividamento e alternativas seguras.`,
+        type: 'Análise Crítica',
+      },
+    ];
+
+    return templates[pos];
+  }
 }
 
 export class MockImageProvider implements ImageProvider {
