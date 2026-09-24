@@ -290,7 +290,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
         <form onSubmit={handleGenerate} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label className="text-sm font-medium text-foreground">
                 Blog de Destino *
               </label>
               <Select
@@ -311,7 +311,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label className="text-sm font-medium text-foreground">
                 Categoria de Conteúdo
               </label>
               <Select
@@ -329,7 +329,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label className="text-sm font-medium text-foreground">
                 Quantidade de Ideias
               </label>
               <Select
@@ -345,7 +345,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-muted-foreground">
               A IA analisará o nicho, público-alvo e regras de SEO do blog selecionado para sugerir temas prontos.
             </p>
 
@@ -368,7 +368,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
 
       {/* Alertas */}
       {error && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-brand-card border border-destructive/25 bg-[hsl(var(--danger-bg))] p-4 text-xs text-destructive ">
           <div className="flex items-start gap-2.5">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <span className="leading-relaxed">{error}</span>
@@ -378,7 +378,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
               type="button"
               onClick={() => handleGenerate(undefined, true)}
               disabled={isLoading || isSaving}
-              className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shrink-0 mt-2 sm:mt-0 text-xs h-8"
+              className="gap-1.5 bg-warning hover:brightness-95 text-white shrink-0 mt-2 sm:mt-0 text-xs h-8"
               size="sm"
             >
               <Sparkles className="h-3.5 w-3.5" />
@@ -389,7 +389,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
       )}
 
       {successMessage && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+        <div className="flex items-start gap-2.5 rounded-brand-card border border-success/25 bg-[hsl(var(--success-bg))] p-4 text-xs text-success dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
           <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
           <span>{successMessage}</span>
         </div>
@@ -397,20 +397,20 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
 
       {/* Barra de Progresso Real da Fila */}
       {isLoading && (
-        <Card className="p-5 border-blue-200 bg-blue-50/50 dark:border-blue-900/50 dark:bg-blue-950/20 shadow-xs">
+        <Card className="p-5 border-primary/25 bg-[hsl(var(--info-bg))] dark:border-blue-900/50 dark:bg-blue-950/20 shadow-xs">
           <div className="space-y-3">
             <div className="flex items-center justify-between text-sm font-medium">
-              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+              <div className="flex items-center gap-2 text-primary dark:text-blue-300">
+                <Loader2 className="h-4 w-4 animate-spin text-primary dark:text-blue-400" />
                 <span className="font-medium">{queueStatusText || `Processando fila de pautas...`}</span>
               </div>
-              <span className="text-xs text-blue-700 dark:text-blue-300 font-semibold font-mono">
+              <span className="text-xs text-primary dark:text-blue-300 font-semibold font-mono">
                 {generatedIdeas.length} de {queueProgress.total || count} geradas ({Math.round((generatedIdeas.length / (queueProgress.total || count || 1)) * 100)}%)
               </span>
             </div>
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-blue-100 dark:bg-blue-900/40">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-[hsl(var(--primary-light))] dark:bg-blue-900/40">
               <div
-                className="h-full bg-blue-600 transition-all duration-300 ease-out dark:bg-blue-500 rounded-full"
+                className="h-full bg-primary transition-all duration-300 ease-out dark:bg-blue-500 rounded-full"
                 style={{ width: `${Math.round((generatedIdeas.length / (queueProgress.total || count || 1)) * 100)}%` }}
               />
             </div>
@@ -420,12 +420,12 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
 
       {/* Card inicial enquanto a primeira pauta é gerada */}
       {isLoading && generatedIdeas.length === 0 && (
-        <Card className="p-8 text-center border-dashed border-slate-300 dark:border-slate-800">
-          <Loader2 className="mx-auto h-7 w-7 animate-spin text-blue-500 mb-3" />
-          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+        <Card className="p-8 text-center border-dashed border-slate-300 ">
+          <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary mb-3" />
+          <h4 className="text-sm font-semibold text-foreground">
             Iniciando fila incremental com Gemini 3.5 Flash...
           </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Cada pauta é gerada de forma individual e aparecerá aqui instantaneamente.
           </p>
         </Card>
@@ -434,16 +434,16 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
       {/* Lista de Ideias Geradas (Renderização Incremental Imediata) */}
       {generatedIdeas.length > 0 && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 ">
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
                 id="select-all"
                 checked={selectedIndices.size === generatedIdeas.length && generatedIdeas.length > 0}
                 onChange={toggleSelectAll}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                className="h-4 w-4 rounded border-input text-primary focus:ring-ring cursor-pointer"
               />
-              <label htmlFor="select-all" className="text-sm font-semibold text-slate-800 dark:text-slate-200 cursor-pointer">
+              <label htmlFor="select-all" className="text-sm font-semibold text-foreground cursor-pointer">
                 Selecionar Todas ({selectedIndices.size} de {generatedIdeas.length} marcadas)
               </label>
             </div>
@@ -451,7 +451,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
             <Button
               onClick={handleSaveToCalendar}
               disabled={isSaving || selectedIndices.size === 0}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto"
+              className="gap-2 bg-success hover:brightness-95 text-white w-full sm:w-auto"
             >
               {isSaving ? (
                 <>
@@ -477,8 +477,8 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
                   onClick={() => toggleSelectIndex(idx)}
                   className={`p-5 transition-all cursor-pointer border ${
                     isSelected
-                      ? "border-blue-500 bg-blue-50/40 shadow-xs dark:border-blue-500/80 dark:bg-blue-950/20"
-                      : "border-slate-200 hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700"
+                      ? "border-primary bg-[hsl(var(--primary-light))] shadow-card"
+                      : "border-slate-200 hover:border-slate-300  dark:hover:border-slate-700"
                   }`}
                 >
                   <div className="flex items-start gap-4">
@@ -487,12 +487,12 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
                       checked={isSelected}
                       onChange={() => toggleSelectIndex(idx)}
                       onClick={(e) => e.stopPropagation()}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                      className="mt-1 h-4 w-4 rounded border-input text-primary focus:ring-ring cursor-pointer shrink-0"
                     />
 
                     <div className="flex-1 space-y-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                        <h4 className="text-base font-semibold text-foreground">
                           {idea.title}
                         </h4>
                         <Badge variant="info" className="text-xs">
@@ -500,13 +500,13 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
                         </Badge>
                       </div>
 
-                      <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                      <p className="text-sm text-muted-foreground leading-relaxed">
                         {idea.description}
                       </p>
 
                       <div className="flex items-center gap-2 pt-1">
-                        <Tag className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                        <Tag className="h-3.5 w-3.5 text-[hsl(var(--text-muted))] shrink-0" />
+                        <span className="text-xs text-muted-foreground font-mono">
                           {idea.keywords}
                         </span>
                       </div>
@@ -518,10 +518,10 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
 
             {/* Indicador de próxima pauta sendo gerada */}
             {isLoading && (
-              <Card className="p-5 border-dashed border-blue-300 dark:border-blue-800/60 bg-blue-50/30 dark:bg-blue-950/10">
+              <Card className="p-5 border-dashed border-blue-300 dark:border-blue-800/60 bg-[hsl(var(--primary-light))] dark:bg-blue-950/10">
                 <div className="flex items-center gap-3">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary dark:text-blue-400 shrink-0" />
+                  <span className="text-sm text-primary dark:text-blue-300 font-medium">
                     Gerando pauta #{generatedIdeas.length + 1} de {queueProgress.total || count}...
                   </span>
                 </div>
@@ -533,7 +533,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
             <Button
               onClick={handleSaveToCalendar}
               disabled={isSaving || selectedIndices.size === 0}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="gap-2 bg-success hover:brightness-95 text-white"
             >
               {isSaving ? (
                 <>
