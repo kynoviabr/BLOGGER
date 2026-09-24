@@ -16,6 +16,8 @@ export * from './ai-provider.interface';
 export * from './image-provider.interface';
 export * from './gemini-provider';
 export * from './pollinations-image-provider';
+export * from './openai-image-provider';
+export * from './fallback-image-provider';
 export * from './nano-banana-provider';
 export * from './mock-ai-provider';
 export * from './factory';
