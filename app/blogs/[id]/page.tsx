@@ -9,6 +9,8 @@ import { BlogEditForm } from "@/components/blogs/blog-edit-form";
 import { AutopilotSettingsCard } from "@/components/blogs/autopilot-settings-card";
 import { CategoryManager } from "@/components/blogs/category-manager";
 
+export const dynamic = "force-dynamic";
+
 export default async function BlogDetailsPage({
   params,
 }: {

@@ -307,25 +307,29 @@ export function CategoryManager({ blogId, categories: initialCategories }: Categ
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleStartEdit(cat)}
                       disabled={isPending}
-                      title="Editar categoria"
-                      className="text-slate-400 hover:text-blue-600 p-1 rounded transition-colors disabled:opacity-50"
+                      className="h-7 px-2 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 gap-1"
                     >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
+                      <Edit2 className="h-3 w-3" />
+                      Editar
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleDelete(cat.id, cat.name)}
                       disabled={isPending}
-                      title="Remover categoria"
-                      className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors disabled:opacity-50"
+                      className="h-7 px-2 text-xs text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                      <Trash2 className="h-3 w-3" />
+                      Excluir
+                    </Button>
                   </div>
                 </div>
               );

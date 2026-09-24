@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { BlogService } from "@/services/blog.service";
 import { IdeasGeneratorView } from "@/components/ideas/ideas-generator-view";
 
+export const dynamic = "force-dynamic";
+
 export default async function IdeasPage() {
   const blogs = await BlogService.listBlogs();
 

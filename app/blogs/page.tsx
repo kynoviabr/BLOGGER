@@ -9,6 +9,8 @@ import { toggleBlogStatusAction } from "@/app/actions/blog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { BlogWithRelations } from "@/types/blog";
 
+export const dynamic = "force-dynamic";
+
 export default async function BlogsPage() {
   let blogs: BlogWithRelations[] = [];
   let loadError: string | null = null;
