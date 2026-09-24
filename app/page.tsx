@@ -131,10 +131,10 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Main Grid: Calendário Recente e Logs */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Pautas Recentes (2 cols) */}
-        <div className="lg:col-span-2 space-y-4">
+      {/* Seções principais em sequência vertical */}
+      <div className="space-y-8">
+        {/* Próximas Pautas */}
+        <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
               <Clock className="h-5 w-5 text-primary" />
@@ -186,10 +186,10 @@ export default async function DashboardPage() {
               </TableBody>
             </Table>
           </Card>
-        </div>
+        </section>
 
-        {/* System Logs & Arquitetura (1 col) */}
-        <div className="space-y-4">
+        {/* Atividade do Sistema */}
+        <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-success" />
@@ -229,7 +229,7 @@ export default async function DashboardPage() {
               </div>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
