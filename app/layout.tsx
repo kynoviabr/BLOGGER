@@ -15,14 +15,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Se o usuário estiver autenticado, carrega a lista de blogs para o AppShell.
-  // Se não estiver autenticado (ex: na tela de /login), passa array vazio sem disparar query protegida.
   const user = await getCurrentUser();
   const blogs = user ? await BlogService.listBlogs().catch(() => []) : [];
 
   return (
     <html lang="pt-BR" className="h-full">
-      <body className="h-full antialiased selection:bg-blue-500 selection:text-white">
+      <body className="h-full bg-background text-foreground antialiased">
         <AppShell blogs={blogs}>{children}</AppShell>
       </body>
     </html>
