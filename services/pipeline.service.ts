@@ -130,7 +130,10 @@ export class PipelineService {
 
       try {
         const imageProvider = createImageProvider();
-        const imagePrompt = `Fotografia editorial cinematográfica e elegante de alta resolução para artigo de finanças com o tema: "${generatedArticle.title}". Estilo limpo e profissional.`;
+        const nichePart = blog?.niche ? `Nicho: ${blog.niche}. ` : '';
+        const audiencePart = blog?.audience ? `Público: ${blog.audience}. ` : '';
+        const contextPart = generatedArticle.metaDescription ? `Contexto: ${generatedArticle.metaDescription.slice(0, 150)}. ` : '';
+        const imagePrompt = `Professional editorial photograph for article "${generatedArticle.title}". ${nichePart}${audiencePart}${contextPart}Theme: ${calendarItem.topic || generatedArticle.title}. Realistic photography, natural lighting, clean composition, no text, no logo, no watermark, 16:9.`;
         const imgResult = await imageProvider.generateFeaturedImage(imagePrompt, {
           aspectRatio: '16:9',
           style: 'editorial',
