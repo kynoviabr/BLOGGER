@@ -75,21 +75,21 @@ export default function SettingsPage() {
             <Card key={group.category}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-blue-600" />
+                  <Icon className="h-4 w-4 text-primary" />
                   {group.category}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="divide-y divide-slate-100 dark:divide-slate-800">
+              <CardContent className="divide-y divide-border">
                 {group.items.map((item) => (
                   <div
                     key={item.name}
                     className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 gap-2"
                   >
                     <div>
-                      <span className="font-mono text-xs font-semibold text-slate-900 dark:text-white block">
+                      <span className="font-mono text-xs font-semibold text-foreground block">
                         {item.name}
                       </span>
-                      <span className="text-xs text-slate-500">{item.description}</span>
+                      <span className="text-xs text-muted-foreground">{item.description}</span>
                     </div>
                     <div>
                       {item.isSet ? (
@@ -116,7 +116,7 @@ export default function SettingsPage() {
       <Card className="border-amber-200/70 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-950/20">
         <CardHeader>
           <CardTitle className="text-base text-amber-900 dark:text-amber-300 flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-amber-600" />
+            <ShieldAlert className="h-5 w-5 text-warning" />
             Políticas de Segurança da Foundation
           </CardTitle>
           <CardDescription className="text-amber-700/90 dark:text-amber-400">

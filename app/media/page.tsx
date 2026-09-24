@@ -25,7 +25,7 @@ export default async function MediaPage() {
       />
 
       {loadError && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+        <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold block">Erro ao consultar mídias no Supabase:</span>
@@ -59,25 +59,25 @@ export default async function MediaPage() {
               </div>
               <CardContent className="p-4 space-y-3">
                 <div className="space-y-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
                     Alt Text
                   </span>
-                  <p className="text-xs text-slate-700 dark:text-slate-300 line-clamp-2">
+                  <p className="text-xs text-foreground line-clamp-2">
                     {asset.alt_text || "Sem texto alternativo"}
                   </p>
                 </div>
 
                 {asset.prompt && (
-                  <div className="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-800/40 text-[11px] text-slate-600 dark:text-slate-400">
-                    <div className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      <Sparkles className="h-3 w-3 text-purple-600" />
+                  <div className="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-800/40 text-[11px] text-muted-foreground">
+                    <div className="flex items-center gap-1 font-semibold text-foreground mb-1">
+                      <Sparkles className="h-3 w-3 text-primary" />
                       Prompt de Geração:
                     </div>
                     <p className="line-clamp-2 italic">{asset.prompt}</p>
                   </div>
                 )}
 
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border">
                   <span className="flex items-center gap-1">
                     <Layers className="h-3 w-3" />
                     Provedor: {asset.provider}

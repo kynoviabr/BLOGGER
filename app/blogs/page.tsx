@@ -37,7 +37,7 @@ export default async function BlogsPage() {
       />
 
       {loadError && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+        <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold block">Erro ao conectar com a base de dados:</span>
@@ -73,36 +73,36 @@ export default async function BlogsPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4 text-xs">
-                    <p className="text-slate-600 dark:text-slate-300 line-clamp-2">
+                    <p className="text-muted-foreground line-clamp-2">
                       {blog.description || "Sem descrição informada."}
                     </p>
 
-                    <div className="space-y-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                    <div className="space-y-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 border border-border">
                       <div className="flex justify-between">
-                        <span className="text-slate-500">Nicho:</span>
-                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                        <span className="text-muted-foreground">Nicho:</span>
+                        <span className="font-medium text-foreground">
                           {blog.niche}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-500">Audiência:</span>
-                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[160px]">
+                        <span className="text-muted-foreground">Audiência:</span>
+                        <span className="font-medium text-foreground truncate max-w-[160px]">
                           {blog.audience || "Geral"}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-500 flex items-center gap-1">
+                        <span className="text-muted-foreground flex items-center gap-1">
                           <Languages className="h-3.5 w-3.5" /> Idioma Padrão:
                         </span>
-                        <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                        <span className="font-mono font-medium text-foreground">
                           {blog.default_language}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-500 flex items-center gap-1">
+                        <span className="text-muted-foreground flex items-center gap-1">
                           <FolderTree className="h-3.5 w-3.5" /> Categorias:
                         </span>
-                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                        <span className="font-medium text-foreground">
                           {blog.categories?.length || 0} configuradas
                         </span>
                       </div>

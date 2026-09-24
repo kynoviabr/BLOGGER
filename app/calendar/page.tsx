@@ -58,7 +58,7 @@ export default async function CalendarPage({
       />
 
       {loadError && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+        <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold block">Erro ao consultar pautas no Supabase:</span>
@@ -69,7 +69,7 @@ export default async function CalendarPage({
 
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2 pb-2">
-        <div className="flex items-center gap-1.5 text-xs text-slate-500 mr-2">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
           <Filter className="h-3.5 w-3.5" />
           <span>Filtrar por Status:</span>
         </div>
