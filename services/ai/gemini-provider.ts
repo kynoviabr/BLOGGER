@@ -25,6 +25,8 @@ interface GenerateParams {
   temperature?: number;
   responseJsonSchema: unknown;
   overrideModel?: string;
+  disableFallback?: boolean;
+  maxRetries?: number;
   timeoutMs?: number;
 }
 
@@ -172,12 +174,15 @@ export class GeminiProvider implements AIProvider {
   ): Promise<T> {
     const primaryModel = params.overrideModel || this.defaultModel;
     const modelsToExecute: string[] = [primaryModel];
-    const alternateModel = primaryModel === this.defaultModel ? this.fallbackModel : this.defaultModel;
-    if (alternateModel && alternateModel !== primaryModel && !modelsToExecute.includes(alternateModel)) {
-      modelsToExecute.push(alternateModel);
+    if (!params.disableFallback) {
+      const alternateModel = primaryModel === this.defaultModel ? this.fallbackModel : this.defaultModel;
+      if (alternateModel && alternateModel !== primaryModel && !modelsToExecute.includes(alternateModel)) {
+        modelsToExecute.push(alternateModel);
+      }
     }
 
     let lastError: ClassifiedError | null = null;
+    const retriesLimit = params.maxRetries ?? this.maxRetriesPerModel;
 
     for (let modelIndex = 0; modelIndex < modelsToExecute.length; modelIndex++) {
       const currentModel = modelsToExecute[modelIndex];
@@ -190,11 +195,11 @@ export class GeminiProvider implements AIProvider {
         );
       }
 
-      for (let attempt = 0; attempt <= this.maxRetriesPerModel; attempt++) {
+      for (let attempt = 0; attempt <= retriesLimit; attempt++) {
         const attemptStartTime = Date.now();
 
         try {
-          const timeoutMs = params.timeoutMs || (operation === 'generateIdea' ? 25000 : 45000);
+          const timeoutMs = params.timeoutMs || (operation === 'generateIdea' ? 20000 : 45000);
           let timeoutHandle: NodeJS.Timeout | null = null;
           const timeoutPromise = new Promise<never>((_, reject) => {
             timeoutHandle = setTimeout(() => {
@@ -517,6 +522,9 @@ INSTRUÇÕES CRÍTICAS DE DIVERSIDADE E FORMATO:
         contents: prompt,
         temperature: 0.7,
         overrideModel: ideasModel,
+        disableFallback: true,
+        maxRetries: 1,
+        timeoutMs: 20000,
         responseJsonSchema: {
           type: Type.OBJECT,
           description: 'Uma única ideia de pauta estruturada para o blog',
