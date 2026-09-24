@@ -130,7 +130,7 @@ export function CategoryManager({ blogId, categories: initialCategories }: Categ
     <Card>
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
         <CardTitle className="text-base flex items-center gap-2">
-          <FolderTree className="h-4 w-4 text-blue-600" />
+          <FolderTree className="h-4 w-4 text-primary" />
           Categorias de Conteúdo ({categories.length})
         </CardTitle>
         <Button
@@ -156,11 +156,11 @@ export function CategoryManager({ blogId, categories: initialCategories }: Categ
 
         {showAddForm && (
           <form onSubmit={handleCreate} className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40 space-y-2 text-xs">
-            <div className="font-semibold text-slate-700 dark:text-slate-300">
+            <div className="font-semibold text-foreground">
               Cadastrar Nova Categoria
             </div>
             <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">
                 Nome da Categoria *
               </label>
               <Input
@@ -173,7 +173,7 @@ export function CategoryManager({ blogId, categories: initialCategories }: Categ
               />
             </div>
             <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">
                 Slug (Opcional)
               </label>
               <Input
@@ -185,7 +185,7 @@ export function CategoryManager({ blogId, categories: initialCategories }: Categ
               />
             </div>
             <div>
-              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">
+              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">
                 Descrição (Opcional)
               </label>
               <Input
@@ -295,14 +295,14 @@ export function CategoryManager({ blogId, categories: initialCategories }: Categ
                   className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-800/40 text-xs group"
                 >
                   <div className="flex flex-col min-w-0 pr-2">
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                    <span className="font-semibold text-foreground truncate">
                       {cat.name}
                     </span>
-                    <span className="text-[11px] font-mono text-slate-500">
+                    <span className="text-[11px] font-mono text-muted-foreground">
                       /{cat.slug}
                     </span>
                     {cat.description && (
-                      <span className="text-[11px] text-slate-400 truncate mt-0.5">
+                      <span className="text-[11px] text-muted-foreground truncate mt-0.5">
                         {cat.description}
                       </span>
                     )}
@@ -314,7 +314,7 @@ export function CategoryManager({ blogId, categories: initialCategories }: Categ
                       size="sm"
                       onClick={() => handleStartEdit(cat)}
                       disabled={isPending}
-                      className="h-7 px-2 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 gap-1"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-primary hover:bg-blue-50 dark:hover:bg-blue-950/40 gap-1"
                     >
                       <Edit2 className="h-3 w-3" />
                       Editar
@@ -325,7 +325,7 @@ export function CategoryManager({ blogId, categories: initialCategories }: Categ
                       size="sm"
                       onClick={() => handleDelete(cat.id, cat.name)}
                       disabled={isPending}
-                      className="h-7 px-2 text-xs text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1"
                     >
                       <Trash2 className="h-3 w-3" />
                       Excluir
@@ -335,7 +335,7 @@ export function CategoryManager({ blogId, categories: initialCategories }: Categ
               );
             })
           ) : (
-            <p className="text-xs text-slate-500 py-1">Nenhuma categoria cadastrada para este blog.</p>
+            <p className="text-xs text-muted-foreground py-1">Nenhuma categoria cadastrada para este blog.</p>
           )}
         </div>
       </CardContent>
