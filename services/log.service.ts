@@ -1,12 +1,18 @@
 import { Database, LogLevel, Json } from '@/types/database';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 
 export type SystemLog = Database['public']['Tables']['system_logs']['Row'];
 
 export class LogService {
   static async listLogs(filters?: { level?: LogLevel; service?: string }): Promise<SystemLog[]> {
-    const supabase = await getSupabaseServerClient();
+    let supabase;
+    try {
+      supabase = await getSupabaseServerClient();
+    } catch {
+      supabase = getSupabaseAdminClient();
+    }
     let query = supabase
       .from('system_logs')
       .select('*')
@@ -37,7 +43,12 @@ export class LogService {
     metadata: Record<string, unknown> = {}
   ): Promise<void> {
     try {
-      const supabase = await getSupabaseServerClient();
+      let supabase;
+      try {
+        supabase = await getSupabaseServerClient();
+      } catch {
+        supabase = getSupabaseAdminClient();
+      }
       const { error } = await supabase
         .from('system_logs')
         .insert({

@@ -1,5 +1,6 @@
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { createAIProvider, createImageProvider } from '@/services/ai';
+import { ResearchService } from '@/services/research';
 import { createPublisherProvider } from '@/services/publisher';
 import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
@@ -97,18 +98,41 @@ export class PipelineService {
         contentId = newContent.id;
       }
 
-      // 4. ETAPA 1: Gerar Conteúdo com IA (Gemini)
-      const aiProvider = createAIProvider();
+      // 4. ETAPA 1: Pesquisa Factual Prévia e Geração de Conteúdo com IA
+      const researchService = new ResearchService();
+      const currentDate = new Date().toISOString().split('T')[0];
       const keywords = calendarItem.keywords && calendarItem.keywords.length > 0
         ? calendarItem.keywords
         : [calendarItem.topic];
 
+      const researchBrief = await researchService.conductResearch({
+        title: calendarItem.topic,
+        category: calendarItem.category_id || undefined,
+        keywords,
+        niche: blog?.niche || undefined,
+        currentDate,
+        language: 'pt-BR',
+        contentId,
+      });
+
+      if (researchBrief.status === 'RESEARCH_REVIEW_REQUIRED') {
+        logger.warn('PipelineService', `Pauta "${calendarItem.topic}" requer revisão factual (FAIL-CLOSED)`);
+        await adminSupabase
+          .from('editorial_calendar')
+          .update({ status: 'PLANNED', updated_at: new Date().toISOString() })
+          .eq('id', calendarId);
+        throw new Error('Não foi possível verificar informações críticas desta pauta em fontes oficiais confiáveis (FAIL-CLOSED).');
+      }
+
+      const aiProvider = createAIProvider();
       const generatedArticle = await aiProvider.generateArticle(calendarItem.topic, keywords, {
         niche: blog?.niche,
         audience: blog?.audience || undefined,
         language: calendarItem.language || blog?.default_language || 'pt-BR',
         category: calendarItem.category_id || undefined,
         notes: calendarItem.notes || undefined,
+        currentDate,
+        sourcesOrResearch: researchBrief.rawBriefingText,
       });
 
       // Salva o artigo gerado imediatamente (resiliência contra falhas subsequentes)

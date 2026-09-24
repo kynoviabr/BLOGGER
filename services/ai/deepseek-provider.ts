@@ -395,6 +395,23 @@ export class DeepSeekProvider implements AIProvider {
       qualityGateNotes.push('AVISO: Meta description vazia.');
     }
 
+    // Auditoria de URLs: verificar que o modelo não inventou links ou referências não verificadas
+    const markdownUrlRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+    let urlMatch: RegExpExecArray | null;
+    const allowedUrls = (context?.sourcesOrResearch as string) || '';
+    const unverifiedUrls: string[] = [];
+
+    while ((urlMatch = markdownUrlRegex.exec(parsed.content)) !== null) {
+      const foundUrl = urlMatch[2];
+      if (!allowedUrls.includes(foundUrl)) {
+        unverifiedUrls.push(foundUrl);
+      }
+    }
+
+    if (unverifiedUrls.length > 0) {
+      qualityGateNotes.push(`AVISO AUDITORIA URLs: URLs detectadas no texto que não vieram do Research Brief: ${unverifiedUrls.join(', ')}`);
+    }
+
     const slug = (
       parsed.slug ||
       title
