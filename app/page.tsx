@@ -64,33 +64,33 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Blogs Ativos
             </CardTitle>
-            <Globe className="h-4 w-4 text-blue-600" />
+            <Globe className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">
+            <div className="text-2xl font-bold text-foreground">
               {activeBlogs} <span className="text-xs font-normal text-slate-500">/ {blogs.length} total</span>
             </div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <span className="text-slate-600 dark:text-slate-400 font-medium">Blogs ativos cadastrados</span>
+            <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+              <span className="text-muted-foreground font-medium">Blogs ativos cadastrados</span>
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Pautas no Calendário
             </CardTitle>
-            <Calendar className="h-4 w-4 text-purple-600" />
+            <Calendar className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">
+            <div className="text-2xl font-bold text-foreground">
               {calendarItems.length}
             </div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-muted-foreground">
               {plannedTopics} planejadas • {inProgressTopics} em produção
             </p>
           </CardContent>
@@ -98,16 +98,16 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Artigos Publicados
             </CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <CheckCircle2 className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">
+            <div className="text-2xl font-bold text-foreground">
               {publishedCount}
             </div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-muted-foreground">
               {scheduledTopics} programados para publicação
             </p>
           </CardContent>
@@ -115,16 +115,16 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Assets de Mídia
             </CardTitle>
-            <ImageIcon className="h-4 w-4 text-amber-600" />
+            <ImageIcon className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">
+            <div className="text-2xl font-bold text-foreground">
               {mediaAssets.length}
             </div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-muted-foreground">
               Imagens geradas e otimizadas
             </p>
           </CardContent>
@@ -136,13 +136,13 @@ export default async function DashboardPage() {
         {/* Pautas Recentes (2 cols) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <Clock className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" />
               Próximas Pautas no Calendário
             </h2>
             <Link
               href="/calendar"
-              className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              className="text-xs font-medium text-primary hover:text-primary flex items-center gap-1"
             >
               Ver todas <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -164,15 +164,15 @@ export default async function DashboardPage() {
                     <TableCell className="font-medium max-w-xs truncate">
                       <Link
                         href={`/calendar/${item.id}`}
-                        className="hover:text-blue-600 hover:underline"
+                        className="hover:text-primary hover:underline"
                       >
                         {item.proposed_title || item.topic}
                       </Link>
-                      <span className="block text-xs text-slate-400">
+                      <span className="block text-xs text-muted-foreground">
                         {item.category?.name || "Sem categoria"} • {item.language}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-600 dark:text-slate-300">
+                    <TableCell className="text-xs text-muted-foreground">
                       {item.blog?.name || "—"}
                     </TableCell>
                     <TableCell className="text-xs text-slate-500 whitespace-nowrap">
@@ -191,38 +191,38 @@ export default async function DashboardPage() {
         {/* System Logs & Arquitetura (1 col) */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-emerald-600" />
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-success" />
               Atividade do Sistema
             </h2>
             <Link
               href="/logs"
-              className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              className="text-xs font-medium text-primary hover:text-primary flex items-center gap-1"
             >
               Ver logs <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
-          <Card className="divide-y divide-slate-100 dark:divide-slate-800">
+          <Card className="divide-y divide-border">
             {logs.slice(0, 4).map((log) => (
               <div key={log.id} className="p-4 space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  <span className="font-semibold text-foreground">
                     {log.service}
                   </span>
-                  <span className="text-slate-400">{formatDate(log.created_at)}</span>
+                  <span className="text-muted-foreground">{formatDate(log.created_at)}</span>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300">{log.message}</p>
+                <p className="text-xs text-muted-foreground">{log.message}</p>
               </div>
             ))}
           </Card>
 
           {/* Banner de Status da Arquitetura */}
-          <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+          <div className="rounded-lg border border-border bg-accent p-4">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-              <div className="text-xs text-slate-600 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white block mb-0.5">
+              <AlertCircle className="h-5 w-5 text-primary dark:text-blue-400 mt-0.5 shrink-0" />
+              <div className="text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground block mb-0.5">
                   Content Factory Foundation
                 </span>
                 Esta fase implementa a base segura com Supabase Auth, RLS estrito e validação com Zod.
