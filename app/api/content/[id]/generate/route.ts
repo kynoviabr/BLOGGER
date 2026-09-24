@@ -73,7 +73,7 @@ export async function POST(
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .select('*, featured_image:media_assets(*)')
+      .select('*, featured_image:media_assets!content_items_featured_image_id_fkey(*)')
       .single();
 
     if (updateError) {

@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     // 2. Buscar artigos elegíveis com status 'ready' (Batch limit: 2 a 3)
     const { data: readyArticles, error: fetchError } = await adminSupabase
       .from('content_items')
-      .select('*, blog:blogs(*), featured_image:media_assets(*)')
+      .select('*, blog:blogs(*), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
       .eq('status', 'ready')
       .order('created_at', { ascending: true })
       .limit(3);

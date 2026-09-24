@@ -24,7 +24,7 @@ export async function POST(
     // 2. Buscar content_item com blog e imagem destacada
     const { data: contentItem, error: contentError } = await supabase
       .from('content_items')
-      .select('*, blog:blogs(*), featured_image:media_assets(*)')
+      .select('*, blog:blogs(*), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
       .eq('id', id)
       .maybeSingle();
 
@@ -105,7 +105,7 @@ export async function POST(
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .select('*, featured_image:media_assets(*)')
+      .select('*, featured_image:media_assets!content_items_featured_image_id_fkey(*)')
       .single();
 
     if (updateError) {
