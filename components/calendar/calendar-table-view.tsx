@@ -244,10 +244,10 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
         <div
           className={`flex items-start justify-between gap-3 rounded-brand-card border p-4 text-xs ${
             notification.type === "success"
-              ? "border-success/25 bg-[hsl(var(--success-bg))] text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+              ? "border-success/30 bg-[hsl(var(--success-bg))] text-success"
               : notification.type === "info"
-              ? "border-primary/25 bg-blue-50 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300"
-              : "border-destructive/25 bg-[hsl(var(--danger-bg))] text-rose-800 "
+              ? "border-primary/30 bg-[hsl(var(--info-bg))] text-info"
+              : "border-destructive/30 bg-[hsl(var(--danger-bg))] text-destructive "
           }`}
         >
           <div className="flex items-start gap-2.5">
@@ -256,7 +256,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
             ) : notification.type === "info" ? (
               <Clock className="h-4 w-4 shrink-0 text-primary mt-0.5" />
             ) : (
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+              <AlertCircle className="h-4 w-4 shrink-0 text-destructive mt-0.5" />
             )}
             <div>
               <span className="font-semibold block">{notification.message}</span>
@@ -265,7 +265,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                   href={notification.wpUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 font-medium text-primary hover:underline dark:text-blue-400"
+                  className="mt-1 inline-flex items-center gap-1 font-medium text-primary hover:underline "
                 >
                   Ver Artigo Publicado no WordPress
                   <ExternalLink className="h-3 w-3" />
@@ -275,7 +275,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
           </div>
           <button
             onClick={() => setNotification(null)}
-            className="text-[hsl(var(--text-muted))] hover:text-slate-600 dark:hover:text-slate-200"
+            className="text-[hsl(var(--text-muted))] hover:text-foreground"
           >
             ✕
           </button>
@@ -284,10 +284,10 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
 
       {/* Painel de Progresso da Fila em Lote */}
       {isProcessingQueue && queueProgress && (
-        <div className="rounded-brand-card border border-primary/25 bg-[hsl(var(--info-bg))] p-4 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 shadow-sm space-y-2">
+        <div className="rounded-brand-card border border-primary/25 bg-[hsl(var(--info-bg))] p-4 text-xs text-info shadow-card space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 font-semibold">
-              <Loader2 className="h-4 w-4 animate-spin text-primary dark:text-blue-400" />
+              <Loader2 className="h-4 w-4 animate-spin text-primary " />
               <span>
                 Processando Lote: {queueProgress.current} de {queueProgress.total} pautas
               </span>
@@ -297,7 +297,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
               variant="outline"
               size="sm"
               onClick={handleStopQueue}
-              className="h-7 text-xs border-rose-200 text-destructive hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300"
+              className="h-7 text-xs border-destructive/30 text-destructive hover:bg-[hsl(var(--danger-bg))]"
             >
               <SquareX className="mr-1 h-3.5 w-3.5" />
               Parar Fila
@@ -309,7 +309,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
               Pauta atual: <strong>{queueProgress.currentTitle}</strong>
             </span>
             {queueProgress.countdownSeconds !== undefined && queueProgress.countdownSeconds > 0 && (
-              <span className="inline-flex items-center gap-1 font-mono text-warning dark:text-amber-300 bg-[hsl(var(--warning-bg))] dark:bg-amber-950/50 px-2 py-0.5 rounded border border-warning/25 dark:border-amber-900/60">
+              <span className="inline-flex items-center gap-1 font-mono text-warning bg-[hsl(var(--warning-bg))] px-2 py-0.5 rounded border border-warning/30">
                 <Clock className="h-3 w-3 animate-pulse" />
                 Delay anti rate-limit: {queueProgress.countdownSeconds}s para próxima pauta
               </span>
@@ -317,7 +317,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
           </div>
 
           {/* Barra de Progresso */}
-          <div className="w-full bg-blue-200/60 dark:bg-blue-900/40 rounded-full h-2 overflow-hidden">
+          <div className="w-full bg-primary/15 rounded-full h-2 overflow-hidden">
             <div
               className="bg-primary h-2 transition-all duration-300 rounded-full"
               style={{
@@ -329,7 +329,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
       )}
 
       {/* Barra de Ações Rápidas & Ações em Lote */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-brand-card border border-slate-100  text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3 rounded-brand-card border border-border shadow-card  text-xs">
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 ? (
             <div className="flex items-center gap-2">
@@ -341,7 +341,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                 size="sm"
                 onClick={handleExecuteSelected}
                 disabled={isProcessingQueue}
-                className="h-8 gap-1.5 bg-success hover:brightness-95 text-white font-medium"
+                className="h-8 gap-1.5 bg-success hover:brightness-95 text-white font-semibold shadow-sm"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
                 Executar Selecionados ({selectedIds.size})
@@ -352,7 +352,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                 size="sm"
                 onClick={() => setSelectedIds(new Set())}
                 disabled={isProcessingQueue}
-                className="h-8 text-xs text-slate-500 hover:text-slate-800"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
               >
                 Desmarcar
               </Button>
@@ -372,7 +372,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
             size="sm"
             onClick={handleReprocessFailed}
             disabled={isProcessingQueue}
-            className="h-8 gap-1.5 border-rose-200 text-destructive hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
+            className="h-8 gap-1.5 border-destructive/30 text-destructive hover:bg-[hsl(var(--danger-bg))]"
             title="Selecionar e executar novamente todas as pautas com status FAILED"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -390,13 +390,13 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                 type="button"
                 onClick={handleToggleSelectAll}
                 disabled={isProcessingQueue || items.length === 0}
-                className="p-1 hover:text-primary text-[hsl(var(--text-muted))] dark:text-slate-500 transition-colors"
+                className="p-1 hover:text-primary text-[hsl(var(--text-muted))]  transition-colors"
                 title={isAllSelected ? "Desmarcar todos" : "Selecionar todos"}
               >
                 {isAllSelected ? (
-                  <CheckSquare className="h-4 w-4 text-primary dark:text-blue-400" />
+                  <CheckSquare className="h-4 w-4 text-primary " />
                 ) : isSomeSelected ? (
-                  <MinusSquare className="h-4 w-4 text-primary dark:text-blue-400" />
+                  <MinusSquare className="h-4 w-4 text-primary " />
                 ) : (
                   <Square className="h-4 w-4" />
                 )}
@@ -420,7 +420,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
             return (
               <TableRow
                 key={item.id}
-                className={isSelected ? "bg-[hsl(var(--primary-light))] dark:bg-blue-950/20" : undefined}
+                className={isSelected ? "bg-[hsl(var(--primary-light))] " : undefined}
               >
                 {/* Coluna Checkbox da Linha */}
                 <TableCell className="w-10">
@@ -435,7 +435,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                 <TableCell className="font-medium max-w-sm">
                   <Link
                     href={`/calendar/${item.id}`}
-                    className="text-foreground hover:text-primary dark:hover:text-blue-400 block truncate"
+                    className="text-foreground hover:text-primary  block truncate"
                   >
                     {item.proposed_title || item.topic}
                   </Link>
@@ -487,7 +487,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                         variant="outline"
                         onClick={() => handleExecuteNow(item)}
                         disabled={isRunning || runningId !== null || isProcessingQueue}
-                        className="h-8 px-2.5 text-xs bg-[hsl(var(--success-bg))] text-success hover:bg-emerald-100 hover:text-emerald-800 border-success/25 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
+                        className="h-8 px-2.5 text-xs bg-success text-white hover:brightness-95 border-success font-semibold shadow-sm"
                         title="Executar pipeline completo agora (Gerar Artigo -> Gerar Imagem -> Publicar no WordPress)"
                       >
                         {isRunning ? (
