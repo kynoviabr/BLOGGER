@@ -39,6 +39,7 @@
     "typescript": "^5.7.3"
   },
   "optionalDependencies": {
+    "@img/sharp-darwin-arm64": "^0.35.4",
     "@img/sharp-linux-arm64": "^0.35.4",
     "@img/sharp-linux-x64": "^0.35.4"
   }
