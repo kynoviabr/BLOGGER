@@ -26,6 +26,7 @@ export interface DeepSeekIdeaPromptOptions {
   purpose?: string;
   category?: string;
   language?: string;
+  currentDate?: string;
   existingIdeas?: Array<{ title: string; keywords?: string; type?: string }>;
   queuePosition?: number;
   totalRequested?: number;
@@ -66,7 +67,30 @@ Seu trabalho não é simplesmente produzir texto. Seu objetivo é produzir o mel
 - NUNCA mencione que o texto foi produzido por IA ou algoritmo.
 
 ==================================================
-3. FACTUALIDADE E RIGOR YMYL (YOUR MONEY OR YOUR LIFE)
+3. CONHECIMENTO TEMPORAL E FATOS ATUAIS
+==================================================
+Você não deve presumir que seu conhecimento interno representa a legislação, regulamentação, taxas, limites ou regras vigentes na data atual.
+
+Quando o artigo tratar de informação que possa mudar com o tempo, como:
+- legislação;
+- regulamentação;
+- margem consignável;
+- taxas;
+- regras de elegibilidade;
+- impostos;
+- limites;
+- benefícios;
+- procedimentos governamentais;
+- regras bancárias;
+
+e nenhuma fonte/contexto factual atualizado tiver sido fornecido:
+NÃO invente nem apresente uma regra específica como fato atual.
+Prefira formulações que indiquem que condições podem variar e precisam ser confirmadas em fontes oficiais.
+Quando sourcesOrResearch for fornecido, ele deve ter prioridade absoluta sobre o conhecimento interno do modelo.
+Nunca inventar fontes, normas ou números oficiais.
+
+==================================================
+4. FACTUALIDADE E RIGOR YMYL (YOUR MONEY OR YOUR LIFE)
 ==================================================
 - NUNCA invente estatísticas, percentuais, pesquisas, leis, regulamentos, datas, taxas, valores nominais ou fontes institucionais.
 - Em tópicos de finanças, crédito, empréstimos, investimentos e tributos, adote rigor factual máximo.
@@ -76,7 +100,7 @@ Seu trabalho não é simplesmente produzir texto. Seu objetivo é produzir o mel
 - Se apresentar exemplos com números hipotéticos, declare explicitamente: "Exemplo hipotético".
 
 ==================================================
-4. ESTRUTURA HIERÁRQUICA E EXTENSÃO
+5. ESTRUTURA HIERÁRQUICA E EXTENSÃO
 ==================================================
 - O conteúdo principal deve ser estruturado em Markdown limpo e semântico.
 - NÃO utilize H1 (#) dentro do corpo do conteúdo (o título principal do artigo é reservado para H1).
@@ -88,7 +112,7 @@ Seu trabalho não é simplesmente produzir texto. Seu objetivo é produzir o mel
 - FAQ (Perguntas Frequentes): finalize o artigo com 3 a 5 perguntas frequentes reais com respostas diretas (40 a 90 palavras cada).
 
 ==================================================
-5. REGRAS DE SAÍDA E FORMATO JSON
+6. REGRAS DE SAÍDA E FORMATO JSON
 ==================================================
 - Você deve responder EXCLUSIVAMENTE com um único objeto JSON válido e bem formatado.
 - NÃO adicione blocos de explicação antes ou depois do JSON.
@@ -164,9 +188,14 @@ Sua missão é criar EXATAMENTE UMA ideia de pauta inovadora, de alta demanda de
 
 Diretrizes:
 - O título deve ser atrativo, natural e otimizado para CTR e busca orgânica (até 65 caracteres).
-- Palavras-chave: 3 a 5 termos estratégicos com volume e relevância no mercado brasileiro.
+- Palavras-chave: 3 a 5 termos semanticamente relevantes e coerentes com a intenção de busca.
+- NUNCA alegue métricas externas como alto volume, baixa concorrência, CPC, keyword difficulty ou tendências sem dados externos fornecidos.
 - Descrição: Resumo de 2 a 3 frases com o ângulo e os pontos essenciais a serem explorados.
 - Tipo do artigo: "Guia Completo", "Lista Comparativa", "Passo a Passo", "Dicas Práticas" ou "Análise Crítica".
+- COERÊNCIA TEMPORAL E ANOS:
+  * Nunca utilize ano passado ou futuro como se fosse atual.
+  * Quando utilizar ano no título, ele DEVE ser estritamente coerente com a DATA ATUAL fornecida.
+  * NÃO adicione ano ao título quando ele não trouxer valor editorial real.
 - Responda EXCLUSIVAMENTE com um único objeto JSON válido:
 {
   "title": "Título chamativo e otimizado",
@@ -185,6 +214,7 @@ export function buildDeepSeekIdeaUserPrompt(options: DeepSeekIdeaPromptOptions):
   const category = options.category ? `na categoria "${options.category}"` : 'em tópicos de alta relevância';
   const blogName = options.blogName ? `do blog "${options.blogName}"` : '';
   const pos = options.queuePosition ? ` (Pauta ${options.queuePosition} de ${options.totalRequested || 'N'})` : '';
+  const currentDate = options.currentDate || new Date().toISOString().split('T')[0];
 
   let existingBlock = '';
   if (options.existingIdeas && options.existingIdeas.length > 0) {
@@ -197,11 +227,20 @@ export function buildDeepSeekIdeaUserPrompt(options: DeepSeekIdeaPromptOptions):
 
   return `Crie EXATAMENTE UMA nova ideia de pauta editorial ${category} para o portal ${blogName}${pos}.
 
+DATA ATUAL:
+${currentDate}
+
 Contexto Editorial:
 - Nicho: ${niche}
 - Público-Alvo: ${audience}
 - Linha Editorial: ${purpose}
 ${existingBlock}
+REGRAS TEMPORAIS E DE ANOS:
+- A data atual de referência é ${currentDate}.
+- Nunca utilizar ano passado ou futuro como se fosse atual.
+- Quando utilizar ano no título, ele DEVE ser estritamente coerente com a DATA ATUAL (${currentDate.split('-')[0]}).
+- Não adicionar ano ao título quando ele não trouxer valor editorial real.
+
 REGRAS CRÍTICAS DE DIVERSIDADE:
 - A nova pauta deve ser SUBSTANCIALMENTE DIFERENTE de qualquer tema listado acima.
 - Explore um ângulo, produto ou intenção de busca inédito.

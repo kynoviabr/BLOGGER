@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
       category: category || undefined,
       language: blog.default_language || 'pt-BR',
       blogName: blog.name,
+      currentDate: new Date().toISOString().split('T')[0],
       existingIdeas: combinedExisting,
       queuePosition,
       totalRequested,
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     const durationMs = Date.now() - startTime;
-    const modelUsed = process.env.GEMINI_IDEAS_MODEL || 'gemini-3.5-flash';
+    const modelUsed = (aiProvider as { defaultModel?: string }).defaultModel || process.env.GEMINI_IDEAS_MODEL || 'gemini-2.5-flash';
 
     await LogService.recordLog(
       'info',

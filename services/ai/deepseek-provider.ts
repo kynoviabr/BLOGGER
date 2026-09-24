@@ -1,3 +1,15 @@
+/**
+ * ARQUITETURA DO PIPELINE EDITORIAL:
+ * IDEA -> RESEARCH / FACTUAL CONTEXT (future) -> ARTICLE -> QUALITY GATE -> IMAGE -> PUBLISH
+ *
+ * 1. IDEA: Geração unitária e resiliente da pauta com intenção de busca, CTR e diversidade.
+ * 2. RESEARCH / FACTUAL CONTEXT: Injeção de fontes atualizadas, regras e dados vigentes (campo sourcesOrResearch).
+ * 3. ARTICLE: Redação editorial profunda, sem muletas de IA, cumprindo target word count.
+ * 4. QUALITY GATE: Validação real de word count, anacronismos temporais, pt-BR e metadados.
+ * 5. IMAGE: Geração de imagem via OpenAI (DALL-E 3) com otimização JPEG/MozJPEG.
+ * 6. PUBLISH: Publicação no WordPress com featured_media e metadados SEO.
+ */
+
 import {
   AIProvider,
   GeneratedArticle,
@@ -131,15 +143,17 @@ export class DeepSeekProvider implements AIProvider {
       temperature?: number;
       maxTokens?: number;
       timeoutMs?: number;
+      maxRetries?: number;
       operationName: string;
     }
   ): Promise<{ content: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }; durationMs: number }> {
     const timeoutMs = options.timeoutMs || this.defaultTimeoutMs;
+    const maxRetries = options.maxRetries !== undefined ? options.maxRetries : this.maxRetries;
     const url = `${this.baseUrl}/chat/completions`;
 
     let lastError: Error | null = null;
 
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const attemptStart = Date.now();
 
       try {
@@ -178,7 +192,7 @@ export class DeepSeekProvider implements AIProvider {
             `[${options.operationName}] Tentativa ${attempt + 1} falhou: HTTP ${status} em ${durationMs}ms: ${errorText.slice(0, 150)}`
           );
 
-          if (!isRetryable || attempt >= this.maxRetries) {
+          if (!isRetryable || attempt >= maxRetries) {
             throw new AIProviderError(`DeepSeek API retornou HTTP ${status}: ${errorText}`, {
               provider: this.name,
               statusCode: status,
@@ -230,7 +244,7 @@ export class DeepSeekProvider implements AIProvider {
           `[${options.operationName}] Erro na tentativa ${attempt + 1} (${durationMs}ms): ${errorMsg}`
         );
 
-        if (attempt >= this.maxRetries) {
+        if (attempt >= maxRetries) {
           break;
         }
 
@@ -240,7 +254,7 @@ export class DeepSeekProvider implements AIProvider {
     }
 
     throw new AIProviderError(
-      `Falha na comunicação com o DeepSeek após ${this.maxRetries + 1} tentativas: ${lastError?.message}`,
+      `Falha na comunicação com o DeepSeek após ${maxRetries + 1} tentativas: ${lastError?.message}`,
       { provider: this.name, statusCode: 504, isRetryable: true, originalError: lastError }
     );
   }
@@ -282,6 +296,7 @@ export class DeepSeekProvider implements AIProvider {
     const targetWordCount = typeof context?.targetWordCount === 'number' ? context.targetWordCount : 1800;
     const minimumWordCount = typeof context?.minimumWordCount === 'number' ? context.minimumWordCount : 1500;
     const maximumWordCount = typeof context?.maximumWordCount === 'number' ? context.maximumWordCount : 2200;
+    const currentDate = (context?.currentDate as string) || new Date().toISOString().split('T')[0];
 
     logger.info(this.name, `Iniciando produção de artigo editorial com DeepSeek: "${title}"`, {
       targetWordCount,
@@ -295,6 +310,7 @@ export class DeepSeekProvider implements AIProvider {
       blogDescription: (context?.blogDescription as string) || (context?.purpose as string),
       audience: context?.audience || 'Brasileiros em busca de educação financeira, crédito e investimentos',
       language: context?.language || 'pt-BR',
+      currentDate,
       topicTitle: title,
       category: context?.category,
       topicDescription: context?.notes,
@@ -318,7 +334,8 @@ export class DeepSeekProvider implements AIProvider {
       ],
       {
         temperature: this.temperature,
-        timeoutMs: 90000, // 90 segundos para artigos profundos de 1800 palavras
+        timeoutMs: 50000, // 50s estritos (orçamento Vercel Serverless maxDuration = 60s)
+        maxRetries: 0, // 0 retries para fail-fast dentro do orçamento Vercel
         operationName: 'generateArticle',
       }
     );
@@ -351,6 +368,18 @@ export class DeepSeekProvider implements AIProvider {
     const gateEval = evaluateWordCountQualityGate(actualWordCount, minimumWordCount, maximumWordCount);
 
     const qualityGateNotes: string[] = [gateEval.note];
+
+    // Verificação de anacronismo evidente no título do artigo
+    const currentYear = parseInt(currentDate.split('-')[0], 10);
+    const titleYearMatch = parsed.title.match(/\b(20\d{2})\b/);
+    if (titleYearMatch) {
+      const titleYear = parseInt(titleYearMatch[1], 10);
+      if (titleYear < currentYear) {
+        qualityGateNotes.push(
+          `AVISO ANACRONISMO: O título menciona o ano ${titleYear}, anterior ao ano de referência atual (${currentYear}).`
+        );
+      }
+    }
 
     // Detecção básica de idioma pt-BR
     const commonPtBrWords = ['que', 'para', 'com', 'não', 'uma', 'como', 'você', 'seu', 'sua'];
@@ -420,10 +449,12 @@ export class DeepSeekProvider implements AIProvider {
     category?: string;
     language?: string;
     blogName?: string;
+    currentDate?: string;
     existingIdeas?: Array<{ title: string; keywords?: string; type?: string }>;
     queuePosition?: number;
     totalRequested?: number;
   }): Promise<DeepSeekIdeaResult> {
+    const currentDate = context.currentDate || new Date().toISOString().split('T')[0];
     const promptOptions: DeepSeekIdeaPromptOptions = {
       blogName: context.blogName,
       niche: context.niche,
@@ -431,6 +462,7 @@ export class DeepSeekProvider implements AIProvider {
       purpose: context.purpose,
       category: context.category,
       language: context.language,
+      currentDate,
       existingIdeas: context.existingIdeas,
       queuePosition: context.queuePosition,
       totalRequested: context.totalRequested,
@@ -446,6 +478,7 @@ export class DeepSeekProvider implements AIProvider {
       {
         temperature: 0.7,
         timeoutMs: 20000, // 20s rígidos por pauta
+        maxRetries: 1, // máx 1 retry (total 2 tentativas)
         operationName: 'generateIdea',
       }
     );
@@ -463,6 +496,19 @@ export class DeepSeekProvider implements AIProvider {
         statusCode: 502,
         isRetryable: false,
       });
+    }
+
+    // Verificação de anacronismo na pauta
+    const currentYear = parseInt(currentDate.split('-')[0], 10);
+    const yearMatch = parsed.title.match(/\b(20\d{2})\b/);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[1], 10);
+      if (year < currentYear) {
+        logger.warn(
+          this.name,
+          `Aviso: Pauta gerada com ano anacrônico detectado (${year} < ${currentYear}): "${parsed.title}"`
+        );
+      }
     }
 
     return {
