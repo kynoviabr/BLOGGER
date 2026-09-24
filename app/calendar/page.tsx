@@ -42,8 +42,8 @@ export default async function CalendarPage({
         actions={
           <div className="flex items-center gap-2.5">
             <Link href="/ideas">
-              <Button size="sm" variant="outline" className="gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/40">
-                <Sparkles className="h-4 w-4 text-blue-500" />
+              <Button size="sm" variant="outline" className="gap-1.5 border-primary/30 text-primary hover:bg-[hsl(var(--primary-light))]">
+                <Sparkles className="h-4 w-4 text-primary" />
                 Gerar Ideias com IA
               </Button>
             </Link>
@@ -58,7 +58,7 @@ export default async function CalendarPage({
       />
 
       {loadError && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+        <div className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-[hsl(var(--danger-bg))] p-4 text-xs text-destructive ">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold block">Erro ao consultar pautas no Supabase:</span>
