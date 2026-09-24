@@ -27,7 +27,7 @@ export default async function BlogDetailsPage({
     <div className="space-y-8 max-w-4xl">
       <Link
         href="/blogs"
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-slate-800 dark:text-muted-foreground dark:hover:text-slate-200"
       >
         <ArrowLeft className="h-4 w-4" />
         Voltar para Blogs
@@ -66,7 +66,7 @@ export default async function BlogDetailsPage({
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Languages className="h-4 w-4 text-emerald-600" />
+                <Languages className="h-4 w-4 text-success" />
                 Idiomas Suportados
               </CardTitle>
             </CardHeader>
@@ -77,7 +77,7 @@ export default async function BlogDetailsPage({
                     key={l.id}
                     className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-800/40 text-xs"
                   >
-                    <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                    <span className="font-mono font-medium text-foreground">
                       {l.language}
                     </span>
                     {l.language === blog.default_language ? (
@@ -89,7 +89,7 @@ export default async function BlogDetailsPage({
                 ))
               ) : (
                 <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
                   {blog.default_language} (Padrão)
                 </div>
               )}
