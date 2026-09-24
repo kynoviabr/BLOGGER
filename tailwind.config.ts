@@ -1,37 +1,12 @@
 import type { Config } from "tailwindcss";
-
+const h=(v:string)=>`hsl(var(${v}) / <alpha-value>)`;
 const config: Config = {
-  content: [
-    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
-  theme: {
-    extend: {
-      colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
-        card: "var(--card)",
-        "card-foreground": "var(--card-foreground)",
-        primary: "var(--primary)",
-        "primary-foreground": "var(--primary-foreground)",
-        secondary: "var(--secondary)",
-        "secondary-foreground": "var(--secondary-foreground)",
-        muted: "var(--muted)",
-        "muted-foreground": "var(--muted-foreground)",
-        accent: "var(--accent)",
-        "accent-foreground": "var(--accent-foreground)",
-        destructive: "var(--destructive)",
-        "destructive-foreground": "var(--destructive-foreground)",
-        border: "var(--border)",
-        input: "var(--input)",
-        ring: "var(--ring)",
-        success: "var(--success)",
-        warning: "var(--warning)",
-        info: "var(--info)",
-      },
-    },
-  },
-  plugins: [],
-};
-export default config;
+ content:["./pages/**/*.{js,ts,jsx,tsx,mdx}","./components/**/*.{js,ts,jsx,tsx,mdx}","./app/**/*.{js,ts,jsx,tsx,mdx}"],
+ theme:{extend:{
+  colors:{background:h("--background"),foreground:h("--foreground"),card:h("--card"),"card-foreground":h("--card-foreground"),primary:h("--primary"),"primary-foreground":h("--primary-foreground"),secondary:h("--secondary"),"secondary-foreground":h("--secondary-foreground"),muted:h("--muted"),"muted-foreground":h("--muted-foreground"),accent:h("--accent"),"accent-foreground":h("--accent-foreground"),destructive:h("--destructive"),"destructive-foreground":h("--destructive-foreground"),border:h("--border"),input:h("--input"),ring:h("--ring"),success:h("--success"),warning:h("--warning"),info:h("--info"),navy:h("--bg-navy")},
+  fontFamily:{sans:["var(--font-body)"],heading:["var(--font-heading)"],mono:["var(--font-mono)"]},
+  borderRadius:{DEFAULT:"var(--radius)","brand-btn":"var(--radius-btn)","brand-card":"var(--radius-card)","brand-modal":"var(--radius-modal)"},
+  boxShadow:{card:"var(--shadow-sm)","card-hover":"var(--shadow-md)",glow:"var(--shadow-glow)"}
+ }},
+ plugins:[]
+}; export default config;
