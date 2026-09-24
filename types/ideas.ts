@@ -17,6 +17,28 @@ export interface GenerateIdeasResponse {
   error?: string;
 }
 
+export interface ExistingIdeaSummary {
+  title: string;
+  keywords?: string;
+  type?: string;
+}
+
+export interface GenerateOneIdeaRequest {
+  blogId: string;
+  category?: string;
+  existingIdeas?: ExistingIdeaSummary[];
+  queuePosition?: number;
+  totalRequested?: number;
+}
+
+export interface GenerateOneIdeaResponse {
+  success: boolean;
+  idea?: ContentIdea;
+  error?: string;
+  queuePosition?: number;
+  durationMs?: number;
+}
+
 export interface SaveIdeasBatchRequest {
   blogId: string;
   category?: string;
@@ -28,3 +50,4 @@ export interface SaveIdeasBatchResponse {
   count?: number;
   error?: string;
 }
+

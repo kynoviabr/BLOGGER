@@ -44,4 +44,21 @@ export interface AIProvider {
       count?: number;
     }
   ): Promise<Array<{ title: string; keywords: string; description: string; type: string }>>;
+
+  /**
+   * Gera EXATAMENTE UMA ideia de pauta estruturada com prevenção de duplicidades.
+   */
+  generateIdea?(
+    context: {
+      niche?: string;
+      audience?: string;
+      purpose?: string;
+      category?: string;
+      language?: string;
+      blogName?: string;
+      existingIdeas?: Array<{ title: string; keywords?: string; type?: string }>;
+      queuePosition?: number;
+      totalRequested?: number;
+    }
+  ): Promise<{ title: string; keywords: string; description: string; type: string }>;
 }

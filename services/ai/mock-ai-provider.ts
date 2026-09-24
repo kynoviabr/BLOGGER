@@ -59,6 +59,20 @@ export class MockAIProvider implements AIProvider {
       },
     ];
   }
+
+  async generateIdea(context: {
+    category?: string;
+    queuePosition?: number;
+  }): Promise<{ title: string; keywords: string; description: string; type: string }> {
+    const cat = context.category || 'Finanças';
+    const pos = context.queuePosition || 1;
+    return {
+      title: `Guia Estratégico de ${cat} #${pos}: Passo a Passo 2026`,
+      keywords: `${cat}, planejamento, economia, dicas 2026`,
+      description: `Análise estruturada sobre ${cat} abordando regras, direitos e simulações práticas.`,
+      type: 'Guia Completo',
+    };
+  }
 }
 
 export class MockImageProvider implements ImageProvider {
