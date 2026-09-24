@@ -16,7 +16,6 @@ const TIER_1_DOMAINS = [
   "mte.gov.br",
   "tesourotransparente.gov.br",
   "cvm.gov.br",
-  "b3.com.br",
   "caixa.gov.br",
   "bb.com.br",
   "planalto.gov.br",
@@ -106,7 +105,8 @@ export function classifySourceTier(domain: string): { tier: 1 | 2 | 3 | 4; sourc
 export function rankAndSelectSources(
   candidates: RankedSourceCandidate[],
   currentDate: string,
-  maxSources = 5
+  maxSources = 5,
+  topicKeywords: string[] = []
 ): ResearchSource[] {
   const currentYear = parseInt(currentDate.split("-")[0], 10);
   const accessedAt = new Date().toISOString();
@@ -114,6 +114,10 @@ export function rankAndSelectSources(
   // Deduplicação por domínio e URL
   const seenUrls = new Set<string>();
   const scoredSources: Array<{ source: ResearchSource; score: number }> = [];
+
+  const normalizedKeywords = topicKeywords
+    .flatMap(k => k.toLowerCase().split(/\s+/))
+    .filter(k => k.length >= 4);
 
   for (const item of candidates) {
     if (!item.url || seenUrls.has(item.url)) continue;
@@ -128,17 +132,28 @@ export function rankAndSelectSources(
     // Tier 1: 100 pontos, Tier 2: 70 pontos, Tier 3: 40 pontos, Tier 4: 10 pontos
     let score = (5 - classification.tier) * 25;
 
-    // Bônus de Freshness temporal
     const textToCheck = (item.title + " " + item.snippet + " " + item.url).toLowerCase();
+
+    // Relevância temática estrita: pontua aderência aos termos da pauta
+    if (normalizedKeywords.length > 0) {
+      const matchCount = normalizedKeywords.filter(k => textToCheck.includes(k)).length;
+      if (matchCount > 0) {
+        score += Math.min(matchCount * 15, 45); // Bônus de relevância temática
+      } else {
+        score -= 50; // Penalidade forte para páginas sem aderência ao tema da pauta
+      }
+    }
+
+    // Bônus de Freshness temporal
     if (textToCheck.includes(String(currentYear))) {
-      score += 20; // Menção expressa ao ano corrente
+      score += 15; // Menção expressa ao ano corrente
     } else if (textToCheck.includes(String(currentYear - 1))) {
       score += 5; // Menção ao ano anterior
     }
 
     // Penalidade para anos anacrônicos muito antigos (ex: 2022 ou anterior)
     if (/\b(201\d|202[0-2])\b/.test(textToCheck)) {
-      score -= 25;
+      score -= 30;
     }
 
     scoredSources.push({

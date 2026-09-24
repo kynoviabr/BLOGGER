@@ -25,6 +25,7 @@ import {
   DeepSeekArticlePromptOptions,
   DeepSeekIdeaPromptOptions,
 } from '@/prompts/deepseek-prompts';
+import { FactualAuditClaim, FactualAuditReport } from '@/services/research/research.types';
 
 export interface DeepSeekProviderConfig {
   apiKey?: string;
@@ -574,5 +575,88 @@ export class DeepSeekProvider implements AIProvider {
     }
 
     return ideas;
+  }
+
+  /**
+   * Auditoria Factual Semântica: compara afirmações críticas do artigo contra evidências concretas
+   * (sourceFact e sourceExcerpt) utilizando DeepSeek com baixa temperatura e schema JSON.
+   */
+  async auditFactualClaims(
+    articleContent: string,
+    claims: Array<{
+      claim: string;
+      sourceFact: string;
+      sourceExcerpt: string;
+      sourceUrl: string;
+    }>
+  ): Promise<FactualAuditReport> {
+    const systemPrompt = `Você é um auditor factual editorial independente e rigoroso para conteúdo de finanças (YMYL).
+Sua função é avaliar se afirmações críticas feitas em um artigo são suportadas, não suportadas ou contraditas pelas evidências verificadas.
+
+CRITÉRIOS DE AVALIAÇÃO:
+- "SUPPORTED": O texto do artigo transmite com precisão a informação factual presente nas evidências (sourceFact e sourceExcerpt), sem distorções nem extrapolações falsas.
+- "UNSUPPORTED": O texto do artigo não aborda ou omite a informação, ou não possui respaldo factual nas evidências apresentadas.
+- "CONTRADICTED": O texto do artigo afirma algo que contradiz diretamente ou nega as evidências factuais comprovadas.
+
+REGRAS ESTRITAS:
+1. Avalie unicamente com base no texto do artigo e nas evidências fornecidas. Não invente evidências.
+2. Cada claim avaliada deve manter sua respectiva sourceFact, sourceExcerpt e sourceUrl inalteradas.
+3. Retorne estritamente um JSON no formato:
+{
+  "claims": [
+    {
+      "claim": "afirmação avaliada",
+      "sourceFact": "fato de referência",
+      "sourceExcerpt": "trecho literal",
+      "sourceUrl": "url original",
+      "status": "SUPPORTED" | "UNSUPPORTED" | "CONTRADICTED",
+      "justification": "justificativa concisa de 1 frase"
+    }
+  ]
+}`;
+
+    const userPrompt = `TEXTO DO ARTIGO A AUDITAR:
+"""
+${articleContent.slice(0, 12000)}
+"""
+
+EVIDÊNCIAS E AFIRMAÇÕES CRÍTICAS A VERIFICAR:
+${JSON.stringify(claims, null, 2)}
+
+Avalie cada afirmação contra o texto do artigo e retorne o JSON com a classificação precisa.`;
+
+    const res = await this.executeChatCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      {
+        temperature: 0.1,
+        maxTokens: 2000,
+        operationName: 'auditFactualClaims',
+      }
+    );
+
+    const parsed = JSON.parse(res.content);
+    const evaluatedClaims: FactualAuditClaim[] = parsed.claims || [];
+
+    const contradictedCount = evaluatedClaims.filter(c => c.status === 'CONTRADICTED').length;
+    const unsupportedCount = evaluatedClaims.filter(c => c.status === 'UNSUPPORTED').length;
+    const allSupported = contradictedCount === 0 && unsupportedCount === 0 && evaluatedClaims.length > 0;
+
+    let status: 'PASS' | 'REVIEW_REQUIRED' | 'FAIL' = 'PASS';
+    if (contradictedCount > 0) {
+      status = 'FAIL';
+    } else if (unsupportedCount > 0) {
+      status = 'REVIEW_REQUIRED';
+    }
+
+    return {
+      claims: evaluatedClaims,
+      allSupported,
+      contradictedCount,
+      unsupportedCount,
+      status,
+    };
   }
 }

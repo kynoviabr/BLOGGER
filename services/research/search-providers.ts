@@ -23,7 +23,8 @@ export class BingSearchProvider implements SearchProvider {
 
   async search(query: string, options: { limit?: number; language?: string } = {}): Promise<WebSearchResult[]> {
     const limit = options.limit || 8;
-    const cleanQuery = query.replace(/[?:!,"'“”()[\]{}]/g, " ").replace(/\s+/g, " ").trim();
+    // Remove pontuações que atrapalham, preservando operadores como site:
+    const cleanQuery = query.replace(/[?!,"'“”()[\]{}]/g, " ").replace(/\s+/g, " ").trim();
     const url = "https://www.bing.com/search?q=" + encodeURIComponent(cleanQuery);
 
     try {

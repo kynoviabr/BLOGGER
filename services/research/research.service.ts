@@ -1,22 +1,26 @@
 import {
   ResearchRequest,
   ResearchSource,
+  FetchedSourceContent,
   ResearchFact,
   FactualResearchBrief,
   ResearchRiskLevel,
   SearchProvider,
 } from "./research.types";
 import { createSearchProvider } from "./search-providers";
+import { SourceFetcher } from "./source-fetcher";
 import { rankAndSelectSources, RankedSourceCandidate } from "./source-ranker";
-import { wrapInFactualDataContainer, sanitizeUntrustedText } from "./prompt-injection-sanitizer";
+import { wrapInFactualDataContainer } from "./prompt-injection-sanitizer";
 import { LogService } from "@/services/log.service";
 import { logger } from "@/lib/logger";
 
 export class ResearchService {
   private readonly searchProvider: SearchProvider;
+  private readonly sourceFetcher: SourceFetcher;
 
-  constructor(searchProvider?: SearchProvider) {
+  constructor(searchProvider?: SearchProvider, sourceFetcher?: SourceFetcher) {
     this.searchProvider = searchProvider || createSearchProvider();
+    this.sourceFetcher = sourceFetcher || new SourceFetcher();
   }
 
   /**
@@ -117,31 +121,50 @@ export class ResearchService {
   }
 
   /**
-   * Extrai fatos verificáveis e objetivos dos snippets de fontes selecionadas.
+   * Extrai fatos verificáveis a partir do CONTEÚDO REAL obtido das URLs originais.
+   * NUNCA utiliza search snippets como fonte de fatos verificados.
    */
-  private extractFacts(sources: ResearchSource[], rawCandidates: RankedSourceCandidate[]): ResearchFact[] {
+  private extractFactsFromFetchedSources(fetchedSources: FetchedSourceContent[]): ResearchFact[] {
     const facts: ResearchFact[] = [];
-    const snippetMap = new Map<string, string>();
-    rawCandidates.forEach(c => snippetMap.set(c.url, c.snippet));
 
-    for (const source of sources) {
-      const snippet = snippetMap.get(source.url);
-      if (!snippet || snippet.length < 20) continue;
+    for (const source of fetchedSources) {
+      if (!source.paragraphs || source.paragraphs.length === 0) continue;
 
-      // Sanitiza e divide em orações informativas
-      const cleanSnippet = sanitizeUntrustedText(snippet);
-      const sentences = cleanSnippet
-        .split(/(?<=[.!?])\s+/)
-        .map(s => s.trim())
-        .filter(s => s.length >= 25 && !s.includes("[instrução_bloqueada"));
+      // Filtra parágrafos ricos em informação factual (mínimo de palavras e contexto)
+      const informativeParagraphs = source.paragraphs.filter(p => {
+        const lower = p.toLowerCase();
+        return (
+          p.length >= 45 &&
+          !lower.includes("cookies") &&
+          !lower.includes("política de privacidade") &&
+          !lower.includes("todos os direitos reservados") &&
+          !lower.includes("carregando") &&
+          !lower.includes("inscreva-se")
+        );
+      });
 
-      for (const sentence of sentences.slice(0, 2)) {
+      // Seleciona até 2 afirmações representativas por fonte
+      for (const paragraph of informativeParagraphs.slice(0, 2)) {
+        // Divide o parágrafo em orações
+        const sentences = paragraph
+          .split(/(?<=[.!?])\s+/)
+          .map(s => s.trim())
+          .filter(s => s.length >= 35 && !s.includes("[instrução_bloqueada"));
+
+        if (sentences.length === 0) continue;
+
+        const statement = sentences[0];
+        const excerpt = paragraph.length > 250 ? paragraph.slice(0, 250).trim() + "..." : paragraph;
+
         facts.push({
-          statement: sentence,
-          sourceUrl: source.url,
+          statement,
+          sourceExcerpt: excerpt,
+          sourceUrl: source.sourceUrl,
           sourceTitle: source.title,
           publishedAt: source.publishedAt,
-          confidence: source.tier <= 2 ? "high" : "medium",
+          accessedAt: source.accessedAt,
+          confidence: source.isOfficial ? "high" : "medium",
+          verificationMethod: "source_content", // Garantido: conteúdo da fonte original
         });
       }
     }
@@ -150,31 +173,62 @@ export class ResearchService {
   }
 
   /**
-   * Detecta incertezas e divergências factuais entre fontes.
+   * Detecta conflitos semânticos e incertezas factuais entre fontes oficiais.
    */
-  private detectUncertainties(facts: ResearchFact[], sources: ResearchSource[], riskLevel: ResearchRiskLevel): { uncertainties: string[]; warnings: string[] } {
+  private detectConflictsAndUncertainties(
+    facts: ResearchFact[],
+    fetchedSources: FetchedSourceContent[],
+    riskLevel: ResearchRiskLevel
+  ): { hasCriticalConflict: boolean; conflicts: string[]; uncertainties: string[]; warnings: string[] } {
+    const conflicts: string[] = [];
     const uncertainties: string[] = [];
     const warnings: string[] = [];
+    let hasCriticalConflict = false;
 
     // Se temos fontes oficiais e fontes secundárias, avisar sobre prevalência da oficial
-    const hasOfficial = sources.some(s => s.tier === 1);
-    const hasSecondary = sources.some(s => s.tier >= 3);
+    const hasOfficial = fetchedSources.some(s => s.isOfficial);
+    const hasSecondary = fetchedSources.some(s => !s.isOfficial);
 
     if (hasOfficial && hasSecondary) {
-      warnings.push("Fontes secundárias e veículos jornalísticos devem ter suas afirmações estritamente validadas contra as fontes oficiais prioritárias (.gov.br / BCB).");
+      warnings.push("Fontes oficiais (.gov.br / órgãos reguladores) prevalecem estritamente sobre veículos secundários em caso de divergência.");
     }
 
-    // Verificar se há menções a regras que dependem de confirmação individual
+    // Detecção de divergências numéricas em margens ou taxas
+    const officialFacts = facts.filter(f => f.confidence === "high");
+    const percentages: Array<{ value: number; sourceUrl: string }> = [];
+
+    for (const f of officialFacts) {
+      const match = f.sourceExcerpt.match(/(\d{1,2}(?:,\d+)?)\s*%/);
+      if (match) {
+        percentages.push({
+          value: parseFloat(match[1].replace(",", ".")),
+          sourceUrl: f.sourceUrl,
+        });
+      }
+    }
+
+    // Se houver porcentagens oficiais muito discrepantes sem contextualização de modalidade
+    if (percentages.length >= 2) {
+      const values = percentages.map(p => p.value);
+      const minVal = Math.min(...values);
+      const maxVal = Math.max(...values);
+      if (maxVal - minVal > 25) {
+        conflicts.push(`Divergência detectada entre valores percentuais de fontes oficiais (${minVal}% vs ${maxVal}%).`);
+        hasCriticalConflict = true;
+      }
+    }
+
+    // Incertezas intrínsecas de produtos financeiros
     const combinedFactsText = facts.map(f => f.statement).join(" ").toLowerCase();
     if (combinedFactsText.includes("taxa") || combinedFactsText.includes("juros")) {
       uncertainties.push("As taxas nominais exatas de juros variam por instituição financeira e perfil cadastral do cliente.");
     }
 
     if (riskLevel === "HIGH" && !hasOfficial) {
-      warnings.push("Atenção: Nenhuma fonte oficial primária (.gov.br ou órgão regulador) foi localizada para este tópico de alto risco. Verificação adicional necessária.");
+      warnings.push("Atenção: Nenhuma fonte oficial primária (.gov.br ou órgão regulador) foi obtida para este tópico de alto risco. Verificação adicional necessária.");
     }
 
-    return { uncertainties, warnings };
+    return { hasCriticalConflict, conflicts, uncertainties, warnings };
   }
 
   /**
@@ -189,26 +243,31 @@ export class ResearchService {
     lines.push(`STATUS: ${brief.status}`);
     lines.push("");
 
-    lines.push("--- VERIFIED SOURCES ---");
-    brief.sources.forEach((s, idx) => {
+    lines.push("--- VERIFIED ORIGINAL SOURCES ---");
+    brief.fetchedSources.forEach((s, idx) => {
       lines.push(`[${idx + 1}] ${s.title}`);
-      lines.push(`    Domain: ${s.domain} (Tier ${s.tier} - ${s.sourceType.toUpperCase()})`);
-      lines.push(`    URL: ${s.url}`);
+      lines.push(`    URL: ${s.sourceUrl}`);
+      lines.push(`    Final URL: ${s.finalUrl} (HTTP ${s.httpStatus}, ${s.contentType}, ${s.byteLength} bytes)`);
       if (s.publishedAt) lines.push(`    Published: ${s.publishedAt}`);
-      lines.push(`    Reason: ${s.selectionReason}`);
+      lines.push(`    Accessed: ${s.accessedAt}`);
+      lines.push(`    Official Authority: ${s.isOfficial ? "YES (.gov.br / regulador)" : "NO"}`);
     });
     lines.push("");
 
-    lines.push("--- VERIFIED FACTS ---");
+    lines.push("--- VERIFIED FACTS (VERIFIED FROM ORIGINAL SOURCE CONTENT) ---");
     if (brief.facts.length === 0) {
-      lines.push("Nenhum fato textual isolado extraído. Utilizar as fontes de referência com cautela.");
+      lines.push("Nenhum fato textual isolado pôde ser verificado no conteúdo original baixado.");
     } else {
       brief.facts.forEach((f, idx) => {
-        lines.push(`${idx + 1}. ${f.statement}`);
-        lines.push(`   [Fonte: ${f.sourceTitle} | URL: ${f.sourceUrl} | Confiança: ${f.confidence}]`);
+        lines.push(`[Fact ${idx + 1}] ${f.statement}`);
+        lines.push(`    Source Excerpt: "${f.sourceExcerpt}"`);
+        lines.push(`    Source URL: ${f.sourceUrl}`);
+        lines.push(`    Source Title: ${f.sourceTitle}`);
+        lines.push(`    Confidence: ${f.confidence.toUpperCase()}`);
+        lines.push(`    Verification Method: ${f.verificationMethod}`);
+        lines.push("");
       });
     }
-    lines.push("");
 
     if (brief.uncertainties.length > 0) {
       lines.push("--- UNCERTAINTIES & VARIABILITY ---");
@@ -227,6 +286,7 @@ export class ResearchService {
 
   /**
    * Executa a esteira de pesquisa factual completa para a pauta.
+   * Fluxo: QUERY -> SEARCH CANDIDATES -> SOURCE RANKING -> FETCH ORIGINAL SOURCE -> EXTRACT SOURCE CONTENT -> FACTS
    */
   async conductResearch(request: ResearchRequest): Promise<FactualResearchBrief> {
     const startTime = Date.now();
@@ -238,6 +298,7 @@ export class ResearchService {
       riskLevel,
     });
 
+    // 1. Busca de candidatos a fontes (Search Results)
     const candidates: RankedSourceCandidate[] = [];
     const seenUrls = new Set<string>();
 
@@ -259,23 +320,39 @@ export class ResearchService {
       }
     }
 
-    // Ranqueamento e seleção das top fontes
-    const acceptedSources = rankAndSelectSources(candidates, request.currentDate, 5);
+    // 2. Ranqueamento e seleção das top URLs com relevância temática estrita
+    const topicTerms = [...(request.keywords || []), request.title];
+    const acceptedSources = rankAndSelectSources(candidates, request.currentDate, 5, topicTerms);
 
-    // Extração de fatos das fontes aceitas
-    const facts = this.extractFacts(acceptedSources, candidates);
+    // 3. FETCH DO CONTEÚDO ORIGINAL DA FONTE (SourceFetcher)
+    const fetchedSources = await this.sourceFetcher.fetchSources(acceptedSources, 3);
 
-    // Detecção de incertezas e conflitos
-    const { uncertainties, warnings } = this.detectUncertainties(facts, acceptedSources, riskLevel);
+    // 4. EXTRAÇÃO DE FATOS DO CONTEÚDO REAL DA PÁGINA (Com sourceExcerpt e provenance)
+    const facts = this.extractFactsFromFetchedSources(fetchedSources);
 
-    // Política de Fail-Closed para High Risk
-    // Se o risco for HIGH e não houver nenhuma fonte confiável (Tier 1 ou 2) OU se nenhuma fonte foi encontrada:
+    // 5. DETECÇÃO REAL DE CONFLITOS E INCERTEZAS
+    const { hasCriticalConflict, conflicts, uncertainties, warnings } = this.detectConflictsAndUncertainties(
+      facts,
+      fetchedSources,
+      riskLevel
+    );
+
+    // 6. POLÍTICA DE FAIL-CLOSED
     let status: "READY" | "RESEARCH_REVIEW_REQUIRED" = "READY";
-    const hasReliableSource = acceptedSources.some(s => s.tier <= 2);
+    const hasOfficialSource = fetchedSources.some(s => s.isOfficial);
 
-    if (riskLevel === "HIGH" && (!hasReliableSource || acceptedSources.length === 0)) {
-      status = "RESEARCH_REVIEW_REQUIRED";
-      warnings.push("FAIL-CLOSED ATIVADO: Não foi possível verificar informações críticas desta pauta em fontes oficiais primárias.");
+    if (riskLevel === "HIGH") {
+      // Se não há nenhuma fonte oficial baixada com sucesso, OU zero fatos verificados, OU conflito crítico:
+      if (!hasOfficialSource || facts.length === 0 || hasCriticalConflict) {
+        status = "RESEARCH_REVIEW_REQUIRED";
+        if (hasCriticalConflict) {
+          warnings.push("FAIL-CLOSED ATIVADO: Conflito semântico/numérico crítico detectado entre fontes.");
+        } else if (!hasOfficialSource) {
+          warnings.push("FAIL-CLOSED ATIVADO: Nenhuma fonte oficial (.gov.br / órgão regulador) pôde ser baixada e verificada.");
+        } else {
+          warnings.push("FAIL-CLOSED ATIVADO: Nenhum fato factual pôde ser extraído das fontes originais.");
+        }
+      }
     }
 
     const durationMs = Date.now() - startTime;
@@ -285,14 +362,15 @@ export class ResearchService {
       riskLevel,
       researchedAt: request.currentDate,
       sources: acceptedSources,
+      fetchedSources,
       facts,
       uncertainties,
-      warnings,
+      warnings: [...warnings, ...conflicts],
       status,
       rawBriefingText: "",
     };
 
-    // Monta o texto do briefing e protege contra prompt injection
+    // 7. Monta o texto do briefing e protege contra prompt injection
     const rawFormatted = this.formatBriefingText(brief);
     brief.rawBriefingText = wrapInFactualDataContainer(rawFormatted, "FACTUAL_RESEARCH_BRIEF");
 
@@ -301,14 +379,16 @@ export class ResearchService {
       await LogService.recordLog(
         status === "READY" ? "info" : "warn",
         "ResearchService.conductResearch",
-        `Pesquisa concluída para "${request.title}": ${acceptedSources.length} fontes aceitas [${status}]`,
+        `Pesquisa concluída para "${request.title}": ${fetchedSources.length} fontes originais baixadas, ${facts.length} fatos verificados [${status}]`,
         {
           operation: "researchArticle",
           contentId: request.contentId,
           topic: request.title,
           riskLevel,
-          sourcesFound: candidates.length,
-          sourcesAccepted: acceptedSources.length,
+          candidatesFound: candidates.length,
+          sourcesSelected: acceptedSources.length,
+          sourcesFetched: fetchedSources.length,
+          factsVerified: facts.length,
           status,
           durationMs,
           success: status === "READY",
@@ -319,8 +399,9 @@ export class ResearchService {
     }
 
     logger.info("ResearchService", `Pesquisa factual concluída em ${durationMs}ms para "${request.title}"`, {
-      sourcesFound: candidates.length,
-      sourcesAccepted: acceptedSources.length,
+      candidatesFound: candidates.length,
+      sourcesFetched: fetchedSources.length,
+      factsVerified: facts.length,
       status,
     });
 

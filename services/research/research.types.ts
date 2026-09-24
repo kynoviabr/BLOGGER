@@ -24,12 +24,31 @@ export interface ResearchSource {
   selectionReason: string;
 }
 
+export interface FetchedSourceContent {
+  sourceUrl: string;
+  finalUrl: string;
+  httpStatus: number;
+  contentType: string;
+  byteLength: number;
+  title: string;
+  publishedAt?: string;
+  accessedAt: string;
+  cleanedText: string;
+  paragraphs: string[];
+  isOfficial: boolean;
+  dnsValidated: boolean;
+  redirectCount: number;
+}
+
 export interface ResearchFact {
   statement: string;
   sourceUrl: string;
   sourceTitle: string;
+  sourceExcerpt: string; // Trecho literal de evidência da página original
   publishedAt?: string;
+  accessedAt: string;
   confidence: 'high' | 'medium';
+  verificationMethod: 'source_content'; // Proibido o uso de 'search_snippet'
 }
 
 export interface FactualResearchBrief {
@@ -37,6 +56,7 @@ export interface FactualResearchBrief {
   riskLevel: ResearchRiskLevel;
   researchedAt: string;
   sources: ResearchSource[];
+  fetchedSources: FetchedSourceContent[];
   facts: ResearchFact[];
   uncertainties: string[];
   warnings: string[];
@@ -54,4 +74,23 @@ export interface WebSearchResult {
 export interface SearchProvider {
   readonly name: string;
   search(query: string, options?: { limit?: number; language?: string }): Promise<WebSearchResult[]>;
+}
+
+export type FactualAuditStatus = 'SUPPORTED' | 'UNSUPPORTED' | 'CONTRADICTED';
+
+export interface FactualAuditClaim {
+  claim: string;
+  sourceFact: string;
+  sourceExcerpt: string;
+  sourceUrl: string;
+  status: FactualAuditStatus;
+  justification: string;
+}
+
+export interface FactualAuditReport {
+  claims: FactualAuditClaim[];
+  allSupported: boolean;
+  contradictedCount: number;
+  unsupportedCount: number;
+  status: 'PASS' | 'REVIEW_REQUIRED' | 'FAIL';
 }
