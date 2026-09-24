@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { BlogService } from "@/services/blog.service";
 import { BlogEditForm } from "@/components/blogs/blog-edit-form";
 import { AutopilotSettingsCard } from "@/components/blogs/autopilot-settings-card";
+import { CategoryManager } from "@/components/blogs/category-manager";
 
 export default async function BlogDetailsPage({
   params,
@@ -56,34 +57,8 @@ export default async function BlogDetailsPage({
 
         {/* Informações Laterais: Categorias e Idiomas (1 coluna) */}
         <div className="space-y-6">
-          {/* Categorias Cadastradas */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FolderTree className="h-4 w-4 text-blue-600" />
-                Categorias ({blog.categories?.length || 0})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {blog.categories && blog.categories.length > 0 ? (
-                blog.categories.map((cat) => (
-                  <div
-                    key={cat.id}
-                    className="flex flex-col rounded-lg border border-slate-100 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-800/40 text-xs"
-                  >
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
-                      {cat.name}
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-500">
-                      /{cat.slug}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-slate-500">Nenhuma categoria cadastrada.</p>
-              )}
-            </CardContent>
-          </Card>
+          {/* Categorias Cadastradas e Gerenciamento */}
+          <CategoryManager blogId={blog.id} categories={blog.categories || []} />
 
           {/* Idiomas Ativos */}
           <Card>

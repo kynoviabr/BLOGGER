@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/auth';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { createAIProvider } from '@/services/ai';
+import { ResearchService } from '@/services/research';
 import { AIProviderError } from '@/lib/errors/ai.errors';
 import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
@@ -50,13 +51,41 @@ export async function POST(
 
     logger.info('API.generate', `Iniciando geração de texto com ${aiProvider.name} para contentId: ${id}`);
 
-    // 4. Executar geração do artigo
+    // 4. Executar pesquisa factual prévia via ResearchService
+    const currentDate = new Date().toISOString().split('T')[0];
+    const researchService = new ResearchService();
+    const researchBrief = await researchService.conductResearch({
+      title: topic,
+      category: calendar?.category_id || undefined,
+      keywords,
+      niche: blog?.niche || undefined,
+      currentDate,
+      language: 'pt-BR',
+      contentId: id,
+    });
+
+    if (researchBrief.status === 'RESEARCH_REVIEW_REQUIRED') {
+      logger.warn('API.generate', `Pesquisa factual para "${topic}" requer revisão manual (FAIL-CLOSED)`);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Não foi possível verificar informações críticas desta pauta em fontes oficiais confiáveis.',
+          status: 'RESEARCH_REVIEW_REQUIRED',
+          brief: researchBrief,
+        },
+        { status: 422 }
+      );
+    }
+
+    // 5. Executar geração do artigo entregando o FactualResearchBrief através de sourcesOrResearch
     const generated = await aiProvider.generateArticle(topic, keywords, {
       niche: blog?.niche,
       audience: blog?.audience || undefined,
       language: contentItem.language || blog?.default_language || 'pt-BR',
       category: calendar?.category_id || undefined,
       notes: calendar?.notes || undefined,
+      currentDate,
+      sourcesOrResearch: researchBrief.rawBriefingText,
     });
 
     const durationMs = Date.now() - startTime;
