@@ -230,7 +230,12 @@ export class PipelineService {
       }
 
       // 6. ETAPA 3: Publicar no WordPress
-      const publisher = createPublisherProvider();
+      const blogDomain = blog?.domain
+        ? (blog.domain.startsWith('http') ? blog.domain : `https://${blog.domain}`)
+        : undefined;
+      const publisher = createPublisherProvider({
+        siteUrl: blogDomain || process.env.WORDPRESS_SITE_URL,
+      });
       let wpFeaturedMediaId: string | number | undefined;
 
       if (generatedImage?.buffer) {

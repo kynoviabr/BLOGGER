@@ -46,7 +46,12 @@ export async function POST(
     const blog = contentItem.blog;
 
     // 3. Instanciar WordPressProvider via Factory
-    const publisher = createPublisherProvider();
+    const blogDomain = blog?.domain
+      ? (blog.domain.startsWith('http') ? blog.domain : `https://${blog.domain}`)
+      : undefined;
+    const publisher = createPublisherProvider({
+      siteUrl: blogDomain || process.env.WORDPRESS_SITE_URL,
+    });
 
     logger.info('API.publish', `Iniciando publicação com ${publisher.name} para o artigo ${id}`);
 

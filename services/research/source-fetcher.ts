@@ -120,6 +120,7 @@ export class SourceFetcher {
         cleanedText,
         paragraphs: sanitizedParagraphs,
         isOfficial,
+        tier: source.tier,
         dnsValidated: true,
         redirectCount: 0,
       };

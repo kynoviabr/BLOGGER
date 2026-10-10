@@ -48,10 +48,8 @@ export class ResearchService {
       "fgts",
       "pis",
       "pasep",
-      "benefício",
-      "direitos",
-      "regras atuais",
-      "2026",
+      "benefício do inss",
+      "regras inss",
     ];
 
     if (highRiskTerms.some(term => text.includes(term))) {
@@ -105,11 +103,8 @@ export class ResearchService {
       queries.push(`${cleanKeyword} site:gov.br`);
       // Query 2: Focada no Banco Central / órgãos reguladores
       queries.push(`${cleanKeyword} site:bcb.gov.br`);
-      // Query 3: Busca por regras da keyword secundária se presente
-      if (request.keywords && request.keywords.length > 1) {
-        const cleanSecondary = request.keywords[1].replace(/[?:!,"'“”()[\]{}]/g, " ").trim();
-        queries.push(`${cleanSecondary} site:gov.br`);
-      }
+      // Query 3: Busca ampla recente para contextualização de mercado e instituições
+      queries.push(`${cleanKeyword} ${currentYear}`);
     } else if (riskLevel === "MEDIUM") {
       queries.push(`${cleanKeyword} ${currentYear}`);
       queries.push(`como funciona ${cleanKeyword}`);
@@ -342,15 +337,32 @@ export class ResearchService {
     const hasOfficialSource = fetchedSources.some(s => s.isOfficial);
 
     if (riskLevel === "HIGH") {
-      // Se não há nenhuma fonte oficial baixada com sucesso, OU zero fatos verificados, OU conflito crítico:
-      if (!hasOfficialSource || facts.length === 0 || hasCriticalConflict) {
+      // Se não há nenhum fato verificado OU conflito crítico:
+      if (facts.length === 0 || hasCriticalConflict) {
         status = "RESEARCH_REVIEW_REQUIRED";
         if (hasCriticalConflict) {
           warnings.push("FAIL-CLOSED ATIVADO: Conflito semântico/numérico crítico detectado entre fontes.");
-        } else if (!hasOfficialSource) {
-          warnings.push("FAIL-CLOSED ATIVADO: Nenhuma fonte oficial (.gov.br / órgão regulador) pôde ser baixada e verificada.");
         } else {
           warnings.push("FAIL-CLOSED ATIVADO: Nenhum fato factual pôde ser extraído das fontes originais.");
+        }
+      } else if (!hasOfficialSource) {
+        // Se temos fontes de autoridade (Tier 1, 2 ou 3) com pelo menos 3 fatos verificados de 2+ fontes:
+        const authoritativeSources = fetchedSources.filter(s => s.isOfficial || (s.tier && s.tier <= 3));
+        if (authoritativeSources.length < 2 || facts.length < 3) {
+          status = "RESEARCH_REVIEW_REQUIRED";
+          warnings.push("FAIL-CLOSED ATIVADO: Nenhuma fonte oficial (.gov.br / órgão regulador) ou fontes institucionais suficientes foram obtidas para este tópico de alto risco.");
+        } else {
+          warnings.push("Aviso Editorial: Tópico regulatório validado com fontes institucionais e imprensa de mercado; órgão regulador primário direto não retornou conteúdo disponível.");
+        }
+      }
+    } else {
+      // Para médio ou baixo risco, fail-closed apenas se não houver fatos ou se houver conflito crítico
+      if (facts.length === 0 || hasCriticalConflict) {
+        status = "RESEARCH_REVIEW_REQUIRED";
+        if (hasCriticalConflict) {
+          warnings.push("FAIL-CLOSED ATIVADO: Conflito semântico/numérico crítico detectado entre fontes.");
+        } else {
+          warnings.push("FAIL-CLOSED ATIVADO: Nenhum fato factual pôde ser extraído das fontes pesquisadas.");
         }
       }
     }

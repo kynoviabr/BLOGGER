@@ -36,6 +36,7 @@ export interface FetchedSourceContent {
   cleanedText: string;
   paragraphs: string[];
   isOfficial: boolean;
+  tier?: 1 | 2 | 3 | 4;
   dnsValidated: boolean;
   redirectCount: number;
 }
