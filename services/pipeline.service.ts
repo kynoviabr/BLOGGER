@@ -4,6 +4,16 @@ import { ResearchService } from '@/services/research';
 import { createPublisherProvider } from '@/services/publisher';
 import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
+import { validateEditorialScope } from '@/services/editorial/scope-guard';
+import { OFFICIAL_CATEGORIES, OfficialCategorySlug } from '@/lib/constants/categories';
+import crypto from 'crypto';
+
+export interface PipelineExecutionOptions {
+  triggeredBy?: string;
+  userId?: string;
+  dryRun?: boolean;
+  postStatus?: 'draft' | 'publish';
+}
 
 export interface PipelineExecutionResult {
   success: boolean;
@@ -29,7 +39,7 @@ export class PipelineService {
    */
   static async executeItem(
     calendarId: string,
-    options: { triggeredBy?: string; userId?: string } = {}
+    options: PipelineExecutionOptions = {}
   ): Promise<PipelineExecutionResult> {
     const startTime = Date.now();
     const adminSupabase = getSupabaseAdminClient();
@@ -48,49 +58,54 @@ export class PipelineService {
 
       const blog = calendarItem.blog;
 
-      // 1.1 Se a pauta não tem categoria associada, resolver e persistir a melhor categoria do blog
+      // 1.1 Validação Prévia de Escopo Editorial (ScopeGuard - Bloqueio de temas fora de Finanças)
+      const scopeCheck = validateEditorialScope(
+        calendarItem.proposed_title || calendarItem.topic,
+        calendarItem.keywords || []
+      );
+
+      if (!scopeCheck.isAllowed) {
+        const rejectionMsg = `Pauta bloqueada pelo ScopeGuard: ${scopeCheck.reason}`;
+        logger.warn('PipelineService', rejectionMsg, { calendarId, topic: calendarItem.topic });
+        await adminSupabase
+          .from('editorial_calendar')
+          .update({
+            status: 'FAILED',
+            notes: rejectionMsg,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', calendarId);
+
+        throw new Error(rejectionMsg);
+      }
+
+      // 1.2 Resolver categoria oficial obrigatória por slug
+      let categorySlug: OfficialCategorySlug = scopeCheck.matchedCategorySlug || 'saindo-das-dividas';
       let calendarCategory = calendarItem.category as { id: string; name: string; slug: string } | null;
-      if (!calendarCategory) {
-        const { data: blogCategories } = await adminSupabase
-          .from('categories')
-          .select('id, name, slug')
-          .eq('blog_id', calendarItem.blog_id);
 
-        if (blogCategories && blogCategories.length > 0) {
-          const textToMatch = `${calendarItem.proposed_title} ${calendarItem.topic} ${(calendarItem.keywords || []).join(' ')}`.toLowerCase();
+      // Sincroniza categoria no Supabase se ausente ou divergente
+      const { data: dbCategory } = await adminSupabase
+        .from('categories')
+        .select('id, name, slug')
+        .eq('blog_id', calendarItem.blog_id)
+        .eq('slug', categorySlug)
+        .maybeSingle();
 
-          let matched = blogCategories.find((cat) => {
-            const catNameLower = cat.name.toLowerCase();
-            const catSlugLower = cat.slug.toLowerCase();
-            return (
-              (catNameLower.includes('cart') && (textToMatch.includes('cart') || textToMatch.includes('anuidade') || textToMatch.includes('limite'))) ||
-              (catNameLower.includes('empr') && (textToMatch.includes('empr') || textToMatch.includes('consignado') || textToMatch.includes('financiamento'))) ||
-              (catNameLower.includes('dívida') && (textToMatch.includes('dívida') || textToMatch.includes('divida') || textToMatch.includes('orçamento') || textToMatch.includes('orcamento') || textToMatch.includes('renegocia') || textToMatch.includes('serasa') || textToMatch.includes('50/30/20'))) ||
-              (catNameLower.includes('milha') && (textToMatch.includes('milha') || textToMatch.includes('ponto') || textToMatch.includes('renda') || textToMatch.includes('invest') || textToMatch.includes('tesouro') || textToMatch.includes('reserva'))) ||
-              textToMatch.includes(catNameLower) ||
-              textToMatch.includes(catSlugLower)
-            );
-          });
-
-          if (!matched) {
-            matched = blogCategories[0];
-          }
-
-          calendarCategory = matched;
+      if (dbCategory) {
+        calendarCategory = dbCategory;
+        if (calendarItem.category_id !== dbCategory.id) {
           await adminSupabase
             .from('editorial_calendar')
-            .update({ category_id: matched.id, updated_at: new Date().toISOString() })
+            .update({ category_id: dbCategory.id, updated_at: new Date().toISOString() })
             .eq('id', calendarId);
-
-          logger.info('PipelineService', `Pauta "${calendarItem.proposed_title || calendarItem.topic}" associada à categoria "${matched.name}" (${matched.id})`);
         }
       }
 
-      logger.info('PipelineService', `Iniciando execução da pauta: "${calendarItem.proposed_title}" [Categoria: ${calendarCategory?.name || 'Geral'}]`, {
+      logger.info('PipelineService', `Iniciando execução da pauta: "${calendarItem.proposed_title}" [Categoria Oficial: ${categorySlug}]`, {
         calendarId,
-        categoryId: calendarCategory?.id,
-        categoryName: calendarCategory?.name,
+        categorySlug,
         triggeredBy: options.triggeredBy || 'manual',
+        dryRun: !!options.dryRun,
       });
 
       // 2. Atualizar status da pauta para IN_PROGRESS
@@ -147,7 +162,7 @@ export class PipelineService {
 
       const researchBrief = await researchService.conductResearch({
         title: calendarItem.topic,
-        category: calendarCategory?.name || calendarItem.category_id || undefined,
+        category: calendarCategory?.name || categorySlug,
         keywords,
         niche: blog?.niche || undefined,
         currentDate,
@@ -182,7 +197,7 @@ export class PipelineService {
         niche: blog?.niche,
         audience: blog?.audience || undefined,
         language: calendarItem.language || blog?.default_language || 'pt-BR',
-        category: calendarCategory?.name || undefined,
+        category: calendarCategory?.name || categorySlug,
         notes: calendarItem.notes || undefined,
         currentDate,
         sourcesOrResearch: researchBrief.rawBriefingText,
@@ -201,7 +216,7 @@ export class PipelineService {
         })
         .eq('id', contentId);
 
-      // 5. ETAPA 2: Gerar Imagem de Destaque com IA (Não Bloqueante)
+      // 5. ETAPA 2: Gerar Imagem de Destaque com IA (Obrigatória - Proibido publicar sem imagem)
       let generatedImage: { imageUrl?: string; buffer?: Buffer; mimeType?: string; altText?: string; provider?: string } | null = null;
       let mediaAssetId: string | null = null;
 
@@ -210,38 +225,57 @@ export class PipelineService {
         const nichePart = blog?.niche ? `Nicho: ${blog.niche}. ` : '';
         const audiencePart = blog?.audience ? `Público: ${blog.audience}. ` : '';
         const contextPart = generatedArticle.metaDescription ? `Contexto: ${generatedArticle.metaDescription.slice(0, 150)}. ` : '';
-        const imagePrompt = `Professional editorial photograph for article "${generatedArticle.title}". ${nichePart}${audiencePart}${contextPart}Theme: ${calendarItem.topic || generatedArticle.title}. Realistic photography, natural lighting, clean composition, no text, no logo, no watermark, 16:9.`;
+        const imagePrompt = `Professional editorial photograph for personal finance article "${generatedArticle.title}". ${nichePart}${audiencePart}${contextPart}Realistic photography, natural lighting, high quality, clean composition, absolutely no text, no logos, no watermarks, strictly 16:9 ratio.`;
+        
         const imgResult = await imageProvider.generateFeaturedImage(imagePrompt, {
           aspectRatio: '16:9',
           style: 'editorial',
         });
-        generatedImage = imgResult;
+
+        // Verificação de buffer e hash SHA-256 para prevenir imagens repetidas
+        let imageBuffer = imgResult.buffer;
+        if (!imageBuffer && imgResult.imageUrl) {
+          const fetchRes = await fetch(imgResult.imageUrl);
+          if (fetchRes.ok) {
+            imageBuffer = Buffer.from(await fetchRes.arrayBuffer());
+          }
+        }
+
+        if (!imageBuffer) {
+          throw new Error('Buffer da imagem gerada indisponível.');
+        }
+
+        const imageHash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
+        logger.info('PipelineService', `Imagem de destaque gerada com sucesso. Hash SHA-256: ${imageHash.slice(0, 16)}...`);
+
+        // Alt text descritivo em português do Brasil
+        const cleanAltText = (imgResult.altText || `Ilustração editorial sobre ${generatedArticle.title}`).slice(0, 120);
+
+        generatedImage = {
+          ...imgResult,
+          buffer: imageBuffer,
+          altText: cleanAltText,
+        };
 
         let storagePath = imgResult.imageUrl;
         let publicUrl = imgResult.imageUrl;
 
         // Upload server-side para o bucket blog-assets
-        if (imgResult.buffer) {
-          try {
-            const ext = imgResult.mimeType === 'image/png' ? 'png' : imgResult.mimeType === 'image/webp' ? 'webp' : 'jpg';
-            const filePath = `${calendarItem.blog_id}/${contentId}/featured-${Date.now()}.${ext}`;
-            const { data: uploadData, error: uploadErr } = await adminSupabase.storage
-              .from('blog-assets')
-              .upload(filePath, imgResult.buffer, {
-                contentType: imgResult.mimeType,
-                upsert: true,
-              });
+        const ext = imgResult.mimeType === 'image/png' ? 'png' : imgResult.mimeType === 'image/webp' ? 'webp' : 'jpg';
+        const filePath = `${calendarItem.blog_id}/${contentId}/${generatedArticle.slug}.${ext}`;
+        const { data: uploadData, error: uploadErr } = await adminSupabase.storage
+          .from('blog-assets')
+          .upload(filePath, imageBuffer, {
+            contentType: imgResult.mimeType || 'image/jpeg',
+            upsert: true,
+          });
 
-            if (!uploadErr && uploadData) {
-              storagePath = uploadData.path;
-              const { data: pubUrlData } = adminSupabase.storage
-                .from('blog-assets')
-                .getPublicUrl(uploadData.path);
-              publicUrl = pubUrlData.publicUrl;
-            }
-          } catch (storageErr) {
-            logger.warn('PipelineService', `Aviso: Falha ao persistir no storage blog-assets: ${String(storageErr)}`);
-          }
+        if (!uploadErr && uploadData) {
+          storagePath = uploadData.path;
+          const { data: pubUrlData } = adminSupabase.storage
+            .from('blog-assets')
+            .getPublicUrl(uploadData.path);
+          publicUrl = pubUrlData.publicUrl;
         }
 
         // Salva o asset de imagem
@@ -253,16 +287,14 @@ export class PipelineService {
             type: 'image',
             storage_path: storagePath,
             public_url: publicUrl,
-            alt_text: imgResult.altText || `Imagem de destaque para ${generatedArticle.title}`,
+            alt_text: cleanAltText,
             prompt: imagePrompt,
             provider: imgResult.provider,
           })
           .select()
           .single();
 
-        if (mediaError) {
-          logger.warn('PipelineService', `Aviso: Falha ao salvar asset de imagem: ${mediaError.message}`);
-        } else if (insertedAsset) {
+        if (!mediaError && insertedAsset) {
           mediaAssetId = insertedAsset.id;
           await adminSupabase
             .from('content_items')
@@ -273,13 +305,9 @@ export class PipelineService {
             .eq('id', contentId);
         }
       } catch (imageError) {
-        logger.warn('PipelineService', `Aviso: Falha na geração de imagem (não bloqueante): ${String(imageError)}`);
-        await adminSupabase.from('system_logs').insert({
-          level: 'warn',
-          service: 'PipelineService',
-          message: `Falha na geração de imagem (não bloqueante) para a pauta ${calendarId}: ${imageError instanceof Error ? imageError.message : String(imageError)}`,
-          metadata: { calendarId, contentId, error: String(imageError) } as Json,
-        });
+        const imgErrMsg = `Falha obrigatória na geração de imagem de destaque: ${imageError instanceof Error ? imageError.message : String(imageError)}`;
+        logger.error('PipelineService', imgErrMsg);
+        throw new Error(imgErrMsg);
       }
 
       // 6. ETAPA 3: Publicar no WordPress
@@ -289,13 +317,14 @@ export class PipelineService {
       const publisher = createPublisherProvider({
         siteUrl: blogDomain || process.env.WORDPRESS_SITE_URL,
       });
+
       let wpFeaturedMediaId: string | number | undefined;
 
       if (generatedImage?.buffer) {
         try {
           const mimeType = generatedImage.mimeType || 'image/jpeg';
           const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-          const fileName = `${generatedArticle.slug}-${Date.now()}.${ext}`;
+          const fileName = `${generatedArticle.slug}.${ext}`;
 
           const mediaUploadResult = await publisher.uploadMedia({
             fileName,
@@ -306,29 +335,12 @@ export class PipelineService {
           });
           wpFeaturedMediaId = mediaUploadResult.mediaId;
         } catch (mediaErr) {
-          logger.warn('PipelineService', `Falha ao enviar mídia para WP: ${String(mediaErr)}`);
+          throw new Error(`Falha crítica ao enviar imagem destacada para o WordPress: ${String(mediaErr)}`);
         }
-      } else if (generatedImage?.imageUrl) {
-        try {
-          const imgFetch = await fetch(generatedImage.imageUrl);
-          if (imgFetch.ok) {
-            const arrayBuf = await imgFetch.arrayBuffer();
-            const buffer = Buffer.from(arrayBuf);
-            const mimeType = imgFetch.headers.get('content-type') || 'image/jpeg';
-            const fileName = `${generatedArticle.slug}-${Date.now()}.jpg`;
+      }
 
-            const mediaUploadResult = await publisher.uploadMedia({
-              fileName,
-              mimeType,
-              data: buffer,
-              title: generatedArticle.title,
-              altText: generatedImage.altText || generatedArticle.title,
-            });
-            wpFeaturedMediaId = mediaUploadResult.mediaId;
-          }
-        } catch (mediaErr) {
-          logger.warn('PipelineService', `Falha ao enviar mídia para WP: ${String(mediaErr)}`);
-        }
+      if (!wpFeaturedMediaId && !options.dryRun) {
+        throw new Error('Nenhuma imagem destacada (featured_media) foi vinculada. Publicação interrompida por salvaguarda editorial.');
       }
 
       const publishResult = await publisher.publishArticle({
@@ -336,9 +348,13 @@ export class PipelineService {
         slug: generatedArticle.slug,
         content: generatedArticle.content,
         excerpt: generatedArticle.metaDescription,
-        status: 'publish',
-        categoryNames: calendarCategory ? [calendarCategory.name, calendarCategory.slug] : undefined,
+        status: options.postStatus || 'publish',
+        categorySlug,
         featuredMediaId: wpFeaturedMediaId,
+        metaTitle: generatedArticle.title,
+        metaDescription: generatedArticle.metaDescription,
+        primaryKeyword: keywords[0],
+        dryRun: options.dryRun,
       });
 
       const totalDuration = Date.now() - startTime;

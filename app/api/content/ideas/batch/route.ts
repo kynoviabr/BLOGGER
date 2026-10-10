@@ -4,6 +4,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { ContentIdea } from '@/types/ideas';
 import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
+import { validateEditorialScope } from '@/services/editorial/scope-guard';
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,34 +41,28 @@ export async function POST(request: NextRequest) {
     const resolveCategoryIdForIdea = (idea: ContentIdea): string | null => {
       if (categoriesList.length === 0) return null;
 
+      // 1. Validação estrita por ScopeGuard
+      const parsedKeywords = idea.keywords
+        ? idea.keywords.split(',').map((k) => k.trim()).filter(Boolean)
+        : [];
+      const scopeCheck = validateEditorialScope(idea.title, parsedKeywords);
+
+      if (scopeCheck.isAllowed && scopeCheck.matchedCategorySlug) {
+        const found = categoriesList.find((c) => c.slug.toLowerCase() === scopeCheck.matchedCategorySlug);
+        if (found) return found.id;
+      }
+
       const targetCatName = (idea.category || category || '').trim().toLowerCase();
 
       if (targetCatName) {
         const found = categoriesList.find((c) =>
           c.name.toLowerCase() === targetCatName ||
-          c.slug.toLowerCase() === targetCatName ||
-          c.name.toLowerCase().includes(targetCatName) ||
-          targetCatName.includes(c.name.toLowerCase())
+          c.slug.toLowerCase() === targetCatName
         );
         if (found) return found.id;
       }
 
-      // Inferência pelo título e keywords
-      const textToMatch = `${idea.title} ${idea.keywords} ${idea.description || ''}`.toLowerCase();
-      const matched = categoriesList.find((cat) => {
-        const catNameLower = cat.name.toLowerCase();
-        const catSlugLower = cat.slug.toLowerCase();
-        return (
-          (catNameLower.includes('cart') && (textToMatch.includes('cart') || textToMatch.includes('anuidade') || textToMatch.includes('limite'))) ||
-          (catNameLower.includes('empr') && (textToMatch.includes('empr') || textToMatch.includes('consignado') || textToMatch.includes('financiamento'))) ||
-          (catNameLower.includes('dívida') && (textToMatch.includes('dívida') || textToMatch.includes('divida') || textToMatch.includes('orçamento') || textToMatch.includes('orcamento') || textToMatch.includes('renegocia') || textToMatch.includes('serasa') || textToMatch.includes('50/30/20'))) ||
-          (catNameLower.includes('milha') && (textToMatch.includes('milha') || textToMatch.includes('ponto') || textToMatch.includes('renda') || textToMatch.includes('invest') || textToMatch.includes('tesouro') || textToMatch.includes('reserva'))) ||
-          textToMatch.includes(catNameLower) ||
-          textToMatch.includes(catSlugLower)
-        );
-      });
-
-      return matched ? matched.id : categoriesList[0].id;
+      return categoriesList[0].id;
     };
 
     // 2. Buscar idioma padrão do blog

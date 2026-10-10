@@ -5,6 +5,8 @@ import { createPublisherProvider } from '@/services/publisher';
 import { PublishingError } from '@/lib/errors/publisher.errors';
 import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
+import { validateEditorialScope } from '@/services/editorial/scope-guard';
+import { OfficialCategorySlug } from '@/lib/constants/categories';
 
 export const maxDuration = 60; // 60 segundos para Vercel Serverless
 
@@ -43,36 +45,24 @@ export async function POST(
       );
     }
 
+    // Validação estrita de escopo editorial
+    const scopeCheck = validateEditorialScope(contentItem.title, [contentItem.slug]);
+    if (!scopeCheck.isAllowed) {
+      return NextResponse.json(
+        { success: false, error: `Publicação rejeitada pelo ScopeGuard: ${scopeCheck.reason}` },
+        { status: 422 }
+      );
+    }
+
     const blog = contentItem.blog;
 
-    // Resolução da categoria do artigo
-    let categoryNames: string[] | undefined;
+    // Resolução estrita do categorySlug oficial
+    let categorySlug: OfficialCategorySlug = scopeCheck.matchedCategorySlug || 'saindo-das-dividas';
     const edCal = contentItem.editorial_calendar as { category?: { name: string; slug: string } } | null;
-    if (edCal?.category) {
-      categoryNames = [edCal.category.name, edCal.category.slug];
-    } else if (contentItem.blog_id) {
-      // Buscar categorias do blog para inferir
-      const { data: blogCats } = await supabase
-        .from('categories')
-        .select('name, slug')
-        .eq('blog_id', contentItem.blog_id);
-
-      if (blogCats && blogCats.length > 0) {
-        const textToMatch = `${contentItem.title} ${contentItem.slug}`.toLowerCase();
-        const matched = blogCats.find((c) => {
-          const cName = c.name.toLowerCase();
-          return (
-            (cName.includes('cart') && textToMatch.includes('cart')) ||
-            (cName.includes('empr') && (textToMatch.includes('empr') || textToMatch.includes('consignado'))) ||
-            (cName.includes('dívida') && (textToMatch.includes('dívida') || textToMatch.includes('divida') || textToMatch.includes('orçamento'))) ||
-            (cName.includes('milha') && (textToMatch.includes('milha') || textToMatch.includes('invest') || textToMatch.includes('tesouro'))) ||
-            textToMatch.includes(cName)
-          );
-        }) || blogCats[0];
-
-        if (matched) {
-          categoryNames = [matched.name, matched.slug];
-        }
+    if (edCal?.category?.slug) {
+      const slugVal = edCal.category.slug.toLowerCase().trim();
+      if (slugVal === 'cartoes' || slugVal === 'emprestimos' || slugVal === 'investimentos' || slugVal === 'milhas-e-pontos' || slugVal === 'saindo-das-dividas') {
+        categorySlug = slugVal as OfficialCategorySlug;
       }
     }
 
@@ -85,7 +75,7 @@ export async function POST(
     });
 
     logger.info('API.publish', `Iniciando publicação com ${publisher.name} para o artigo ${id}`, {
-      categoryNames,
+      categorySlug,
     });
 
     let wpFeaturedMediaId: string | number | undefined;
@@ -127,10 +117,12 @@ export async function POST(
       title: contentItem.title,
       slug: contentItem.slug,
       content: contentItem.body,
-      excerpt: contentItem.excerpt || undefined,
+      excerpt: contentItem.excerpt || contentItem.meta_description || undefined,
       status: 'publish',
-      categoryNames,
+      categorySlug,
       featuredMediaId: wpFeaturedMediaId,
+      metaTitle: contentItem.seo_title || contentItem.title,
+      metaDescription: contentItem.meta_description || contentItem.excerpt || undefined,
     });
 
     const durationMs = Date.now() - startTime;

@@ -100,12 +100,16 @@ Quando o artigo tratar de informação que possa mudar com o tempo (legislação
 ==================================================
 4. FACTUALIDADE E RIGOR YMYL (YOUR MONEY OR YOUR LIFE)
 ==================================================
+- O portal trata EXCLUSIVAMENTE de Finanças Pessoais no Brasil.
 - NUNCA invente estatísticas, percentuais, pesquisas, leis, regulamentos, datas, taxas, valores nominais ou fontes institucionais.
 - Em tópicos de finanças, crédito, empréstimos, investimentos e tributos, adote rigor factual máximo.
-- Distinga com nitidez regra geral de condição específica ou estimativa que dependa do perfil do cliente ou da instituição.
+- CITE FONTES OFICIAIS quando houver dados e regras normativas (Banco Central, CVM, B3, Tesouro Direto, gov.br, INSS) e inclua links válidos para elas sempre que fornecidos na pesquisa.
+- EM ARTIGOS DE INVESTIMENTOS: destaque expressamente a gestão de risco e deixe explícito que rentabilidade passada não garante resultados futuros.
 - NUNCA prometa aprovação garantida de crédito, rentabilidade futura garantida ou economia milagrosa.
-- Não transforme conteúdo informativo em aconselhamento financeiro ou jurídico individualizado.
+- Não transforme conteúdo informativo em aconselhamento financeiro ou recomendação individualizada de investimentos.
 - Se apresentar exemplos com números hipotéticos, declare explicitamente: "Exemplo hipotético".
+- TERMINE OBRIGATORIAMENTE o corpo do artigo com o aviso legal em parágrafo HTML:
+  <p class="ud-aviso"><strong>Aviso:</strong> conteúdo informativo, não é recomendação financeira. Taxas e regras mudam; confirme nos canais oficiais das instituições.</p>
 
 ==================================================
 5. ESTRUTURA HIERÁRQUICA E EXTENSÃO
@@ -227,9 +231,11 @@ export function buildDeepSeekIdeaUserPrompt(options: DeepSeekIdeaPromptOptions):
 
   let categoryInstruction = '';
   if (options.category) {
-    categoryInstruction = `CATEGORIA OBRIGATÓRIA: "${options.category}". O tema DEVE ser estritamente relacionado a esta categoria.`;
+    categoryInstruction = `CATEGORIA OBRIGATÓRIA: "${options.category}". O tema DEVE ser estritamente de finanças pessoais nesta categoria.`;
   } else if (options.availableCategories && options.availableCategories.length > 0) {
-    categoryInstruction = `CATEGORIAS DISPONÍVEIS NO BLOG:\n${options.availableCategories.map((c) => `- ${c}`).join('\n')}\nIMPORTANTE: A pauta gerada DEVE ser classificada em uma dessas categorias acima e você deve retornar o nome exato no campo "category".`;
+    categoryInstruction = `CATEGORIAS OFICIAIS DO PORTAL:\n${options.availableCategories.map((c) => `- ${c}`).join('\n')}\nIMPORTANTE: A pauta gerada DEVE ser classificada em EXATAMENTE UMA dessas 5 categorias e você deve retornar o nome exato no campo "category".`;
+  } else {
+    categoryInstruction = `CATEGORIAS OFICIAIS DO PORTAL:\n- Empréstimos\n- Saindo das Dívidas\n- Cartões de Crédito\n- Investimentos\n- Milhas e Pontos\nIMPORTANTE: A pauta DEVE pertencer a exatamente uma dessas 5 categorias e retornar o nome no campo "category".`;
   }
 
   let existingBlock = '';

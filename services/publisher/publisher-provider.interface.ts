@@ -17,15 +17,20 @@ export interface MediaUploadResult {
 export interface ArticlePublishInput {
   title: string;
   slug?: string;
-  content: string; // HTML ou Markdown renderizado
+  content: string; // HTML renderizado ou Markdown sanitizado
   excerpt?: string;
   status: 'publish' | 'draft' | 'pending' | 'future';
   scheduledDate?: string; // ISO 8601
+  categorySlug?: string; // Slug oficial da categoria para resolução dinâmica obrigatória
   categories?: number[]; // IDs numéricos das categorias no CMS remoto
-  categoryNames?: string[]; // Nomes ou slugs de categorias para resolução automática
+  categoryNames?: string[]; // Nomes de categorias legadas para fallback
+  metaTitle?: string;
+  metaDescription?: string;
+  primaryKeyword?: string;
   tags?: number[];
   featuredMediaId?: string | number;
   authorId?: number;
+  dryRun?: boolean;
 }
 
 export interface PublishResult {

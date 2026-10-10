@@ -5,6 +5,7 @@ import { createAIProvider } from '@/services/ai';
 import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
 import { ExistingIdeaSummary } from '@/types/ideas';
+import { validateEditorialScope } from '@/services/editorial/scope-guard';
 
 export const maxDuration = 45;
 
@@ -101,7 +102,15 @@ export async function POST(request: NextRequest) {
       throw new Error('A IA retornou uma pauta vazia ou com título inválido.');
     }
 
-    const finalCategory = idea.category || category || availableCategories[0] || 'Geral';
+    // 4.1 Validação de escopo editorial (bloqueio de temas fora de Finanças)
+    const scopeCheck = validateEditorialScope(idea.title, idea.keywords ? idea.keywords.split(',') : []);
+    let finalCategory = idea.category || category || availableCategories[0] || 'Geral';
+
+    if (scopeCheck.isAllowed && scopeCheck.matchedCategoryName) {
+      finalCategory = scopeCheck.matchedCategoryName;
+    } else if (!scopeCheck.isAllowed) {
+      logger.warn('API.ideas.generateOne', `Pauta gerada fora do escopo estrito: "${idea.title}". Ajustando categoria com base em Finanças.`);
+    }
     const durationMs = Date.now() - startTime;
     const modelUsed = (aiProvider as { defaultModel?: string }).defaultModel || process.env.GEMINI_IDEAS_MODEL || 'gemini-2.5-flash';
 

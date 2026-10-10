@@ -8,6 +8,7 @@ import {
 } from './publisher-provider.interface';
 import { PublishingError } from '@/lib/errors/publisher.errors';
 import { logger } from '@/lib/logger';
+import { formatArticleForWordPress } from '@/services/editorial/content-formatter';
 
 export interface WordPressConfig {
   siteUrl?: string; // ex: https://meublog.com
@@ -88,6 +89,78 @@ export class WordPressProvider implements PublisherProvider {
     }
 
     return this.categoriesCache || [];
+  }
+
+  /**
+   * Resolve o ID numérico da categoria pelo SLUG via GET /wp-json/wp/v2/categories?slug=<slug>.
+   * Se não for encontrado, interrompe a execução com erro sem publicar.
+   */
+  async getCategoryIdBySlug(slug: string): Promise<number> {
+    if (!slug || !slug.trim()) {
+      throw new PublishingError('Slug de categoria vazio ou inválido fornecido.', {
+        provider: this.name,
+        statusCode: 400,
+        isRetryable: false,
+      });
+    }
+
+    const cleanSlug = slug.trim().toLowerCase();
+
+    // 1. Procura no cache em memória
+    if (this.categoriesCache && this.categoriesCache.length > 0) {
+      const cached = this.categoriesCache.find((c) => c.slug.toLowerCase() === cleanSlug);
+      if (cached && cached.id !== 1) {
+        return cached.id;
+      }
+    }
+
+    // 2. Consulta via REST API oficial do WordPress
+    const endpoint = `${this.siteUrl}/wp-json/wp/v2/categories?slug=${encodeURIComponent(cleanSlug)}`;
+
+    try {
+      const response = await fetch(endpoint, {
+        headers: {
+          Authorization: this.authHeader,
+          Accept: 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const category = data[0];
+          const catId = Number(category.id);
+          if (catId === 1) { // 1 = Uncategorized
+            throw new PublishingError(
+              `A categoria encontrada para o slug "${cleanSlug}" é "Uncategorized" (ID 1). Publicação rejeitada.`,
+              { provider: this.name, statusCode: 422, isRetryable: false }
+            );
+          }
+
+          // Atualiza cache
+          if (!this.categoriesCache) this.categoriesCache = [];
+          if (!this.categoriesCache.some((c) => c.id === catId)) {
+            this.categoriesCache.push({ id: catId, name: String(category.name), slug: cleanSlug });
+          }
+
+          logger.info(this.name, `Categoria resolvida via slug "${cleanSlug}": ID ${catId} (${category.name})`);
+          return catId;
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof PublishingError) throw err;
+      logger.error(this.name, `Erro ao consultar categoria por slug no WP: ${String(err)}`);
+    }
+
+    // 3. Slug não encontrado: interrompe e avisa, sem publicar
+    throw new PublishingError(
+      `Categoria com slug "${cleanSlug}" não foi encontrada no WordPress em ${this.siteUrl}. Publicação interrompida para evitar publicação sem categoria ou Uncategorized.`,
+      {
+        provider: this.name,
+        statusCode: 404,
+        isRetryable: false,
+      }
+    );
   }
 
   /**
@@ -285,14 +358,16 @@ export class WordPressProvider implements PublisherProvider {
       categories: article.categories,
     });
 
-    // Converte Markdown cru para HTML semântico limpo para o WordPress
-    const htmlContent = article.content
-      ? await marked.parse(article.content, { gfm: true, breaks: true })
-      : '';
+    // Formata o conteúdo para HTML semântico com tabelas, sem H1 duplicado e com aviso legal obrigatório
+    const formatted = await formatArticleForWordPress(article.content || '', {
+      title: article.title,
+      categorySlug: article.categorySlug,
+      providedExcerpt: article.excerpt,
+    });
 
     const payload: Record<string, unknown> = {
       title: article.title,
-      content: htmlContent,
+      content: formatted.html,
       status: article.status,
     };
 
@@ -300,9 +375,7 @@ export class WordPressProvider implements PublisherProvider {
       payload.slug = article.slug;
     }
 
-    if (article.excerpt) {
-      payload.excerpt = article.excerpt;
-    }
+    payload.excerpt = formatted.excerpt;
 
     if (article.scheduledDate) {
       payload.date = article.scheduledDate;
@@ -310,7 +383,11 @@ export class WordPressProvider implements PublisherProvider {
 
     let finalCategories = article.categories && article.categories.length > 0 ? [...article.categories] : [];
 
-    if (finalCategories.length === 0 && article.categoryNames && article.categoryNames.length > 0) {
+    // Prioridade máxima: resolução rigorosa por categorySlug
+    if (article.categorySlug) {
+      const catId = await this.getCategoryIdBySlug(article.categorySlug);
+      finalCategories = [catId];
+    } else if (finalCategories.length === 0 && article.categoryNames && article.categoryNames.length > 0) {
       for (const catName of article.categoryNames) {
         const catId = await this.resolveCategory(catName);
         if (catId && !finalCategories.includes(catId)) {
@@ -331,8 +408,37 @@ export class WordPressProvider implements PublisherProvider {
       payload.featured_media = Number(article.featuredMediaId);
     }
 
-    if (article.authorId) {
-      payload.author = article.authorId;
+    // Autor dinâmico: prioritiza article.authorId, depois env WP_AUTHOR_ID
+    const authorId = article.authorId || (process.env.WP_AUTHOR_ID ? Number(process.env.WP_AUTHOR_ID) : undefined);
+    if (authorId && !isNaN(authorId)) {
+      payload.author = authorId;
+    }
+
+    // Metadados Rank Math SEO
+    const rankMathMeta: Record<string, string> = {};
+    if (article.metaTitle) rankMathMeta.rank_math_title = article.metaTitle;
+    if (article.metaDescription || formatted.excerpt) {
+      rankMathMeta.rank_math_description = article.metaDescription || formatted.excerpt;
+    }
+    if (article.primaryKeyword) rankMathMeta.rank_math_focus_keyword = article.primaryKeyword;
+
+    if (Object.keys(rankMathMeta).length > 0) {
+      payload.meta = rankMathMeta;
+    }
+
+    // Modo Dry Run: não dispara POST, apenas simula retorno
+    if (article.dryRun) {
+      logger.info(this.name, `[DRY-RUN] Simulação de publicação de artigo realizada com sucesso: "${article.title}"`, {
+        payload,
+      });
+      return {
+        success: true,
+        postId: 999999,
+        url: `${this.siteUrl}/simulacao/${article.slug || 'dry-run'}`,
+        status: article.status,
+        publishedAt: new Date().toISOString(),
+        provider: this.name,
+      };
     }
 
     const controller = new AbortController();
