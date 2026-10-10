@@ -16,21 +16,15 @@ export interface OpenAIImageConfig {
   maxRetries?: number;
 }
 
-const GLOBAL_QUALITY_INSTRUCTIONS = `Professional editorial photography suitable for a high-quality online publication.
-
-Natural realistic human anatomy and realistic proportions.
-
-If people are present, hands must be anatomically correct with natural fingers, wrists and poses.
-
-Avoid prominent close-ups of hands unless required by the subject.
-
-Prefer natural relaxed poses.
-
-No duplicated limbs, no extra fingers, no malformed hands, no distorted faces.
-
-No readable text, no logos, no brand names, no watermark.
-
-Landscape composition suitable for a blog featured image.`;
+const GLOBAL_QUALITY_INSTRUCTIONS = `High-end editorial publication standards.
+Metaphorical, conceptual, and sophisticated visual direction.
+STRICT NEGATIVE CONSTRAINTS:
+- ABSOLUTELY NO people sitting at office desks or looking at computer screens, laptops, tablets, or smartphones.
+- NO people holding credit cards, bills, calculators, or paper invoices towards the camera.
+- NO cheesy corporate stock photos or clichés.
+- NO readable text, no letters, no numbers, no logos, no brand names, no watermarks.
+- Focus on conceptual still life, modern architectural perspectives, macro textures, or 3D isometric metaphors.
+- Landscape composition (16:9), cinematic natural or dramatic studio lighting, 8k resolution.`;
 
 export class OpenAIImageProvider implements ImageProvider {
   readonly name = 'OpenAIImageProvider';
