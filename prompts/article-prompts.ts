@@ -36,6 +36,17 @@ Sua missão é produzir artigos aprofundados, didáticos, precisos e de alta cre
 
 4. **Isenção de Responsabilidade (Disclaimer):**
    - Ao final do artigo, inclua sempre uma nota de responsabilidade transparente informando que o conteúdo tem caráter puramente educativo e informativo, não configurando consultoria financeira individualizada.
+
+5. **Direção de Arte e Metáfora Visual para Imagem de Destaque (imagePrompt):**
+   - Você deve gerar uma instrução de imagem (imagePrompt) altamente artística, sofisticada e descritiva para a imagem de destaque do artigo.
+   - **REGRA DE PROIBIÇÃO (Negative Concept):** É ESTRITAMENTE PROIBIDO descrever pessoas olhando para smartphones, telas de computador, notebooks, tablets, monitores, gráficos holográficos ou pessoas sentadas em mesas de escritório. Evite retratos de rostos humanos em close-up.
+   - **ROTAÇÃO DE ESTILOS VISUAIS:** Traduza o tema central do artigo em uma METÁFORA VISUAL escolhendo aleatoriamente 1 entre estes 5 estilos para cada artigo:
+     1) **Fotografia Conceitual Minimalista (Still Life):** Objetos físicos reais em composições elegantes de estúdio (ex: chaves douradas, engrenagens metálicas, cofres de vidro, plantas crescendo em pedras, balanças de precisão, pontes em miniatura).
+     2) **Renderização Editorial 3D Isométrica:** Estilo Blender/C4D minimalista, texturas matte suaves, iluminação de estúdio, representando conceitos abstratos com objetos tridimensionais.
+     3) **Fotografia Arquitetônica e Urbana:** Cenas amplas de arquitetura moderna, fachadas imponentes, pontes, túneis de luz, estações em movimento (transmitindo escala e futuro), sem foco em telas.
+     4) **Fotografia Macro Artística:** Close-up extremo em texturas ricas (metal escovado, detalhes de relojoaria, fibras de papel moeda, reflexos em vidro, madeira nobre com iluminação dramática).
+     5) **Ilustração Editorial Flat / Colagem Conceitual:** Estilo capa da revista The Economist ou New Yorker, cores contrastantes, design gráfico moderno e minimalista.
+   - **IDIOMA E ESPECIFICAÇÃO TÉCNICA:** O imagePrompt DEVE ser SEMPRE em inglês, altamente descritivo quanto à iluminação e câmera (ex: "editorial studio lighting, shallow depth of field, 8k, hyper-detailed") e deve SEMPRE terminar com o sufixo: ", no screens, no laptops, no smartphones, no office desks".
 `;
 
 /**
@@ -69,6 +80,6 @@ ${options.notes ? `- **Observações / Requisitos Específicos**: ${options.note
    - Tabela comparativa ou resumo dos cenários.
    - Perguntas Frequentes (FAQ) com respostas diretas para 3 a 4 dúvidas comuns.
    - Disclaimer de isenção de responsabilidade.
-4. **Metadados**: Retorne também o título final polido, slug otimizado, meta description (120-155 caracteres) e tempo estimado de leitura em minutos.
+4. **Metadados e Direção de Arte**: Retorne também o título final polido, slug otimizado, meta description (120-155 caracteres), tempo estimado de leitura em minutos e o campo **imagePrompt** em inglês com metáfora visual (sem telas, escritórios ou smartphones, terminando com ", no screens, no laptops, no smartphones, no office desks").
 `;
 }

@@ -353,9 +353,13 @@ export class GeminiProvider implements AIProvider {
             type: Type.INTEGER,
             description: 'Tempo estimado de leitura do artigo em minutos.',
           },
+          imagePrompt: {
+            type: Type.STRING,
+            description: 'Prompt altamente descritivo e artístico em inglês para a imagem de destaque. Traduza o tema em uma METÁFORA VISUAL escolhendo aleatoriamente 1 entre 5 estilos: 1) Fotografia Conceitual Minimalista (Still Life) com objetos físicos de estúdio; 2) Renderização Editorial 3D Isométrica; 3) Fotografia Arquitetônica e Urbana de grande escala; 4) Fotografia Macro Artística com texturas e iluminação dramática; 5) Ilustração Editorial Flat/Colagem (estilo The Economist). REGRA ABSOLUTA: É estritamente proibido descrever pessoas olhando para smartphones, telas, notebooks ou sentadas em mesas de escritório. Evite rostos humanos em close-up. Deve terminar obrigatoriamente com o sufixo: ", no screens, no laptops, no smartphones, no office desks".',
+          },
         },
-        required: ['title', 'slug', 'metaDescription', 'content', 'keywords'],
-        propertyOrdering: ['title', 'slug', 'metaDescription', 'content', 'keywords', 'readingTimeMinutes'],
+        required: ['title', 'slug', 'metaDescription', 'content', 'keywords', 'imagePrompt'],
+        propertyOrdering: ['title', 'slug', 'metaDescription', 'content', 'keywords', 'readingTimeMinutes', 'imagePrompt'],
       },
     });
 
@@ -371,6 +375,7 @@ export class GeminiProvider implements AIProvider {
       slug: parsed.slug,
       readingTime: parsed.readingTimeMinutes,
       contentLength: parsed.content.length,
+      hasImagePrompt: !!parsed.imagePrompt,
     });
 
     return {
@@ -380,6 +385,7 @@ export class GeminiProvider implements AIProvider {
       content: parsed.content.trim(),
       keywords: Array.isArray(parsed.keywords) ? parsed.keywords : keywords,
       readingTimeMinutes: parsed.readingTimeMinutes || Math.ceil(parsed.content.split(/\s+/).length / 200),
+      imagePrompt: parsed.imagePrompt ? parsed.imagePrompt.trim() : undefined,
     };
   }
 

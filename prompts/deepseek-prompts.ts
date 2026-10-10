@@ -124,7 +124,20 @@ Quando o artigo tratar de informação que possa mudar com o tempo (legislação
 - FAQ (Perguntas Frequentes): finalize o artigo com 3 a 5 perguntas frequentes reais com respostas diretas (40 a 90 palavras cada).
 
 ==================================================
-6. REGRAS DE SAÍDA E FORMATO JSON
+6. DIREÇÃO DE ARTE E METÁFORA VISUAL (imagePrompt)
+==================================================
+- Você deve incluir no JSON o campo "imagePrompt" com instruções artísticas avançadas em inglês para a imagem de destaque do artigo.
+- REGRA DE PROIBIÇÃO (Negative Concept): É ESTRITAMENTE PROIBIDO descrever pessoas olhando para smartphones, telas de computador, notebooks, tablets, monitores, gráficos holográficos ou pessoas sentadas em mesas de escritório. Evite retratos de rostos humanos em close-up.
+- ROTAÇÃO DE ESTILOS VISUAIS: Traduza o tema central do artigo em uma METÁFORA VISUAL escolhendo aleatoriamente 1 entre estes 5 estilos para cada artigo:
+  1) Fotografia Conceitual Minimalista (Still Life): Objetos físicos reais em composições elegantes de estúdio (ex: chaves douradas, engrenagens metálicas, cofres de vidro, plantas crescendo em pedras, balanças de precisão, pontes em miniatura).
+  2) Renderização Editorial 3D Isométrica: Estilo Blender/C4D minimalista, texturas matte suaves, iluminação de estúdio, representando conceitos abstratos com objetos tridimensionais.
+  3) Fotografia Arquitetônica e Urbana: Cenas amplas de arquitetura moderna, fachadas imponentes, pontes, túneis de luz, estações em movimento (transmitindo escala e futuro), sem foco em telas.
+  4) Fotografia Macro Artística: Close-up extremo em texturas ricas (metal escovado, detalhes de relojoaria, fibras de papel moeda, reflexos em vidro, madeira nobre com iluminação dramática).
+  5) Ilustração Editorial Flat / Colagem Conceitual: Estilo capa da revista The Economist ou New Yorker, cores contrastantes, design gráfico moderno e minimalista.
+- O "imagePrompt" DEVE ser SEMPRE em inglês, altamente descritivo quanto à iluminação e câmera (ex: "editorial studio lighting, shallow depth of field, 8k, hyper-detailed") e DEVE SEMPRE terminar com o sufixo: ", no screens, no laptops, no smartphones, no office desks".
+
+==================================================
+7. REGRAS DE SAÍDA E FORMATO JSON
 ==================================================
 - Você deve responder EXCLUSIVAMENTE com um único objeto JSON válido e bem formatado.
 - NÃO adicione blocos de explicação antes ou depois do JSON.
@@ -139,6 +152,7 @@ Quando o artigo tratar de informação que possa mudar com o tempo (legislação
   "searchIntent": "informacional / transacional / comparativa / guia prático",
   "excerpt": "Resumo executivo do artigo em 2 frases curtas",
   "content": "Texto integral do artigo formatado em Markdown com ## H2, ### H3, parágrafos, listas e FAQ",
+  "imagePrompt": "Prompt descritivo em inglês com metáfora visual, terminando com ', no screens, no laptops, no smartphones, no office desks'",
   "faq": [
     {
       "question": "Pergunta frequente 1?",

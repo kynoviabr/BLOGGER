@@ -17,6 +17,7 @@ export interface GeneratedArticle {
   content: string; // Markdown limpo ou HTML
   keywords: string[];
   readingTimeMinutes?: number;
+  imagePrompt?: string;
 }
 
 export interface ArticleGenerationContext {

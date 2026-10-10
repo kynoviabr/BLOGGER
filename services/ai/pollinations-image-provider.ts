@@ -88,26 +88,16 @@ export class PollinationsImageProvider implements ImageProvider {
     const cleanPrompt = prompt.trim();
     const width = options?.width || 1200;
     const height = options?.height || 675; // Proporção 16:9 padrão
-    const model = options?.model || this.model;
 
-    // Seed variável: derivada de prompt + timestamp + entropy para evitar imagens repetidas
-    const seed = options?.seed ?? (
-      parseInt(
-        crypto
-          .createHash('sha256')
-          .update(`${cleanPrompt}-${Date.now()}-${Math.random()}`)
-          .digest('hex')
-          .slice(0, 8),
-        16
-      ) % 1000000000
-    );
+    // Gera uma seed aleatória a cada chamada
+    const seed = options?.seed ?? Math.floor(Math.random() * 10000000);
 
     const encodedPrompt = encodeURIComponent(cleanPrompt);
-    const imageUrl = `${this.baseUrl}/${encodedPrompt}?width=${width}&height=${height}&nologo=true&model=${encodeURIComponent(model)}&seed=${seed}`;
+    const imageUrl = `${this.baseUrl}/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true`;
 
     logger.info(this.name, 'Iniciando solicitação de geração de imagem ao Pollinations.ai', {
       promptSnippet: cleanPrompt.slice(0, 80),
-      model,
+      model: 'flux',
       width,
       height,
       seed,

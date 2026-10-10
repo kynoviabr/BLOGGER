@@ -352,6 +352,7 @@ export class DeepSeekProvider implements AIProvider {
       searchIntent?: string;
       excerpt?: string;
       content: string;
+      imagePrompt?: string;
       faq?: Array<{ question: string; answer: string }>;
       estimatedWordCount?: number;
     }>(completion.content, 'generateArticle');
@@ -435,6 +436,7 @@ export class DeepSeekProvider implements AIProvider {
         ? [parsed.primaryKeyword, ...parsed.secondaryKeywords]
         : keywords,
       readingTimeMinutes,
+      imagePrompt: parsed.imagePrompt ? String(parsed.imagePrompt).trim() : undefined,
       actualWordCount,
       targetWordCount,
       qualityGateStatus: gateEval.status,

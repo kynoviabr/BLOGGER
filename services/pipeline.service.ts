@@ -222,10 +222,12 @@ export class PipelineService {
 
       try {
         const imageProvider = createImageProvider();
-        const nichePart = blog?.niche ? `Nicho: ${blog.niche}. ` : '';
-        const audiencePart = blog?.audience ? `Público: ${blog.audience}. ` : '';
-        const contextPart = generatedArticle.metaDescription ? `Contexto: ${generatedArticle.metaDescription.slice(0, 150)}. ` : '';
-        const imagePrompt = `Professional editorial photograph for personal finance article "${generatedArticle.title}". ${nichePart}${audiencePart}${contextPart}Realistic photography, natural lighting, high quality, clean composition, absolutely no text, no logos, no watermarks, strictly 16:9 ratio.`;
+        
+        // Prioriza o imagePrompt gerado pela IA com direção de arte e rotação de estilos visuais
+        const fallbackPrompt = `Conceptual editorial photography, minimalist still life representing financial growth and balance for "${generatedArticle.title}". High quality, rich textures, dramatic studio lighting, shallow depth of field, 8k, hyper-detailed, clean composition, no text, no logos, no watermarks, no screens, no laptops, no smartphones, no office desks`;
+        const imagePrompt = (generatedArticle.imagePrompt && generatedArticle.imagePrompt.trim().length > 10)
+          ? generatedArticle.imagePrompt.trim()
+          : fallbackPrompt;
         
         const imgResult = await imageProvider.generateFeaturedImage(imagePrompt, {
           aspectRatio: '16:9',

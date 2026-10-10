@@ -25,7 +25,7 @@ async function runTests() {
   const expectedSlugs = ['emprestimos', 'saindo-das-dividas', 'cartoes', 'investimentos', 'milhas-e-pontos'];
   const hasAllSlugs = expectedSlugs.every((s) => OFFICIAL_CATEGORIES.some((c) => c.slug === s));
   assert(hasAllSlugs, 'Todas as 5 slugs oficiais estão cadastradas corretamente');
-  assert(!OFFICIAL_CATEGORIES.some((c) => c.slug === 'renda-e-milhas'), 'Nenhuma categoria antiga "renda-e-milhas" presente');
+  assert(!OFFICIAL_CATEGORIES.some((c) => (c.slug as string) === 'renda-e-milhas'), 'Nenhuma categoria antiga "renda-e-milhas" presente');
 
   // TESTE 2: ScopeGuard - Bloqueio de temas fora de Finanças
   const techPauta = validateEditorialScope('Como criar microsserviços escaláveis com Next.js e TypeScript', ['react', 'nextjs']);

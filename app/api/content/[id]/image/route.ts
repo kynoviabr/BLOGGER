@@ -49,16 +49,17 @@ export async function POST(
       .filter(Boolean)
       .join('\n- ');
 
-    const prompt = `Crie uma imagem de destaque editorial única e específica para o artigo "${contentItem.title}".
-Nicho do blog: ${blog?.niche || 'não informado'}.
-Público: ${blog?.audience || 'não informado'}.
-Use uma metáfora visual diretamente relacionada ao assunto do título, com cenário, objetos e composição específicos.
-Evite imagens genéricas de finanças e clichês como pilhas de moedas, cofrinhos, cartões sobre mesa, executivos olhando notebook e gráficos genéricos, salvo quando forem essenciais ao assunto.
-Não inclua texto, letras, números, logotipos ou marcas na imagem.
-Varie enquadramento, ambiente, objetos principais e metáfora em relação às imagens recentes.
-Prompts recentes a não repetir:
-- ${recentVisuals || 'nenhum'}
-Estilo: fotografia editorial cinematográfica, elegante, natural, alta resolução, composição limpa, 16:9.`;
+    // 5 estilos visuais sofisticados para rotação editorial
+    const visualStyles = [
+      'Conceptual minimalist still life photography, real physical objects in elegant studio composition (golden keys, precision scales, metallic gears, growing green plants on solid marble)',
+      'Editorial isometric 3D render, minimalist Blender/C4D aesthetic, smooth matte textures, soft studio lighting, abstract geometric shapes representing balance and progress',
+      'Modern architectural and urban photography, grand perspective, majestic concrete and glass facades, illuminated bridges, dynamic urban geometry conveying scale and future',
+      'Artistic macro photography, extreme close-up of rich textures, brushed metal, intricate watchmaking mechanics, watermark paper fibers, dramatic chiaroscuro lighting',
+      'Editorial conceptual flat illustration and collage, The New Yorker and The Economist cover style, bold contrasting colors, modern graphic design'
+    ];
+    const selectedStyle = visualStyles[Math.floor(Math.random() * visualStyles.length)];
+
+    const prompt = `${selectedStyle}. Visual metaphor for personal finance theme: "${contentItem.title}". Editorial studio lighting, shallow depth of field, 8k, hyper-detailed, clean elegant composition, no text, no logos, no watermarks, no screens, no laptops, no smartphones, no office desks`;
 
     // 3. Instanciar ImageProvider via Factory
     const imageProvider = createImageProvider();
