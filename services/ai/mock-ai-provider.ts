@@ -64,7 +64,7 @@ export class MockAIProvider implements AIProvider {
     category?: string;
     queuePosition?: number;
     existingIdeas?: Array<{ title: string }>;
-  }): Promise<{ title: string; keywords: string; description: string; type: string }> {
+  }): Promise<{ title: string; keywords: string; description: string; type: string; category?: string }> {
     const cat = context.category || 'Empréstimos';
     const pos = ((context.queuePosition || 1) - 1) % 5;
 
@@ -101,7 +101,10 @@ export class MockAIProvider implements AIProvider {
       },
     ];
 
-    return templates[pos];
+    return {
+      ...templates[pos],
+      category: cat,
+    };
   }
 }
 

@@ -469,19 +469,28 @@ Cada ideia deve conter:
     audience?: string;
     purpose?: string;
     category?: string;
+    availableCategories?: string[];
     language?: string;
     blogName?: string;
     existingIdeas?: Array<{ title: string; keywords?: string; type?: string }>;
     queuePosition?: number;
     totalRequested?: number;
-  }): Promise<{ title: string; keywords: string; description: string; type: string }> {
+  }): Promise<{ title: string; keywords: string; description: string; type: string; category?: string }> {
     const niche = context.niche || 'Finanças Pessoais e Educação Financeira';
     const audience = context.audience || 'Pessoas que buscam organização financeira, cartões de crédito e sair das dívidas';
     const purpose = context.purpose || 'Informar, educar e gerar valor com alto nível de autoridade e clareza';
-    const category = context.category ? `na categoria "${context.category}"` : 'em tópicos de alta demanda e relevância editorial';
     const language = context.language || 'pt-BR';
     const blogName = context.blogName ? `do blog "${context.blogName}"` : '';
     const pos = context.queuePosition ? ` (Pauta ${context.queuePosition} de ${context.totalRequested || 'N'})` : '';
+
+    let categoryInstruction = '';
+    if (context.category) {
+      categoryInstruction = `na categoria "${context.category}"`;
+    } else if (context.availableCategories && context.availableCategories.length > 0) {
+      categoryInstruction = `em uma das seguintes categorias do blog: ${context.availableCategories.join(', ')}`;
+    } else {
+      categoryInstruction = 'em tópicos de alta demanda e relevância editorial';
+    }
 
     let existingBlock = '';
     if (context.existingIdeas && context.existingIdeas.length > 0) {
@@ -497,7 +506,7 @@ Cada ideia deve conter:
     logger.info(this.name, `Gerando 1 pauta unitária${pos} para blog: ${blogName || niche} usando modelo ${ideasModel}`);
 
     const prompt = `Você é um Estrategista de Conteúdo e Especialista em SEO Editorial.
-Crie EXATAMENTE UMA ideia inovadora, atraente e de alto potencial de tráfego orgânico ${category} para o blog ${blogName}.
+Crie EXATAMENTE UMA ideia inovadora, atraente e de alto potencial de tráfego orgânico ${categoryInstruction} para o blog ${blogName}.
 
 Contexto Editorial:
 - Nicho: ${niche}
@@ -514,9 +523,10 @@ INSTRUÇÕES CRÍTICAS DE DIVERSIDADE E FORMATO:
   - keywords: 3 a 5 palavras-chave estratégicas separadas por vírgulas.
   - description: Resumo objetivo de 2 a 3 frases com o ângulo e pontos-chave a abordar no artigo.
   - type: Tipo do artigo (ex: "Guia Completo", "Lista Comparativa", "Passo a Passo", "Análise Prática").
+  - category: Categoria correspondente da pauta (escolha dentre as categorias do blog informadas ou use a categoria indicada).
 - Retorne EXATAMENTE UM objeto JSON correspondente a esta única pauta.`;
 
-    const idea = await this.generateWithResilience<{ title: string; keywords: string; description: string; type: string }>(
+    const idea = await this.generateWithResilience<{ title: string; keywords: string; description: string; type: string; category?: string }>(
       'generateIdea',
       {
         contents: prompt,
@@ -545,6 +555,10 @@ INSTRUÇÕES CRÍTICAS DE DIVERSIDADE E FORMATO:
               type: Type.STRING,
               description: 'Tipo ou formato do artigo (ex: Guia Completo, Passo a Passo)',
             },
+            category: {
+              type: Type.STRING,
+              description: 'Nome da categoria correspondente',
+            },
           },
           required: ['title', 'keywords', 'description', 'type'],
         },
@@ -564,6 +578,7 @@ INSTRUÇÕES CRÍTICAS DE DIVERSIDADE E FORMATO:
       keywords: idea.keywords.trim(),
       description: idea.description.trim(),
       type: idea.type.trim(),
+      category: idea.category?.trim() || context.category,
     };
   }
 }

@@ -3,6 +3,7 @@ export interface ContentIdea {
   keywords: string;
   description: string;
   type: string;
+  category?: string;
 }
 
 export interface GenerateIdeasRequest {

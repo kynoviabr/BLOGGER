@@ -495,9 +495,16 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
                         <h4 className="text-base font-semibold text-foreground">
                           {idea.title}
                         </h4>
-                        <Badge variant="info" className="text-xs">
-                          {idea.type}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {idea.category && (
+                            <Badge variant="outline" className="text-xs font-medium border-primary/30 text-primary bg-primary/5">
+                              {idea.category}
+                            </Badge>
+                          )}
+                          <Badge variant="info" className="text-xs">
+                            {idea.type}
+                          </Badge>
+                        </div>
                       </div>
 
                       <p className="text-sm text-muted-foreground leading-relaxed">

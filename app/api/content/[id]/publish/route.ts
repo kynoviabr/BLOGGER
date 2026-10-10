@@ -21,10 +21,10 @@ export async function POST(
 
     const supabase = await getSupabaseServerClient();
 
-    // 2. Buscar content_item com blog e imagem destacada
+    // 2. Buscar content_item com blog, imagem destacada e pauta com categoria
     const { data: contentItem, error: contentError } = await supabase
       .from('content_items')
-      .select('*, blog:blogs(*), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
+      .select('*, blog:blogs(*), featured_image:media_assets!content_items_featured_image_id_fkey(*), editorial_calendar:editorial_calendar(*, category:categories(*))')
       .eq('id', id)
       .maybeSingle();
 
@@ -45,6 +45,37 @@ export async function POST(
 
     const blog = contentItem.blog;
 
+    // Resolução da categoria do artigo
+    let categoryNames: string[] | undefined;
+    const edCal = contentItem.editorial_calendar as { category?: { name: string; slug: string } } | null;
+    if (edCal?.category) {
+      categoryNames = [edCal.category.name, edCal.category.slug];
+    } else if (contentItem.blog_id) {
+      // Buscar categorias do blog para inferir
+      const { data: blogCats } = await supabase
+        .from('categories')
+        .select('name, slug')
+        .eq('blog_id', contentItem.blog_id);
+
+      if (blogCats && blogCats.length > 0) {
+        const textToMatch = `${contentItem.title} ${contentItem.slug}`.toLowerCase();
+        const matched = blogCats.find((c) => {
+          const cName = c.name.toLowerCase();
+          return (
+            (cName.includes('cart') && textToMatch.includes('cart')) ||
+            (cName.includes('empr') && (textToMatch.includes('empr') || textToMatch.includes('consignado'))) ||
+            (cName.includes('dívida') && (textToMatch.includes('dívida') || textToMatch.includes('divida') || textToMatch.includes('orçamento'))) ||
+            (cName.includes('milha') && (textToMatch.includes('milha') || textToMatch.includes('invest') || textToMatch.includes('tesouro'))) ||
+            textToMatch.includes(cName)
+          );
+        }) || blogCats[0];
+
+        if (matched) {
+          categoryNames = [matched.name, matched.slug];
+        }
+      }
+    }
+
     // 3. Instanciar WordPressProvider via Factory
     const blogDomain = blog?.domain
       ? (blog.domain.startsWith('http') ? blog.domain : `https://${blog.domain}`)
@@ -53,7 +84,9 @@ export async function POST(
       siteUrl: blogDomain || process.env.WORDPRESS_SITE_URL,
     });
 
-    logger.info('API.publish', `Iniciando publicação com ${publisher.name} para o artigo ${id}`);
+    logger.info('API.publish', `Iniciando publicação com ${publisher.name} para o artigo ${id}`, {
+      categoryNames,
+    });
 
     let wpFeaturedMediaId: string | number | undefined;
 
@@ -96,6 +129,7 @@ export async function POST(
       content: contentItem.body,
       excerpt: contentItem.excerpt || undefined,
       status: 'publish',
+      categoryNames,
       featuredMediaId: wpFeaturedMediaId,
     });
 

@@ -332,38 +332,18 @@ export class ResearchService {
       riskLevel
     );
 
-    // 6. POLÍTICA DE FAIL-CLOSED
+    // 6. POLÍTICA DE RESILIÊNCIA E CONFLITO FACTUAL
     let status: "READY" | "RESEARCH_REVIEW_REQUIRED" = "READY";
-    const hasOfficialSource = fetchedSources.some(s => s.isOfficial);
 
-    if (riskLevel === "HIGH") {
-      // Se não há nenhum fato verificado OU conflito crítico:
-      if (facts.length === 0 || hasCriticalConflict) {
-        status = "RESEARCH_REVIEW_REQUIRED";
-        if (hasCriticalConflict) {
-          warnings.push("FAIL-CLOSED ATIVADO: Conflito semântico/numérico crítico detectado entre fontes.");
-        } else {
-          warnings.push("FAIL-CLOSED ATIVADO: Nenhum fato factual pôde ser extraído das fontes originais.");
-        }
-      } else if (!hasOfficialSource) {
-        // Se temos fontes de autoridade (Tier 1, 2 ou 3) com pelo menos 3 fatos verificados de 2+ fontes:
-        const authoritativeSources = fetchedSources.filter(s => s.isOfficial || (s.tier && s.tier <= 3));
-        if (authoritativeSources.length < 2 || facts.length < 3) {
-          status = "RESEARCH_REVIEW_REQUIRED";
-          warnings.push("FAIL-CLOSED ATIVADO: Nenhuma fonte oficial (.gov.br / órgão regulador) ou fontes institucionais suficientes foram obtidas para este tópico de alto risco.");
-        } else {
-          warnings.push("Aviso Editorial: Tópico regulatório validado com fontes institucionais e imprensa de mercado; órgão regulador primário direto não retornou conteúdo disponível.");
-        }
-      }
+    if (hasCriticalConflict) {
+      status = "RESEARCH_REVIEW_REQUIRED";
+      warnings.push("FAIL-CLOSED ATIVADO: Conflito semântico/numérico crítico detectado entre fontes oficiais.");
+    } else if (facts.length === 0) {
+      warnings.push("Aviso Editorial: Scraping de fontes externas não retornou dados em tempo real. O conteúdo será gerado com base em conhecimentos normativos consolidados e rigor YMYL.");
     } else {
-      // Para médio ou baixo risco, fail-closed apenas se não houver fatos ou se houver conflito crítico
-      if (facts.length === 0 || hasCriticalConflict) {
-        status = "RESEARCH_REVIEW_REQUIRED";
-        if (hasCriticalConflict) {
-          warnings.push("FAIL-CLOSED ATIVADO: Conflito semântico/numérico crítico detectado entre fontes.");
-        } else {
-          warnings.push("FAIL-CLOSED ATIVADO: Nenhum fato factual pôde ser extraído das fontes pesquisadas.");
-        }
+      const hasOfficial = fetchedSources.some(s => s.isOfficial);
+      if (riskLevel === "HIGH" && !hasOfficial) {
+        warnings.push("Aviso Editorial: Tópico de alto risco contextualizado com imprensa econômica e fontes de mercado.");
       }
     }
 

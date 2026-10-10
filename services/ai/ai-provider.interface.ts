@@ -72,6 +72,7 @@ export interface AIProvider {
       audience?: string;
       purpose?: string;
       category?: string;
+      availableCategories?: string[];
       language?: string;
       blogName?: string;
       currentDate?: string;
@@ -79,5 +80,5 @@ export interface AIProvider {
       queuePosition?: number;
       totalRequested?: number;
     }
-  ): Promise<{ title: string; keywords: string; description: string; type: string }>;
+  ): Promise<{ title: string; keywords: string; description: string; type: string; category?: string }>;
 }

@@ -54,6 +54,7 @@ export interface DeepSeekIdeaResult {
   keywords: string;
   description: string;
   type: string;
+  category?: string;
   durationMs: number;
   usage?: {
     promptTokens: number;
@@ -465,6 +466,7 @@ export class DeepSeekProvider implements AIProvider {
     audience?: string;
     purpose?: string;
     category?: string;
+    availableCategories?: string[];
     language?: string;
     blogName?: string;
     currentDate?: string;
@@ -479,6 +481,7 @@ export class DeepSeekProvider implements AIProvider {
       audience: context.audience,
       purpose: context.purpose,
       category: context.category,
+      availableCategories: context.availableCategories,
       language: context.language,
       currentDate,
       existingIdeas: context.existingIdeas,
@@ -506,6 +509,7 @@ export class DeepSeekProvider implements AIProvider {
       keywords: string;
       description: string;
       type: string;
+      category?: string;
     }>(completion.content, 'generateIdea');
 
     if (!parsed.title || !parsed.keywords || !parsed.description) {
@@ -534,6 +538,7 @@ export class DeepSeekProvider implements AIProvider {
       keywords: parsed.keywords.trim(),
       description: parsed.description.trim(),
       type: parsed.type?.trim() || 'Guia Completo',
+      category: parsed.category?.trim() || context.category,
       durationMs: completion.durationMs,
       usage: completion.usage
         ? {

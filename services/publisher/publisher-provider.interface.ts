@@ -21,7 +21,8 @@ export interface ArticlePublishInput {
   excerpt?: string;
   status: 'publish' | 'draft' | 'pending' | 'future';
   scheduledDate?: string; // ISO 8601
-  categories?: number[]; // IDs das categorias no CMS remoto
+  categories?: number[]; // IDs numéricos das categorias no CMS remoto
+  categoryNames?: string[]; // Nomes ou slugs de categorias para resolução automática
   tags?: number[];
   featuredMediaId?: string | number;
   authorId?: number;
@@ -48,4 +49,9 @@ export interface PublisherProvider {
    * Publica ou agenda um artigo no WordPress/CMS remoto.
    */
   publishArticle(article: ArticlePublishInput): Promise<PublishResult>;
+
+  /**
+   * Resolve ou cria uma categoria no CMS remoto e retorna seu ID numérico.
+   */
+  resolveCategory?(nameOrSlug: string): Promise<number | null>;
 }

@@ -25,6 +25,7 @@ export interface DeepSeekIdeaPromptOptions {
   audience?: string;
   purpose?: string;
   category?: string;
+  availableCategories?: string[];
   language?: string;
   currentDate?: string;
   existingIdeas?: Array<{ title: string; keywords?: string; type?: string }>;
@@ -199,6 +200,7 @@ Diretrizes:
 - NUNCA alegue métricas externas como alto volume, baixa concorrência, CPC, keyword difficulty ou tendências sem dados externos fornecidos.
 - Descrição: Resumo de 2 a 3 frases com o ângulo e os pontos essenciais a serem explorados.
 - Tipo do artigo: "Guia Completo", "Lista Comparativa", "Passo a Passo", "Dicas Práticas" ou "Análise Crítica".
+- Categoria: OBRIGATÓRIA. Toda pauta DEVE pertencer a uma das categorias válidas informadas do blog.
 - COERÊNCIA TEMPORAL E ANOS:
   * Nunca utilize ano passado ou futuro como se fosse atual.
   * Quando utilizar ano no título, ele DEVE ser estritamente coerente com a DATA ATUAL fornecida.
@@ -208,7 +210,8 @@ Diretrizes:
   "title": "Título chamativo e otimizado",
   "keywords": "palavra-chave 1, palavra-chave 2, palavra-chave 3",
   "description": "Breve briefing editorial orientando a estrutura e pontos-chave.",
-  "type": "Guia Completo"
+  "type": "Guia Completo",
+  "category": "Nome da Categoria Correspondente"
 }`;
 
 /**
@@ -218,10 +221,16 @@ export function buildDeepSeekIdeaUserPrompt(options: DeepSeekIdeaPromptOptions):
   const niche = options.niche || 'Finanças Pessoais e Economia';
   const audience = options.audience || 'Brasileiros em busca de crédito seguro e estabilidade financeira';
   const purpose = options.purpose || 'Educar e esclarecer com autoridade técnica e linguagem acessível';
-  const category = options.category ? `na categoria "${options.category}"` : 'em tópicos de alta relevância';
   const blogName = options.blogName ? `do blog "${options.blogName}"` : '';
   const pos = options.queuePosition ? ` (Pauta ${options.queuePosition} de ${options.totalRequested || 'N'})` : '';
   const currentDate = options.currentDate || new Date().toISOString().split('T')[0];
+
+  let categoryInstruction = '';
+  if (options.category) {
+    categoryInstruction = `CATEGORIA OBRIGATÓRIA: "${options.category}". O tema DEVE ser estritamente relacionado a esta categoria.`;
+  } else if (options.availableCategories && options.availableCategories.length > 0) {
+    categoryInstruction = `CATEGORIAS DISPONÍVEIS NO BLOG:\n${options.availableCategories.map((c) => `- ${c}`).join('\n')}\nIMPORTANTE: A pauta gerada DEVE ser classificada em uma dessas categorias acima e você deve retornar o nome exato no campo "category".`;
+  }
 
   let existingBlock = '';
   if (options.existingIdeas && options.existingIdeas.length > 0) {
@@ -232,7 +241,7 @@ export function buildDeepSeekIdeaUserPrompt(options: DeepSeekIdeaPromptOptions):
     existingBlock = `\nPAUTAS JÁ EXISTENTES NESTA SESSÃO (NÃO REPETIR OU VARIAR SUTILMENTE ESTES TEMAS):\n${list}\n`;
   }
 
-  return `Crie EXATAMENTE UMA nova ideia de pauta editorial ${category} para o portal ${blogName}${pos}.
+  return `Crie EXATAMENTE UMA nova ideia de pauta editorial para o portal ${blogName}${pos}.
 
 DATA ATUAL:
 ${currentDate}
@@ -241,6 +250,8 @@ Contexto Editorial:
 - Nicho: ${niche}
 - Público-Alvo: ${audience}
 - Linha Editorial: ${purpose}
+
+${categoryInstruction}
 ${existingBlock}
 REGRAS TEMPORAIS E DE ANOS:
 - A data atual de referência é ${currentDate}.
@@ -251,5 +262,5 @@ REGRAS TEMPORAIS E DE ANOS:
 REGRAS CRÍTICAS DE DIVERSIDADE:
 - A nova pauta deve ser SUBSTANCIALMENTE DIFERENTE de qualquer tema listado acima.
 - Explore um ângulo, produto ou intenção de busca inédito.
-- Retorne EXATAMENTE UM objeto JSON válido com title, keywords, description e type.`;
+- Retorne EXATAMENTE UM objeto JSON válido com title, keywords, description, type e category.`;
 }

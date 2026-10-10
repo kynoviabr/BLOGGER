@@ -67,6 +67,14 @@ export async function POST(request: NextRequest) {
     // Combina pautas já no calendário com as pautas geradas na fila da sessão atual
     const combinedExisting: ExistingIdeaSummary[] = [...calendarTitles, ...existingIdeas];
 
+    // Buscar categorias ativas deste blog
+    const { data: blogCategories } = await adminSupabase
+      .from('categories')
+      .select('name')
+      .eq('blog_id', blogId);
+
+    const availableCategories = (blogCategories || []).map((c) => c.name);
+
     // 3. Chamar AIProvider para gerar EXATAMENTE UMA pauta com modelo rápido
     const aiProvider = createAIProvider();
 
@@ -79,6 +87,7 @@ export async function POST(request: NextRequest) {
       audience: blog.audience || 'Público interessado em finanças, economia e crédito',
       purpose: blog.description || 'Educação financeira com alta credibilidade e precisão técnica',
       category: category || undefined,
+      availableCategories: availableCategories.length > 0 ? availableCategories : undefined,
       language: blog.default_language || 'pt-BR',
       blogName: blog.name,
       currentDate: new Date().toISOString().split('T')[0],
@@ -92,16 +101,17 @@ export async function POST(request: NextRequest) {
       throw new Error('A IA retornou uma pauta vazia ou com título inválido.');
     }
 
+    const finalCategory = idea.category || category || availableCategories[0] || 'Geral';
     const durationMs = Date.now() - startTime;
     const modelUsed = (aiProvider as { defaultModel?: string }).defaultModel || process.env.GEMINI_IDEAS_MODEL || 'gemini-2.5-flash';
 
     await LogService.recordLog(
       'info',
       'API.ideas.generateOne',
-      `Pauta ${queuePosition}/${totalRequested} gerada com sucesso: "${idea.title.slice(0, 50)}..."`,
+      `Pauta ${queuePosition}/${totalRequested} gerada com sucesso: "${idea.title.slice(0, 50)}..." [Categoria: ${finalCategory}]`,
       {
         blogId,
-        category,
+        category: finalCategory,
         queuePosition,
         totalRequested,
         model: modelUsed,
@@ -118,6 +128,7 @@ export async function POST(request: NextRequest) {
         keywords: idea.keywords,
         description: idea.description,
         type: idea.type,
+        category: finalCategory,
       },
       queuePosition,
       durationMs,

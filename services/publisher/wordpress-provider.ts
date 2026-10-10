@@ -21,6 +21,7 @@ export class WordPressProvider implements PublisherProvider {
   private readonly siteUrl: string;
   private readonly authHeader: string;
   private readonly timeoutMs: number;
+  private categoriesCache: Array<{ id: number; name: string; slug: string }> | null = null;
 
   constructor(config: WordPressConfig = {}) {
     const siteUrl = config.siteUrl || process.env.WORDPRESS_SITE_URL || '';
@@ -41,6 +42,133 @@ export class WordPressProvider implements PublisherProvider {
     this.siteUrl = siteUrl.replace(/\/+$/, '');
     this.authHeader = `Basic ${Buffer.from(`${username}:${appPassword}`).toString('base64')}`;
     this.timeoutMs = config.timeoutMs || 45000;
+  }
+
+  /**
+   * Normaliza texto para comparação fonética/sem acentos
+   */
+  private normalizeString(str: string): string {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  }
+
+  /**
+   * Busca todas as categorias existentes do WordPress remoto
+   */
+  async fetchAllCategories(): Promise<Array<{ id: number; name: string; slug: string }>> {
+    if (this.categoriesCache && this.categoriesCache.length > 0) {
+      return this.categoriesCache;
+    }
+
+    try {
+      const endpoint = `${this.siteUrl}/wp-json/wp/v2/categories?per_page=100`;
+      const response = await fetch(endpoint, {
+        headers: {
+          Authorization: this.authHeader,
+          Accept: 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          this.categoriesCache = data.map((c) => ({
+            id: Number(c.id),
+            name: String(c.name || ''),
+            slug: String(c.slug || ''),
+          }));
+          return this.categoriesCache;
+        }
+      }
+    } catch (err) {
+      logger.warn(this.name, `Falha ao carregar categorias do WP: ${String(err)}`);
+    }
+
+    return this.categoriesCache || [];
+  }
+
+  /**
+   * Resolve o ID numérico da categoria no WordPress. Se não existir, tenta criá-la.
+   */
+  async resolveCategory(nameOrSlug: string): Promise<number | null> {
+    if (!nameOrSlug || !nameOrSlug.trim()) return null;
+
+    const query = nameOrSlug.trim();
+    const normalizedQuery = this.normalizeString(query);
+
+    const categories = await this.fetchAllCategories();
+
+    // 1. Procura por correspondência exata ou normalizada em slug ou nome
+    const match = categories.find((c) => {
+      if (c.slug.toLowerCase() === query.toLowerCase()) return true;
+      if (c.name.toLowerCase() === query.toLowerCase()) return true;
+      const normalizedName = this.normalizeString(c.name);
+      const normalizedSlug = this.normalizeString(c.slug);
+      return (
+        normalizedName === normalizedQuery ||
+        normalizedSlug === normalizedQuery ||
+        normalizedName.includes(normalizedQuery) ||
+        normalizedQuery.includes(normalizedName)
+      );
+    });
+
+    if (match && match.id !== 1) { // 1 = Uncategorized
+      logger.info(this.name, `Categoria "${query}" mapeada para ID WP: ${match.id} (${match.name})`);
+      return match.id;
+    }
+
+    // 2. Não encontrada no WP: tentar criar dinamicamente via REST API
+    try {
+      const slugCandidate = query
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+
+      logger.info(this.name, `Criando nova categoria no WordPress: "${query}" (slug: ${slugCandidate})`);
+      const endpoint = `${this.siteUrl}/wp-json/wp/v2/categories`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: this.authHeader,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          name: query,
+          slug: slugCandidate,
+        }),
+      });
+
+      if (response.ok) {
+        const created = await response.json();
+        const newCat = {
+          id: Number(created.id),
+          name: String(created.name),
+          slug: String(created.slug),
+        };
+        if (!this.categoriesCache) this.categoriesCache = [];
+        this.categoriesCache.push(newCat);
+        logger.info(this.name, `Categoria "${query}" criada com sucesso no WP com ID: ${newCat.id}`);
+        return newCat.id;
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        // Se a categoria já existia com outro ID retornado no erro:
+        if (errorData?.data?.term_id) {
+          return Number(errorData.data.term_id);
+        }
+        logger.warn(this.name, `Resposta não-200 ao criar categoria WP: ${JSON.stringify(errorData)}`);
+      }
+    } catch (createErr) {
+      logger.warn(this.name, `Erro ao criar categoria no WP: ${String(createErr)}`);
+    }
+
+    return null;
   }
 
   /**
@@ -180,8 +308,19 @@ export class WordPressProvider implements PublisherProvider {
       payload.date = article.scheduledDate;
     }
 
-    if (article.categories && article.categories.length > 0) {
-      payload.categories = article.categories;
+    let finalCategories = article.categories && article.categories.length > 0 ? [...article.categories] : [];
+
+    if (finalCategories.length === 0 && article.categoryNames && article.categoryNames.length > 0) {
+      for (const catName of article.categoryNames) {
+        const catId = await this.resolveCategory(catName);
+        if (catId && !finalCategories.includes(catId)) {
+          finalCategories.push(catId);
+        }
+      }
+    }
+
+    if (finalCategories.length > 0) {
+      payload.categories = finalCategories;
     }
 
     if (article.tags && article.tags.length > 0) {

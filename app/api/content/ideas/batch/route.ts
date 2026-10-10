@@ -28,20 +28,47 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = getSupabaseAdminClient();
 
-    // 1. Buscar categoria correspondente se fornecida
-    let categoryId: string | null = null;
-    if (category) {
-      const { data: catRecord } = await adminSupabase
-        .from('categories')
-        .select('id')
-        .eq('blog_id', blogId)
-        .ilike('name', `%${category}%`)
-        .maybeSingle();
+    // 1. Buscar todas as categorias disponíveis do blog
+    const { data: blogCategories } = await adminSupabase
+      .from('categories')
+      .select('id, name, slug')
+      .eq('blog_id', blogId);
 
-      if (catRecord) {
-        categoryId = catRecord.id;
+    const categoriesList = blogCategories || [];
+
+    // Função auxiliar para resolver a melhor categoria para uma ideia
+    const resolveCategoryIdForIdea = (idea: ContentIdea): string | null => {
+      if (categoriesList.length === 0) return null;
+
+      const targetCatName = (idea.category || category || '').trim().toLowerCase();
+
+      if (targetCatName) {
+        const found = categoriesList.find((c) =>
+          c.name.toLowerCase() === targetCatName ||
+          c.slug.toLowerCase() === targetCatName ||
+          c.name.toLowerCase().includes(targetCatName) ||
+          targetCatName.includes(c.name.toLowerCase())
+        );
+        if (found) return found.id;
       }
-    }
+
+      // Inferência pelo título e keywords
+      const textToMatch = `${idea.title} ${idea.keywords} ${idea.description || ''}`.toLowerCase();
+      const matched = categoriesList.find((cat) => {
+        const catNameLower = cat.name.toLowerCase();
+        const catSlugLower = cat.slug.toLowerCase();
+        return (
+          (catNameLower.includes('cart') && (textToMatch.includes('cart') || textToMatch.includes('anuidade') || textToMatch.includes('limite'))) ||
+          (catNameLower.includes('empr') && (textToMatch.includes('empr') || textToMatch.includes('consignado') || textToMatch.includes('financiamento'))) ||
+          (catNameLower.includes('dívida') && (textToMatch.includes('dívida') || textToMatch.includes('divida') || textToMatch.includes('orçamento') || textToMatch.includes('orcamento') || textToMatch.includes('renegocia') || textToMatch.includes('serasa') || textToMatch.includes('50/30/20'))) ||
+          (catNameLower.includes('milha') && (textToMatch.includes('milha') || textToMatch.includes('ponto') || textToMatch.includes('renda') || textToMatch.includes('invest') || textToMatch.includes('tesouro') || textToMatch.includes('reserva'))) ||
+          textToMatch.includes(catNameLower) ||
+          textToMatch.includes(catSlugLower)
+        );
+      });
+
+      return matched ? matched.id : categoriesList[0].id;
+    };
 
     // 2. Buscar idioma padrão do blog
     const { data: blog } = await adminSupabase
@@ -62,9 +89,11 @@ export async function POST(request: NextRequest) {
         ? idea.keywords.split(',').map((k) => k.trim()).filter(Boolean)
         : [];
 
+      const ideaCategoryId = resolveCategoryIdForIdea(idea);
+
       return {
         blog_id: blogId,
-        category_id: categoryId,
+        category_id: ideaCategoryId,
         language,
         topic: idea.title,
         proposed_title: idea.title,

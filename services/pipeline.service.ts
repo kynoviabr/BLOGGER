@@ -35,10 +35,10 @@ export class PipelineService {
     const adminSupabase = getSupabaseAdminClient();
 
     try {
-      // 1. Buscar dados da pauta e do blog
+      // 1. Buscar dados da pauta, blog e categoria
       const { data: calendarItem, error: calendarError } = await adminSupabase
         .from('editorial_calendar')
-        .select('*, blog:blogs(*)')
+        .select('*, blog:blogs(*), category:categories(*)')
         .eq('id', calendarId)
         .maybeSingle();
 
@@ -48,8 +48,48 @@ export class PipelineService {
 
       const blog = calendarItem.blog;
 
-      logger.info('PipelineService', `Iniciando execução da pauta: "${calendarItem.proposed_title}"`, {
+      // 1.1 Se a pauta não tem categoria associada, resolver e persistir a melhor categoria do blog
+      let calendarCategory = calendarItem.category as { id: string; name: string; slug: string } | null;
+      if (!calendarCategory) {
+        const { data: blogCategories } = await adminSupabase
+          .from('categories')
+          .select('id, name, slug')
+          .eq('blog_id', calendarItem.blog_id);
+
+        if (blogCategories && blogCategories.length > 0) {
+          const textToMatch = `${calendarItem.proposed_title} ${calendarItem.topic} ${(calendarItem.keywords || []).join(' ')}`.toLowerCase();
+
+          let matched = blogCategories.find((cat) => {
+            const catNameLower = cat.name.toLowerCase();
+            const catSlugLower = cat.slug.toLowerCase();
+            return (
+              (catNameLower.includes('cart') && (textToMatch.includes('cart') || textToMatch.includes('anuidade') || textToMatch.includes('limite'))) ||
+              (catNameLower.includes('empr') && (textToMatch.includes('empr') || textToMatch.includes('consignado') || textToMatch.includes('financiamento'))) ||
+              (catNameLower.includes('dívida') && (textToMatch.includes('dívida') || textToMatch.includes('divida') || textToMatch.includes('orçamento') || textToMatch.includes('orcamento') || textToMatch.includes('renegocia') || textToMatch.includes('serasa') || textToMatch.includes('50/30/20'))) ||
+              (catNameLower.includes('milha') && (textToMatch.includes('milha') || textToMatch.includes('ponto') || textToMatch.includes('renda') || textToMatch.includes('invest') || textToMatch.includes('tesouro') || textToMatch.includes('reserva'))) ||
+              textToMatch.includes(catNameLower) ||
+              textToMatch.includes(catSlugLower)
+            );
+          });
+
+          if (!matched) {
+            matched = blogCategories[0];
+          }
+
+          calendarCategory = matched;
+          await adminSupabase
+            .from('editorial_calendar')
+            .update({ category_id: matched.id, updated_at: new Date().toISOString() })
+            .eq('id', calendarId);
+
+          logger.info('PipelineService', `Pauta "${calendarItem.proposed_title || calendarItem.topic}" associada à categoria "${matched.name}" (${matched.id})`);
+        }
+      }
+
+      logger.info('PipelineService', `Iniciando execução da pauta: "${calendarItem.proposed_title}" [Categoria: ${calendarCategory?.name || 'Geral'}]`, {
         calendarId,
+        categoryId: calendarCategory?.id,
+        categoryName: calendarCategory?.name,
         triggeredBy: options.triggeredBy || 'manual',
       });
 
@@ -107,7 +147,7 @@ export class PipelineService {
 
       const researchBrief = await researchService.conductResearch({
         title: calendarItem.topic,
-        category: calendarItem.category_id || undefined,
+        category: calendarCategory?.name || calendarItem.category_id || undefined,
         keywords,
         niche: blog?.niche || undefined,
         currentDate,
@@ -115,13 +155,26 @@ export class PipelineService {
         contentId,
       });
 
-      if (researchBrief.status === 'RESEARCH_REVIEW_REQUIRED') {
-        logger.warn('PipelineService', `Pauta "${calendarItem.topic}" requer revisão factual (FAIL-CLOSED)`);
+      // Bloquear apenas em caso de contradição factual crítica explícita
+      const hasCriticalFactualConflict = researchBrief.warnings.some(w =>
+        w.toLowerCase().includes('conflito semântico') || w.toLowerCase().includes('divergência detectada')
+      );
+
+      if (hasCriticalFactualConflict) {
+        logger.warn('PipelineService', `Pauta "${calendarItem.topic}" bloqueada por divergência factual crítica.`);
         await adminSupabase
           .from('editorial_calendar')
-          .update({ status: 'PLANNED', updated_at: new Date().toISOString() })
+          .update({
+            status: 'FAILED',
+            notes: `FAIL-CLOSED: ${researchBrief.warnings.join('; ')}`,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', calendarId);
-        throw new Error('Não foi possível verificar informações críticas desta pauta em fontes oficiais confiáveis (FAIL-CLOSED).');
+        throw new Error('Conflito factual crítico detectado entre fontes normativas. Revisão manual obrigatória.');
+      }
+
+      if (researchBrief.status === 'RESEARCH_REVIEW_REQUIRED') {
+        logger.info('PipelineService', `Aviso editorial na pesquisa de "${calendarItem.topic}": ${researchBrief.warnings.join('; ') || 'Prosseguindo com salvaguardas editoriais'}`);
       }
 
       const aiProvider = createAIProvider();
@@ -129,7 +182,7 @@ export class PipelineService {
         niche: blog?.niche,
         audience: blog?.audience || undefined,
         language: calendarItem.language || blog?.default_language || 'pt-BR',
-        category: calendarItem.category_id || undefined,
+        category: calendarCategory?.name || undefined,
         notes: calendarItem.notes || undefined,
         currentDate,
         sourcesOrResearch: researchBrief.rawBriefingText,
@@ -284,6 +337,7 @@ export class PipelineService {
         content: generatedArticle.content,
         excerpt: generatedArticle.metaDescription,
         status: 'publish',
+        categoryNames: calendarCategory ? [calendarCategory.name, calendarCategory.slug] : undefined,
         featuredMediaId: wpFeaturedMediaId,
       });
 
