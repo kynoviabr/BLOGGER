@@ -144,3 +144,63 @@ export async function deleteOfferAction(id: string) {
     throw err;
   }
 }
+
+export async function backfillMonetizationAction(params: {
+  blogId?: string;
+  articleId?: string;
+  forceUpdateExisting?: boolean;
+  syncWordPress?: boolean;
+  statusFilter?: ("published" | "ready" | "draft")[];
+}) {
+  try {
+    await requireAuth();
+
+    if (!params.blogId && !params.articleId) {
+      return {
+        success: false,
+        error: "É obrigatório fornecer o Blog alvo ou o Artigo para retroalimentação.",
+      };
+    }
+
+    const { MonetizationBackfillService } = await import(
+      "@/services/monetization/monetization-backfill.service"
+    );
+
+    if (params.articleId) {
+      const result = await MonetizationBackfillService.backfillSingleArticle(params.articleId, {
+        forceUpdateExisting: params.forceUpdateExisting,
+        syncWordPress: params.syncWordPress,
+      });
+
+      revalidatePath(`/content/${params.articleId}`);
+      revalidatePath("/content");
+
+      return {
+        success: result.supabaseUpdated,
+        data: result,
+      };
+    }
+
+    const batchResult = await MonetizationBackfillService.backfillBlogArticles(params.blogId!, {
+      forceUpdateExisting: params.forceUpdateExisting,
+      syncWordPress: params.syncWordPress,
+      statusFilter: params.statusFilter,
+    });
+
+    revalidatePath("/monetization");
+    revalidatePath("/content");
+
+    return {
+      success: true,
+      data: batchResult,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error("MonetizationAction.backfill", "Erro no backfill de monetização", { err });
+    return {
+      success: false,
+      error: message,
+    };
+  }
+}
+

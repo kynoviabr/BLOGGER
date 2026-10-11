@@ -273,7 +273,11 @@ export function OffersList({ initialOffers, blogs }: OffersListProps) {
         isOpen={isBackfillOpen}
         onClose={() => setIsBackfillOpen(false)}
         blogs={blogs}
-        defaultBlogId={selectedBlogFilter !== "all" ? selectedBlogFilter : undefined}
+        defaultBlogId={
+          selectedBlogFilter !== "all"
+            ? selectedBlogFilter
+            : initialOffers[0]?.blog_id || blogs[0]?.id
+        }
       />
     </div>
   );

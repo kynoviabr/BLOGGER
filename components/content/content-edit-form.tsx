@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
 import { updateContentAction } from "@/app/actions/content";
+import { backfillMonetizationAction } from "@/app/actions/monetization";
 
 interface ContentEditFormProps {
   content: ContentItemWithRelations;
@@ -221,23 +222,22 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     setIsBackfilling(true);
 
     try {
-      const res = await fetch("/api/monetization/backfill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          articleId: content.id,
-          forceUpdateExisting: true,
-          syncWordPress: true,
-        }),
+      const res = await backfillMonetizationAction({
+        articleId: content.id,
+        forceUpdateExisting: true,
+        syncWordPress: true,
       });
-      const data = await res.json();
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Falha ao retroalimentar monetização do artigo.");
+      if (!res.success || !res.data) {
+        throw new Error(res.error || "Falha ao retroalimentar monetização do artigo.");
       }
 
-      const info = data.data;
-      const injectedMsg = info.offersInjected?.length > 0
+      const info = res.data as {
+        offersInjected?: string[];
+        wordpressSynced?: boolean;
+        wordpressPostId?: number;
+      };
+      const injectedMsg = info.offersInjected && info.offersInjected.length > 0
         ? `Ofertas injetadas: ${info.offersInjected.join(", ")}.`
         : "";
       const wpMsg = info.wordpressSynced

@@ -240,17 +240,23 @@ export class MonetizationBackfillService {
     let skippedCount = 0;
     let errorsCount = 0;
 
-    // 2. Itera sobre cada artigo aplicando a injeção determinística
-    for (const art of articles) {
-      const res = await this.backfillSingleArticle(art.id, options);
-      results.push(res);
+    // 2. Itera sobre os artigos em chunks concorrentes de 5 para performance e evitar timeout
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < articles.length; i += CHUNK_SIZE) {
+      const chunk = articles.slice(i, i + CHUNK_SIZE);
+      const chunkResults = await Promise.all(
+        chunk.map((art) => this.backfillSingleArticle(art.id, options))
+      );
 
-      if (res.supabaseUpdated) {
-        updatedCount++;
-      } else if (res.error?.startsWith('Ignorado') || res.error?.includes('Nenhuma oferta')) {
-        skippedCount++;
-      } else {
-        errorsCount++;
+      for (const res of chunkResults) {
+        results.push(res);
+        if (res.supabaseUpdated) {
+          updatedCount++;
+        } else if (res.error?.startsWith('Ignorado') || res.error?.includes('Nenhuma oferta')) {
+          skippedCount++;
+        } else {
+          errorsCount++;
+        }
       }
     }
 

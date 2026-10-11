@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { BackfillBatchResult } from "@/services/monetization/monetization-backfill.service";
 
+import { backfillMonetizationAction } from "@/app/actions/monetization";
+
 interface BackfillModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -76,23 +78,18 @@ export function BackfillModal({
     setResult(null);
 
     try {
-      const res = await fetch("/api/monetization/backfill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          blogId: selectedBlogId,
-          forceUpdateExisting,
-          syncWordPress,
-          statusFilter: statuses,
-        }),
+      const res = await backfillMonetizationAction({
+        blogId: selectedBlogId,
+        forceUpdateExisting,
+        syncWordPress,
+        statusFilter: statuses as ("published" | "ready" | "draft")[],
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || "Falha ao executar retroalimentação.");
+      if (!res.success || !res.data) {
+        throw new Error(res.error || "Falha ao executar retroalimentação.");
       }
 
-      setResult(json.data);
+      setResult(res.data as BackfillBatchResult);
       if (onSuccess) {
         onSuccess();
       }

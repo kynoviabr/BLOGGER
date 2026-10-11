@@ -53,6 +53,12 @@ export async function middleware(request: NextRequest) {
 
   // Usuário não autenticado tentando acessar qualquer rota protegida
   if (!user && !isLoginPage) {
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json(
+        { success: false, error: 'Acesso não autorizado. Faça login para continuar.' },
+        { status: 401 }
+      );
+    }
     const redirectUrl = new URL('/login', request.url);
     return NextResponse.redirect(redirectUrl);
   }
