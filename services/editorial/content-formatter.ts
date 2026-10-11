@@ -13,22 +13,75 @@ export const OFFICIAL_LEGAL_DISCLAIMER_HTML =
 export const INVESTMENT_RISK_DISCLAIMER_HTML =
   getLegalDisclaimerHtml('pt-BR', true);
 
+export const MONETIZATION_BOX_PRIMARY_START = "<!-- MONETIZATION_BOX_PRIMARY_START -->";
+export const MONETIZATION_BOX_PRIMARY_END = "<!-- MONETIZATION_BOX_PRIMARY_END -->";
+export const MONETIZATION_BOX_SECONDARY_START = "<!-- MONETIZATION_BOX_SECONDARY_START -->";
+export const MONETIZATION_BOX_SECONDARY_END = "<!-- MONETIZATION_BOX_SECONDARY_END -->";
+
 /**
- * Constrói o Box Visual HTML padronizado para uma oferta de monetização.
+ * Constrói o Box Visual HTML padronizado para uma oferta de monetização com marcadores invisíveis de idempotência.
  */
-export function buildMonetizationBoxHtml(offer: MonetizationOffer): string {
+export function buildMonetizationBoxHtml(
+  offer: MonetizationOffer,
+  position: 'primary' | 'secondary' = 'primary'
+): string {
   const badge =
     offer.badge_text?.trim() ||
     (offer.offer_type === 'OWN_PRODUCT'
       ? 'GUIA TÉCNICO OFICIAL'
       : 'RECOMENDAÇÃO DO EDITOR');
 
-  return `<div class="ud-monetization-box" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-left: 5px solid #0d9488; border-radius: 8px; padding: 24px; margin: 28px 0; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+  const startMarker =
+    position === 'primary'
+      ? MONETIZATION_BOX_PRIMARY_START
+      : MONETIZATION_BOX_SECONDARY_START;
+  const endMarker =
+    position === 'primary'
+      ? MONETIZATION_BOX_PRIMARY_END
+      : MONETIZATION_BOX_SECONDARY_END;
+
+  const innerHtml = `<div class="ud-monetization-box" data-monetization-box="${position}" data-offer-id="${offer.id}" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-left: 5px solid #0d9488; border-radius: 8px; padding: 24px; margin: 28px 0; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
   <span style="background-color: #0d9488; color: #ffffff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 4px 10px; border-radius: 4px; display: inline-block; margin-bottom: 10px;">${badge}</span>
   <h3 style="color: #ffffff; margin: 0 0 10px 0; font-size: 20px; line-height: 1.3;">${offer.title}</h3>
   <p style="color: #cbd5e1; font-size: 15px; line-height: 1.5; margin: 0 0 18px 0;">${offer.pitch_hook}</p>
   <a href="${offer.affiliate_url}" target="_blank" rel="sponsored noopener" style="background-color: #14b8a6; color: #0f172a; font-weight: 800; font-size: 15px; text-decoration: none; padding: 12px 22px; border-radius: 6px; display: inline-block;">${offer.cta_button_text} →</a>
 </div>`;
+
+  return `${startMarker}\n${innerHtml}\n${endMarker}`;
+}
+
+/**
+ * Remove qualquer caixa de monetização existente do HTML (seja com marcadores ou classes legadas).
+ */
+export function removeExistingMonetizationBoxes(html: string): string {
+  if (!html) return '';
+
+  let cleaned = html;
+
+  // 1. Remove blocos marcados por comentários HTML
+  cleaned = cleaned.replace(/<!--\s*MONETIZATION_BOX_PRIMARY_START\s*-->[\s\S]*?<!--\s*MONETIZATION_BOX_PRIMARY_END\s*-->/gi, '');
+  cleaned = cleaned.replace(/<!--\s*MONETIZATION_BOX_SECONDARY_START\s*-->[\s\S]*?<!--\s*MONETIZATION_BOX_SECONDARY_END\s*-->/gi, '');
+
+  // 2. Remove tags legadas com class "ud-monetization-box" (caso não tenham os comentários)
+  cleaned = cleaned.replace(/<div[^>]*class=["'][^"']*ud-monetization-box[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
+
+  // 3. Normaliza quebras de linha excessivas deixadas pela remoção
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+  return cleaned.trim();
+}
+
+/**
+ * Verifica se o HTML já contém caixas de monetização.
+ */
+export function hasMonetizationBoxes(html: string): boolean {
+  if (!html) return false;
+  return (
+    html.includes('ud-monetization-box') ||
+    html.includes('data-monetization-box') ||
+    html.includes(MONETIZATION_BOX_PRIMARY_START) ||
+    html.includes(MONETIZATION_BOX_SECONDARY_START)
+  );
 }
 
 /**
@@ -38,17 +91,28 @@ export function buildMonetizationBoxHtml(offer: MonetizationOffer): string {
  */
 export function injectMonetizationBoxes(
   html: string,
-  offers?: MonetizationOffer[]
+  offers?: MonetizationOffer[],
+  options?: { forceReplace?: boolean }
 ): string {
   if (!offers || offers.length === 0) return html;
 
   let result = html;
+
+  // Se forceReplace estiver ativo, remove todas as caixas anteriores primeiro
+  if (options?.forceReplace) {
+    result = removeExistingMonetizationBoxes(result);
+  }
+
   const primaryOffer = offers[0];
   const secondaryOffer = offers.length > 1 ? offers[1] : null;
 
   // Injeta a Oferta Principal #1
-  if (primaryOffer && !result.includes(primaryOffer.affiliate_url)) {
-    const primaryBox = buildMonetizationBoxHtml(primaryOffer);
+  const primaryBoxAlreadyPresent =
+    result.includes(MONETIZATION_BOX_PRIMARY_START) ||
+    (primaryOffer && result.includes(primaryOffer.affiliate_url));
+
+  if (primaryOffer && !primaryBoxAlreadyPresent) {
+    const primaryBox = buildMonetizationBoxHtml(primaryOffer, 'primary');
 
     let h2Count = 0;
     let targetIndex = -1;
@@ -81,18 +145,55 @@ export function injectMonetizationBoxes(
           '\n\n' +
           result.slice(insertPos);
       } else {
-        result = `${primaryBox}\n\n${result}`;
+        // Fallback para Markdown puro: procura por ## Título
+        const mdH2Regex = /(?:^|\n)##\s+[^\n]+\n/g;
+        let mdMatch: RegExpExecArray | null;
+        let mdCount = 0;
+        let mdTargetIndex = -1;
+        while ((mdMatch = mdH2Regex.exec(result)) !== null) {
+          mdCount++;
+          if (mdCount === 2) {
+            mdTargetIndex = mdMatch.index + mdMatch[0].length;
+            break;
+          }
+        }
+        if (mdTargetIndex !== -1) {
+          result =
+            result.slice(0, mdTargetIndex) +
+            '\n\n' +
+            primaryBox +
+            '\n\n' +
+            result.slice(mdTargetIndex);
+        } else {
+          const firstMdH2 = result.search(/(?:^|\n)##\s+[^\n]+\n/);
+          if (firstMdH2 !== -1) {
+            const matchLen = result.slice(firstMdH2).match(/(?:^|\n)##\s+[^\n]+\n/)?.[0]?.length || 0;
+            const insertPos = firstMdH2 + matchLen;
+            result =
+              result.slice(0, insertPos) +
+              '\n\n' +
+              primaryBox +
+              '\n\n' +
+              result.slice(insertPos);
+          } else {
+            result = `${primaryBox}\n\n${result}`;
+          }
+        }
       }
     }
   }
 
   // Injeta a Oferta Secundária #2 (se diferente da primária)
+  const secondaryBoxAlreadyPresent =
+    result.includes(MONETIZATION_BOX_SECONDARY_START) ||
+    (secondaryOffer && result.includes(secondaryOffer.affiliate_url));
+
   if (
     secondaryOffer &&
     secondaryOffer.id !== primaryOffer.id &&
-    !result.includes(secondaryOffer.affiliate_url)
+    !secondaryBoxAlreadyPresent
   ) {
-    const secondaryBox = buildMonetizationBoxHtml(secondaryOffer);
+    const secondaryBox = buildMonetizationBoxHtml(secondaryOffer, 'secondary');
     if (result.includes('<p class="ud-aviso">')) {
       result = result.replace(
         '<p class="ud-aviso">',

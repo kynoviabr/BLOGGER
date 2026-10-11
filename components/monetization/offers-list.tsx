@@ -15,7 +15,8 @@ import {
   Star,
   CheckCircle2,
   XCircle,
-  Loader2
+  Loader2,
+  Zap,
 } from "lucide-react";
 import { MonetizationOffer, OFFER_TYPE_LABELS } from "@/types/monetization";
 import { BlogWithRelations } from "@/types/blog";
@@ -23,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toggleOfferStatusAction, deleteOfferAction } from "@/app/actions/monetization";
+import { BackfillModal } from "./backfill-modal";
 
 interface OffersListProps {
   initialOffers: MonetizationOffer[];
@@ -33,6 +35,7 @@ export function OffersList({ initialOffers, blogs }: OffersListProps) {
   const [selectedBlogFilter, setSelectedBlogFilter] = useState<string>("all");
   const [offers, setOffers] = useState<MonetizationOffer[]>(initialOffers);
   const [isPending, startTransition] = useTransition();
+  const [isBackfillOpen, setIsBackfillOpen] = useState<boolean>(false);
 
   React.useEffect(() => {
     setOffers(initialOffers);
@@ -89,12 +92,24 @@ export function OffersList({ initialOffers, blogs }: OffersListProps) {
           </select>
         </div>
 
-        <Link href="/monetization/new">
-          <Button size="sm" className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            Nova Oferta de Monetização
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsBackfillOpen(true)}
+            className="gap-1.5 border-teal-500/40 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/30"
+          >
+            <Zap className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+            Retroalimentar Artigos Publicados
           </Button>
-        </Link>
+
+          <Link href="/monetization/new">
+            <Button size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Nova Oferta
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {filteredOffers.length === 0 ? (
@@ -252,6 +267,14 @@ export function OffersList({ initialOffers, blogs }: OffersListProps) {
           })}
         </div>
       )}
+
+      {/* Modal de Retroalimentação (Backfill) */}
+      <BackfillModal
+        isOpen={isBackfillOpen}
+        onClose={() => setIsBackfillOpen(false)}
+        blogs={blogs}
+        defaultBlogId={selectedBlogFilter !== "all" ? selectedBlogFilter : undefined}
+      />
     </div>
   );
 }

@@ -63,4 +63,14 @@ export interface PublisherProvider {
    * Resolve ou cria uma categoria no CMS remoto e retorna seu ID numérico.
    */
   resolveCategory?(nameOrSlug: string): Promise<number | null>;
+
+  /**
+   * Localiza um post no CMS pelo slug.
+   */
+  getPostBySlug?(slug: string): Promise<{ id: number; link: string } | null>;
+
+  /**
+   * Atualiza o conteúdo HTML de um post já existente.
+   */
+  updatePostContent?(postId: number, content: string): Promise<boolean>;
 }

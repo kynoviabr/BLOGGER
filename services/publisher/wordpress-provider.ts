@@ -515,4 +515,76 @@ export class WordPressProvider implements PublisherProvider {
       );
     }
   }
+
+  /**
+   * Localiza um post no WordPress pelo SLUG para fins de sincronização/atualização.
+   */
+  async getPostBySlug(slug: string): Promise<{ id: number; link: string } | null> {
+    if (!slug || !slug.trim()) return null;
+
+    const cleanSlug = slug.trim();
+    const endpoint = `${this.siteUrl}/wp-json/wp/v2/posts?slug=${encodeURIComponent(cleanSlug)}&status=publish,draft,future,private`;
+
+    try {
+      const response = await fetch(endpoint, {
+        headers: {
+          Authorization: this.authHeader,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn(this.name, `Falha ao buscar post por slug "${cleanSlug}": status ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return {
+          id: Number(data[0].id),
+          link: String(data[0].link || `${this.siteUrl}/${cleanSlug}`),
+        };
+      }
+
+      return null;
+    } catch (err) {
+      logger.error(this.name, `Erro ao buscar post por slug "${cleanSlug}" no WP: ${String(err)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Atualiza diretamente o conteúdo HTML de um post no WordPress.
+   */
+  async updatePostContent(postId: number, content: string): Promise<boolean> {
+    if (!postId || !content) return false;
+
+    const endpoint = `${this.siteUrl}/wp-json/wp/v2/posts/${postId}`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: this.authHeader,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        logger.error(this.name, `Erro ao atualizar conteúdo do post WP ID ${postId}: status ${response.status}`, {
+          error: errorJson,
+        });
+        return false;
+      }
+
+      logger.info(this.name, `Conteúdo do post WP ID ${postId} atualizado com sucesso via backfill.`);
+      return true;
+    } catch (err) {
+      logger.error(this.name, `Falha de rede ao atualizar post WP ID ${postId}: ${String(err)}`);
+      return false;
+    }
+  }
 }

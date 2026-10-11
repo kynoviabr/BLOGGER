@@ -48,6 +48,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
   const [isGeneratingText, setIsGeneratingText] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isBackfilling, setIsBackfilling] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [selectedGenerationLanguage, setSelectedGenerationLanguage] = useState<string>(
     initialContent.language || "pt-BR"
@@ -209,7 +210,53 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     }
   };
 
-  const isAnyActionRunning = isSaving || isGeneratingText || isGeneratingImage || isPublishing;
+  // 5. Injetar / Atualizar Ofertas de Monetização (Backfill)
+  const handleBackfillMonetization = async () => {
+    if (!formData.body || formData.body.trim().length === 0) {
+      showNotification("error", "O artigo precisa ter corpo de texto antes de receber ofertas.");
+      return;
+    }
+
+    setNotification(null);
+    setIsBackfilling(true);
+
+    try {
+      const res = await fetch("/api/monetization/backfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articleId: content.id,
+          forceUpdateExisting: true,
+          syncWordPress: true,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Falha ao retroalimentar monetização do artigo.");
+      }
+
+      const info = data.data;
+      const injectedMsg = info.offersInjected?.length > 0
+        ? `Ofertas injetadas: ${info.offersInjected.join(", ")}.`
+        : "";
+      const wpMsg = info.wordpressSynced
+        ? `Sincronizado no WordPress (ID ${info.wordpressPostId}).`
+        : "";
+
+      showNotification(
+        "success",
+        `Monetização retroalimentada com sucesso! ${injectedMsg} ${wpMsg}`.trim()
+      );
+      router.refresh();
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Erro ao retroalimentar monetização.");
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
+
+  const isAnyActionRunning = isSaving || isGeneratingText || isGeneratingImage || isPublishing || isBackfilling;
 
   return (
     <div className="space-y-6">
@@ -292,7 +339,29 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
               )}
             </Button>
 
-            {/* 3. Publicar no WordPress */}
+            {/* 3. Injetar / Atualizar Ofertas de Monetização */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleBackfillMonetization}
+              disabled={isAnyActionRunning || !formData.body}
+              className="bg-white hover:bg-slate-50 border-teal-200 text-teal-700 hover:text-teal-800 dark:bg-slate-900 dark:border-teal-900 dark:text-teal-300"
+            >
+              {isBackfilling ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Injetando Ofertas...
+                </>
+              ) : (
+                <>
+                  <Zap className="mr-1.5 h-3.5 w-3.5 text-teal-600" />
+                  Injetar Ofertas
+                </>
+              )}
+            </Button>
+
+            {/* 4. Publicar no WordPress */}
             <Button
               type="button"
               variant="primary"

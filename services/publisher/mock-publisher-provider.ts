@@ -36,4 +36,16 @@ export class MockPublisherProvider implements PublisherProvider {
       provider: this.name,
     };
   }
+
+  async getPostBySlug(slug: string): Promise<{ id: number; link: string } | null> {
+    return {
+      id: Math.floor(Math.random() * 100000),
+      link: `https://example.com/artigos/${slug}`,
+    };
+  }
+
+  async updatePostContent(postId: number, content: string): Promise<boolean> {
+    logger.info(this.name, `Atualização simulada de conteúdo do post ${postId} (tamanho: ${content.length} chars)`);
+    return true;
+  }
 }
