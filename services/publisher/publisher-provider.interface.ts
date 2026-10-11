@@ -14,6 +14,8 @@ export interface MediaUploadResult {
   altText?: string;
 }
 
+import { MonetizationOffer } from '@/types/monetization';
+
 export interface ArticlePublishInput {
   title: string;
   slug?: string;
@@ -32,6 +34,7 @@ export interface ArticlePublishInput {
   featuredMediaId?: string | number;
   authorId?: number;
   dryRun?: boolean;
+  offers?: MonetizationOffer[];
 }
 
 export interface PublishResult {

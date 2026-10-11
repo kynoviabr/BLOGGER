@@ -2,6 +2,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { createAIProvider, createImageProvider } from '@/services/ai';
 import { ResearchService } from '@/services/research';
 import { createPublisherProvider, createPublisherProviderForBlog } from '@/services/publisher';
+import { MonetizationService } from '@/services/monetization';
 import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
@@ -202,6 +203,14 @@ export class PipelineService {
         logger.info('PipelineService', `Aviso editorial na pesquisa de "${calendarItem.topic}": ${researchBrief.warnings.join('; ') || 'Prosseguindo com salvaguardas editoriais'}`);
       }
 
+      // 4.1. Buscar ofertas determinísticas de monetização para a categoria do artigo
+      const monetizationOffers = blog?.id
+        ? await MonetizationService.getOffersForCategory(
+            blog.id,
+            calendarCategory?.slug || calendarCategory?.id || categorySlug
+          )
+        : [];
+
       const aiProvider = createAIProvider();
       const generatedArticle = await aiProvider.generateArticle(calendarItem.topic, keywords, {
         niche: blog?.niche,
@@ -211,6 +220,7 @@ export class PipelineService {
         notes: calendarItem.notes || undefined,
         currentDate,
         sourcesOrResearch: researchBrief.rawBriefingText,
+        monetizationOffers,
       });
 
       // Salva o artigo gerado imediatamente (resiliência contra falhas subsequentes)
@@ -364,6 +374,7 @@ export class PipelineService {
         primaryKeyword: keywords[0],
         language: itemLanguage,
         dryRun: options.dryRun,
+        offers: monetizationOffers,
       });
 
       const totalDuration = Date.now() - startTime;

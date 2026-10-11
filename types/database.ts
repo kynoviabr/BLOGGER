@@ -473,6 +473,65 @@ export type Database = {
         };
         Relationships: [];
       };
+      monetization_offers: {
+        Row: {
+          id: string;
+          blog_id: string;
+          title: string;
+          offer_type: 'OWN_PRODUCT' | 'AFFILIATE_CPA' | 'AFFILIATE_TOOL' | 'BOOK_AMAZON';
+          category_ids: string[];
+          is_global_fallback: boolean;
+          pitch_hook: string;
+          cta_button_text: string;
+          affiliate_url: string;
+          badge_text: string | null;
+          priority: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          blog_id: string;
+          title: string;
+          offer_type: 'OWN_PRODUCT' | 'AFFILIATE_CPA' | 'AFFILIATE_TOOL' | 'BOOK_AMAZON';
+          category_ids?: string[];
+          is_global_fallback?: boolean;
+          pitch_hook: string;
+          cta_button_text: string;
+          affiliate_url: string;
+          badge_text?: string | null;
+          priority?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          blog_id?: string;
+          title?: string;
+          offer_type?: 'OWN_PRODUCT' | 'AFFILIATE_CPA' | 'AFFILIATE_TOOL' | 'BOOK_AMAZON';
+          category_ids?: string[];
+          is_global_fallback?: boolean;
+          pitch_hook?: string;
+          cta_button_text?: string;
+          affiliate_url?: string;
+          badge_text?: string | null;
+          priority?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "monetization_offers_blog_id_fkey";
+            columns: ["blog_id"];
+            isOneToOne: false;
+            referencedRelation: "blogs";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;

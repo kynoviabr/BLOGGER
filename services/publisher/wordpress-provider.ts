@@ -358,12 +358,13 @@ export class WordPressProvider implements PublisherProvider {
       categories: article.categories,
     });
 
-    // Formata o conteúdo para HTML semântico com tabelas, sem H1 duplicado e com aviso legal obrigatório
+    // Formata o conteúdo para HTML semântico com tabelas, caixas de monetização e aviso legal obrigatório
     const formatted = await formatArticleForWordPress(article.content || '', {
       title: article.title,
       categorySlug: article.categorySlug,
       providedExcerpt: article.excerpt,
       language: article.language,
+      offers: article.offers,
     });
 
     const payload: Record<string, unknown> = {

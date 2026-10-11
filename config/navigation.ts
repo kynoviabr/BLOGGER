@@ -37,6 +37,11 @@ export const navigationItems: NavItem[] = [
     icon: "Image",
   },
   {
+    title: "Monetization",
+    href: "/monetization",
+    icon: "BadgeDollarSign",
+  },
+  {
     title: "Logs",
     href: "/logs",
     icon: "ScrollText",

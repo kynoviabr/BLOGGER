@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
 import { OfficialCategorySlug } from '@/lib/constants/categories';
+import { MonetizationService } from '@/services/monetization';
 
 export const maxDuration = 60; // 60 segundos para Vercel Serverless
 
@@ -107,6 +108,11 @@ export async function POST(
       }
     }
 
+    // 4.1. Buscar ofertas de monetização correspondentes para a categoria
+    const monetizationOffers = blog?.id
+      ? await MonetizationService.getOffersForCategory(blog.id, categorySlug)
+      : [];
+
     // 5. Publicar o artigo no WordPress
     const publishResult = await publisher.publishArticle({
       title: contentItem.title,
@@ -118,6 +124,7 @@ export async function POST(
       featuredMediaId: wpFeaturedMediaId,
       metaTitle: contentItem.seo_title || contentItem.title,
       metaDescription: contentItem.meta_description || contentItem.excerpt || undefined,
+      offers: monetizationOffers,
     });
 
     const durationMs = Date.now() - startTime;

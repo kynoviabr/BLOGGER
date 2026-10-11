@@ -8,6 +8,11 @@ export interface YMYLPromptOptions {
   language?: string;
   category?: string;
   notes?: string;
+  monetizationOffer?: {
+    title: string;
+    pitchHook: string;
+    ctaButtonText: string;
+  };
 }
 
 /**
@@ -78,6 +83,11 @@ export function buildYMYLFinanceUserPrompt(options: YMYLPromptOptions): string {
 - **Idioma do Conteúdo**: ${language}
 ${options.category ? `- **Categoria do Blog**: ${options.category}` : ''}
 ${options.notes ? `- **Observações / Requisitos Específicos**: ${options.notes}` : ''}
+${
+  options.monetizationOffer
+    ? `- **Produto Recomendado em Destaque**: "${options.monetizationOffer.title}" (Argumento de venda: "${options.monetizationOffer.pitchHook}"). Inclua no texto uma transição de 1 parágrafo fluido e consultivo conectando o tema do artigo a esta solução de forma natural (sem tom apelativo).`
+    : ''
+}
 
 ### REQUISITOS OBRIGATÓRIOS DO ARTIGO:
 1. **Formato**: Conteúdo completo em Markdown limpo (ou HTML semântico com h2, h3, p, ul, li).

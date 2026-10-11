@@ -6,6 +6,8 @@ import { ResearchService } from '@/services/research';
 import { AIProviderError } from '@/lib/errors/ai.errors';
 import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
+import { MonetizationService } from '@/services/monetization';
+import { injectMonetizationBoxes } from '@/services/editorial/content-formatter';
 
 export const maxDuration = 60; // 60 segundos para Vercel Serverless
 
@@ -89,7 +91,13 @@ export async function POST(
       );
     }
 
-    // 5. Executar geração do artigo entregando o FactualResearchBrief através de sourcesOrResearch
+    // 5. Buscar ofertas determinísticas de monetização para a categoria
+    const categorySlugOrId = calendar?.category_id || undefined;
+    const monetizationOffers = blog?.id
+      ? await MonetizationService.getOffersForCategory(blog.id, categorySlugOrId || '')
+      : [];
+
+    // Executar geração do artigo entregando o FactualResearchBrief através de sourcesOrResearch
     const generated = await aiProvider.generateArticle(topic, keywords, {
       niche: blog?.niche,
       audience: blog?.audience || undefined,
@@ -98,18 +106,25 @@ export async function POST(
       notes: calendar?.notes || undefined,
       currentDate,
       sourcesOrResearch: researchBrief.rawBriefingText,
+      monetizationOffers,
     });
 
     const durationMs = Date.now() - startTime;
 
-    // 5. Atualizar content_items no Supabase com novo texto, slug, meta_description, language e status 'ready'
+    // Injeta os boxes de monetização diretamente no corpo gerado para exibição e publicação
+    const finalBody =
+      monetizationOffers.length > 0
+        ? injectMonetizationBoxes(generated.content, monetizationOffers)
+        : generated.content;
+
+    // 6. Atualizar content_items no Supabase com novo texto, slug, meta_description, language e status 'ready'
     const { data: updatedItem, error: updateError } = await supabase
       .from('content_items')
       .update({
         title: generated.title,
         slug: generated.slug,
         meta_description: generated.metaDescription,
-        body: generated.content,
+        body: finalBody,
         language: targetLanguage,
         status: 'ready',
         updated_at: new Date().toISOString(),

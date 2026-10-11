@@ -312,6 +312,14 @@ export class GeminiProvider implements AIProvider {
       language: context?.language || 'pt-BR',
     });
 
+    const monetizationOffer = (context?.monetizationOffer || (Array.isArray(context?.monetizationOffers) ? (context?.monetizationOffers as Array<{ title: string; pitch_hook: string; cta_button_text: string }>)[0] : undefined)) as {
+      title: string;
+      pitchHook?: string;
+      pitch_hook?: string;
+      ctaButtonText?: string;
+      cta_button_text?: string;
+    } | undefined;
+
     const userPrompt = buildYMYLFinanceUserPrompt({
       title,
       keywords,
@@ -320,6 +328,11 @@ export class GeminiProvider implements AIProvider {
       language: context?.language,
       category: context?.category,
       notes: context?.notes,
+      monetizationOffer: monetizationOffer ? {
+        title: monetizationOffer.title,
+        pitchHook: monetizationOffer.pitchHook || monetizationOffer.pitch_hook || '',
+        ctaButtonText: monetizationOffer.ctaButtonText || monetizationOffer.cta_button_text || '',
+      } : undefined,
     });
 
     const parsed = await this.generateWithResilience<GeneratedArticle>('generateArticle', {
