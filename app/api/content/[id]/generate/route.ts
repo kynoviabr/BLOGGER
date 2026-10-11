@@ -46,10 +46,22 @@ export async function POST(
       ? calendar.keywords
       : [contentItem.title];
 
+    let requestLanguage: string | undefined;
+    try {
+      const body = await request.json();
+      if (body && typeof body.language === 'string') {
+        requestLanguage = body.language;
+      }
+    } catch {
+      // Body vazio ou sem payload JSON (retrocompatibilidade)
+    }
+
+    const targetLanguage = requestLanguage || contentItem.language || blog?.default_language || 'pt-BR';
+
     // 3. Instanciar AIProvider via Factory
     aiProvider = createAIProvider();
 
-    logger.info('API.generate', `Iniciando geração de texto com ${aiProvider.name} para contentId: ${id}`);
+    logger.info('API.generate', `Iniciando geração de texto com ${aiProvider.name} em ${targetLanguage} para contentId: ${id}`);
 
     // 4. Executar pesquisa factual prévia via ResearchService
     const currentDate = new Date().toISOString().split('T')[0];
@@ -60,7 +72,7 @@ export async function POST(
       keywords,
       niche: blog?.niche || undefined,
       currentDate,
-      language: 'pt-BR',
+      language: targetLanguage,
       contentId: id,
     });
 
@@ -81,7 +93,7 @@ export async function POST(
     const generated = await aiProvider.generateArticle(topic, keywords, {
       niche: blog?.niche,
       audience: blog?.audience || undefined,
-      language: contentItem.language || blog?.default_language || 'pt-BR',
+      language: targetLanguage,
       category: calendar?.category_id || undefined,
       notes: calendar?.notes || undefined,
       currentDate,
@@ -90,7 +102,7 @@ export async function POST(
 
     const durationMs = Date.now() - startTime;
 
-    // 5. Atualizar content_items no Supabase com novo texto, slug, meta_description e status 'ready'
+    // 5. Atualizar content_items no Supabase com novo texto, slug, meta_description, language e status 'ready'
     const { data: updatedItem, error: updateError } = await supabase
       .from('content_items')
       .update({
@@ -98,6 +110,7 @@ export async function POST(
         slug: generated.slug,
         meta_description: generated.metaDescription,
         body: generated.content,
+        language: targetLanguage,
         status: 'ready',
         updated_at: new Date().toISOString(),
       })

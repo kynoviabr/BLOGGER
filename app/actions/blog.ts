@@ -85,6 +85,7 @@ export async function updateBlogAction(
       niche: formData.get("niche"),
       audience: formData.get("audience") || null,
       description: formData.get("description") || null,
+      default_language: formData.get("default_language") || undefined,
       status: formData.get("status"),
     };
 

@@ -40,6 +40,39 @@ const FORBIDDEN_TOPIC_TERMS = [
   "cassino",
 ];
 
+const MULTILINGUAL_CATEGORY_KEYWORDS: Record<OfficialCategorySlug, string[]> = {
+  emprestimos: [
+    'loan', 'loans', 'borrow', 'borrowing', 'mortgage', 'refinance', 'lending',
+    'kredit', 'kredite', 'baudarlehen', 'finanzierung',
+    'prestamo', 'prestamos', 'hipoteca', 'credito',
+    'pozyczka', 'pozyczki', 'kredyt', 'kredyty', 'chwilowka'
+  ],
+  'saindo-das-dividas': [
+    'debt', 'debts', 'payoff', 'snowball', 'avalanche', 'budget', 'budgeting', 'financial planning',
+    'schulden', 'tilgung', 'haushaltsbuch', 'finanzplanung', 'sparen',
+    'deuda', 'deudas', 'morosidad', 'presupuesto', 'ahorro',
+    'dlug', 'dlugi', 'zadluzenie', 'budzet', 'oszczedzanie'
+  ],
+  cartoes: [
+    'credit card', 'credit cards', 'rewards card', 'cashback card', 'annual fee',
+    'kreditkarte', 'kreditkarten', 'bargeldlos',
+    'tarjeta de credito', 'tarjetas de credito', 'tarjeta bancaria',
+    'karta kredytowa', 'karty kredytowe', 'karta platnicza'
+  ],
+  investimentos: [
+    'invest', 'investing', 'investment', 'investments', 'stocks', 'etf', 'index fund', 'compound interest',
+    'geldanlage', 'aktien', 'fonds', 'tagesgeld', 'festgeld', 'zinsen',
+    'inversion', 'inversiones', 'invertir', 'bolsa', 'plazo fijo',
+    'inwestowanie', 'inwestycje', 'akcje', 'lokata', 'obligacje'
+  ],
+  'milhas-e-pontos': [
+    'miles', 'airline miles', 'travel points', 'credit card points', 'loyalty program',
+    'meilen', 'vielflieger', 'punkte', 'bonusprogramm',
+    'millas', 'puntos', 'viajero frecuente', 'recompensas',
+    'mile', 'punkty', 'program lojalnosciowy'
+  ],
+};
+
 export interface ScopeValidationResult {
   isAllowed: boolean;
   reason?: string;
@@ -73,7 +106,8 @@ export function validateEditorialScope(
 
   for (const cat of OFFICIAL_CATEGORIES) {
     let matches = 0;
-    for (const kw of cat.keywords) {
+    const allKeywords = [...cat.keywords, ...(MULTILINGUAL_CATEGORY_KEYWORDS[cat.slug] || [])];
+    for (const kw of allKeywords) {
       if (combined.includes(kw)) {
         matches++;
       }

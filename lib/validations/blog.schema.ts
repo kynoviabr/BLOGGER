@@ -16,6 +16,7 @@ export const updateBlogSchema = z.object({
   niche: z.string().trim().min(2, 'Informe o nicho.').max(100),
   audience: z.string().trim().max(200).optional().nullable(),
   description: z.string().trim().max(1000).optional().nullable(),
+  default_language: z.string().trim().min(2).max(10).optional(),
   status: z.enum(['active', 'inactive', 'archived'], {
     message: 'Status do blog inválido.',
   }),

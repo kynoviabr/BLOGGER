@@ -1,3 +1,5 @@
+import { getLanguagePromptDirective, getLanguageConfig } from '@/config/languages';
+
 export interface DeepSeekArticlePromptOptions {
   blogName: string;
   niche: string;
@@ -35,20 +37,16 @@ export interface DeepSeekIdeaPromptOptions {
 
 /**
  * MASTER SYSTEM PROMPT — ARTIGOS EDITORIAIS
- * Define o padrão permanente de autoridade, estilo, rigor factual e qualidade editorial em pt-BR.
+ * Define o padrão permanente de autoridade, estilo, rigor factual e qualidade editorial.
  */
-export const DEEPSEEK_MASTER_SYSTEM_PROMPT = `Você é um redator editorial sênior, estrategista de conteúdo e especialista em SEO responsável pela produção de artigos publicáveis em um portal profissional brasileiro.
+export function buildDeepSeekMasterSystemPrompt(language?: string): string {
+  const languageDirective = getLanguagePromptDirective(language);
+
+  return `Você é um redator editorial sênior, estrategista de conteúdo e especialista em SEO responsável pela produção de artigos publicáveis em um portal profissional de alta autoridade.
 
 Seu trabalho não é simplesmente produzir texto. Seu objetivo é produzir o melhor artigo possível para responder à intenção de busca do leitor, com profundidade, clareza, utilidade prática, precisão factual, naturalidade e excelente experiência de leitura.
 
-==================================================
-1. IDIOMA E NATURALIDADE BRASILEIRA (pt-BR)
-==================================================
-- Escreva exclusivamente em Português do Brasil (pt-BR).
-- Utilize vocabulário, construções gramaticais, pontuação, expressões e terminologia naturais do português brasileiro.
-- NUNCA utilize construções em português europeu (ex: utilize "você está fazendo" e jamais "está a fazer"; utilize "celular" e jamais "telemóvel").
-- Evite traduções literais do inglês ou estruturas com tom de texto traduzido.
-- O texto deve soar impecável, soando como redação nativa de um experiente jornalista ou redator sênior brasileiro.
+${languageDirective}
 
 ==================================================
 2. QUALIDADE EDITORIAL E ESTILO
@@ -160,7 +158,11 @@ Quando o artigo tratar de informação que possa mudar com o tempo (legislação
     }
   ],
   "estimatedWordCount": 1800
-}`;
+}
+`;
+}
+
+export const DEEPSEEK_MASTER_SYSTEM_PROMPT = buildDeepSeekMasterSystemPrompt('pt-BR');
 
 /**
  * Constrói o User Prompt para geração de artigo completo organizando:
@@ -174,6 +176,7 @@ export function buildDeepSeekArticleUserPrompt(options: DeepSeekArticlePromptOpt
   const minimumWordCount = options.minimumWordCount || 1500;
   const maximumWordCount = options.maximumWordCount || 2200;
   const currentDate = options.currentDate || new Date().toISOString().split('T')[0];
+  const langConfig = getLanguageConfig(options.language);
   const keywordsList = options.primaryKeyword
     ? [options.primaryKeyword, ...(options.secondaryKeywords || [])].join(', ')
     : options.topicTitle;
@@ -182,8 +185,8 @@ export function buildDeepSeekArticleUserPrompt(options: DeepSeekArticlePromptOpt
 Nome do Blog: ${options.blogName}
 Nicho Editorial: ${options.niche}
 Descrição/Posicionamento: ${options.blogDescription || 'Portal de autoridade em educação e finanças'}
-Público-Alvo: ${options.audience || 'Público brasileiro que busca planejamento financeiro consciente'}
-Idioma: Português do Brasil (pt-BR)
+Público-Alvo: ${options.audience || 'Público que busca planejamento financeiro consciente'}
+Idioma: ${langConfig.name} (${langConfig.code})
 Data de Referência Atual: ${currentDate}
 
 --- BRIEFING DA PAUTA ---
@@ -270,6 +273,7 @@ Contexto Editorial:
 - Nicho: ${niche}
 - Público-Alvo: ${audience}
 - Linha Editorial: ${purpose}
+- Idioma de Redação da Pauta: ${getLanguageConfig(options.language).name} (${getLanguageConfig(options.language).code})
 
 ${categoryInstruction}
 ${existingBlock}

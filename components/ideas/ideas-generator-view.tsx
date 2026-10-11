@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
+import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 
 interface IdeasGeneratorViewProps {
   blogs: BlogWithRelations[];
@@ -19,6 +20,9 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
   const router = useRouter();
 
   const [selectedBlogId, setSelectedBlogId] = useState<string>(blogs[0]?.id || "");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(
+    blogs[0]?.default_language || "pt-BR"
+  );
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [count, setCount] = useState<number>(5);
 
@@ -93,6 +97,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
               body: JSON.stringify({
                 blogId: selectedBlogId,
                 category: selectedCategory || undefined,
+                language: selectedLanguage,
                 existingIdeas: existingSummary,
                 queuePosition: currentPos,
                 totalRequested: totalToGenerate,
@@ -288,7 +293,7 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
       {/* Formulário de Configuração */}
       <Card className="p-6">
         <form onSubmit={handleGenerate} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">
                 Blog de Destino *
@@ -296,8 +301,13 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
               <Select
                 value={selectedBlogId}
                 onChange={(e) => {
-                  setSelectedBlogId(e.target.value);
+                  const newId = e.target.value;
+                  setSelectedBlogId(newId);
                   setSelectedCategory("");
+                  const b = blogs.find((item) => item.id === newId);
+                  if (b?.default_language) {
+                    setSelectedLanguage(b.default_language);
+                  }
                 }}
                 disabled={isLoading || isSaving}
                 required
@@ -305,6 +315,23 @@ export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
                 {blogs.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Idioma da Pauta *
+              </label>
+              <Select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                disabled={isLoading || isSaving}
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.name} ({lang.code})
                   </option>
                 ))}
               </Select>

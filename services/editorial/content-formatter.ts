@@ -1,4 +1,5 @@
 import { marked } from "marked";
+import { getLegalDisclaimerHtml } from "@/config/languages";
 
 export interface FormattedContentResult {
   html: string;
@@ -6,10 +7,10 @@ export interface FormattedContentResult {
 }
 
 export const OFFICIAL_LEGAL_DISCLAIMER_HTML =
-  '<p class="ud-aviso"><strong>Aviso:</strong> conteúdo informativo, não é recomendação financeira. Taxas e regras mudam; confirme nos canais oficiais das instituições.</p>';
+  getLegalDisclaimerHtml('pt-BR', false);
 
 export const INVESTMENT_RISK_DISCLAIMER_HTML =
-  '<p class="ud-aviso"><strong>Aviso:</strong> conteúdo informativo, não é recomendação financeira. Investimentos envolvem riscos e rentabilidade passada não garante resultados futuros. Confirme prazos e taxas nos canais oficiais.</p>';
+  getLegalDisclaimerHtml('pt-BR', true);
 
 /**
  * Sanitiza o Markdown de entrada:
@@ -94,13 +95,14 @@ export async function formatArticleForWordPress(
     title: string;
     categorySlug?: string;
     providedExcerpt?: string;
+    language?: string;
   }
 ): Promise<FormattedContentResult> {
   const sanitizedMd = sanitizeMarkdown(rawMarkdown, options.title);
   let html = await convertMarkdownToHtml(sanitizedMd);
 
   const isInvestment = options.categorySlug === "investimentos";
-  const disclaimer = isInvestment ? INVESTMENT_RISK_DISCLAIMER_HTML : OFFICIAL_LEGAL_DISCLAIMER_HTML;
+  const disclaimer = getLegalDisclaimerHtml(options.language || "pt-BR", isInvestment);
 
   if (!html.includes("ud-aviso")) {
     html = `${html}\n\n${disclaimer}`;

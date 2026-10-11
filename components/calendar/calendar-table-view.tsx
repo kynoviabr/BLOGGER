@@ -21,6 +21,9 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
+import { Modal } from "@/components/ui/modal";
+import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
 import { CalendarItemWithRelations, CalendarStatus } from "@/types/calendar";
@@ -43,6 +46,8 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const [queueProgress, setQueueProgress] = useState<QueueProgress | null>(null);
+  const [executingItem, setExecutingItem] = useState<CalendarItemWithRelations | null>(null);
+  const [executionLanguage, setExecutionLanguage] = useState<string>("pt-BR");
   const stopQueueRef = useRef(false);
 
   const [notification, setNotification] = useState<{
@@ -194,13 +199,24 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
     stopQueueRef.current = true;
   };
 
-  const handleExecuteNow = async (item: CalendarItemWithRelations) => {
+  const handleExecuteNow = (item: CalendarItemWithRelations) => {
+    setExecutingItem(item);
+    setExecutionLanguage(item.language || "pt-BR");
+  };
+
+  const confirmExecuteNow = async () => {
+    if (!executingItem) return;
+    const item = executingItem;
+    const lang = executionLanguage;
+    setExecutingItem(null);
     setRunningId(item.id);
     setNotification(null);
 
     try {
       const res = await fetch(`/api/calendar/${item.id}/execute`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: lang }),
       });
       const data = await res.json();
 
@@ -210,13 +226,14 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
 
       setItems((prev) =>
         prev.map((it) =>
-          it.id === item.id ? { ...it, status: "PUBLISHED" as CalendarStatus, last_error: null } : it
+          it.id === item.id ? { ...it, status: "PUBLISHED" as CalendarStatus, language: lang, last_error: null } : it
         )
       );
 
+      const langInfo = getLanguageConfig(lang);
       setNotification({
         type: "success",
-        message: `Pipeline executado com sucesso! Artigo publicado no WordPress: "${item.proposed_title || item.topic}"`,
+        message: `Pipeline executado com sucesso em ${langInfo.name} (${langInfo.flag})! Artigo publicado no WordPress: "${item.proposed_title || item.topic}"`,
         wpUrl: data.data?.wpUrl,
       });
 
@@ -447,8 +464,9 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                   <span className="font-medium text-foreground block">
                     {item.blog?.name || "Blog"}
                   </span>
-                  <span className="text-[hsl(var(--text-muted))] font-mono text-[11px]">
-                    {item.language}
+                  <span className="inline-flex items-center gap-1 text-[hsl(var(--text-muted))] text-[11px] font-medium mt-0.5">
+                    <span>{getLanguageConfig(item.language).flag}</span>
+                    <span>{getLanguageConfig(item.language).name}</span>
                   </span>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -516,6 +534,68 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
           })}
         </TableBody>
       </Table>
+
+      {/* Modal de Confirmação de Idioma para Execução do Pipeline */}
+      <Modal
+        isOpen={executingItem !== null}
+        onClose={() => setExecutingItem(null)}
+        title="Confirmar Execução do Pipeline Editorial"
+        description="Confirme o idioma para produção do artigo, pesquisa factual, geração de imagem e publicação no WordPress."
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-200 dark:bg-slate-800/40 dark:border-slate-700 text-xs space-y-1">
+            <div className="text-slate-500 font-medium">Pauta Selecionada:</div>
+            <div className="text-slate-900 dark:text-slate-100 font-semibold text-sm">
+              {executingItem?.proposed_title || executingItem?.topic}
+            </div>
+            {executingItem?.blog && (
+              <div className="text-slate-500 text-[11px] pt-1">
+                Blog: <span className="font-medium text-slate-700 dark:text-slate-300">{executingItem.blog.name}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Idioma do Artigo *
+            </label>
+            <Select
+              value={executionLanguage}
+              onChange={(e) => setExecutionLanguage(e.target.value)}
+              disabled={runningId !== null}
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.flag} {lang.name} ({lang.code})
+                </option>
+              ))}
+            </Select>
+            <p className="text-[11px] text-slate-500">
+              A redação, auditoria factual, estilo visual da imagem e avisos legais serão produzidos no idioma selecionado.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setExecutingItem(null)}
+              disabled={runningId !== null}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmExecuteNow}
+              disabled={runningId !== null}
+              className="gap-1.5 bg-success text-white hover:brightness-95"
+            >
+              <Play className="h-4 w-4 fill-current" />
+              Confirmar e Executar Pipeline
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

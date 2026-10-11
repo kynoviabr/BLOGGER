@@ -14,10 +14,21 @@ export async function POST(
     // 1. Validar sessão do usuário
     const user = await requireAuth();
 
+    let requestLanguage: string | undefined;
+    try {
+      const body = await request.json();
+      if (body && typeof body.language === 'string') {
+        requestLanguage = body.language;
+      }
+    } catch {
+      // Body vazio (chamada tradicional sem payload)
+    }
+
     // 2. Executar o pipeline completo
     const result = await PipelineService.executeItem(calendarId, {
       userId: user.id,
       triggeredBy: 'manual-ui',
+      language: requestLanguage,
     });
 
     if (!result.success) {

@@ -363,6 +363,7 @@ export class WordPressProvider implements PublisherProvider {
       title: article.title,
       categorySlug: article.categorySlug,
       providedExcerpt: article.excerpt,
+      language: article.language,
     });
 
     const payload: Record<string, unknown> = {

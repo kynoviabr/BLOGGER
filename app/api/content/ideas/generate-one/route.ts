@@ -19,12 +19,14 @@ export async function POST(request: NextRequest) {
     const {
       blogId,
       category,
+      language,
       existingIdeas = [],
       queuePosition = 1,
       totalRequested = 1,
     }: {
       blogId: string;
       category?: string;
+      language?: string;
       existingIdeas?: ExistingIdeaSummary[];
       queuePosition?: number;
       totalRequested?: number;
@@ -89,7 +91,7 @@ export async function POST(request: NextRequest) {
       purpose: blog.description || 'Educação financeira com alta credibilidade e precisão técnica',
       category: category || undefined,
       availableCategories: availableCategories.length > 0 ? availableCategories : undefined,
-      language: blog.default_language || 'pt-BR',
+      language: language || blog.default_language || 'pt-BR',
       blogName: blog.name,
       currentDate: new Date().toISOString().split('T')[0],
       existingIdeas: combinedExisting,

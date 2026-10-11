@@ -24,6 +24,7 @@ export const updateCalendarItemSchema = z.object({
   priority: z.enum(['low', 'medium', 'high'], { message: 'Prioridade inválida.' }),
   status: z.enum(['IDEA', 'PLANNED', 'IN_PROGRESS', 'READY', 'SCHEDULED', 'PUBLISHED', 'FAILED'], { message: 'Status inválido.' }),
   scheduled_at: z.string().datetime({ offset: true }).optional().nullable().or(z.literal('')),
+  language: z.string().trim().min(2).max(10).optional(),
   notes: z.string().trim().max(2000).optional().nullable(),
 });
 

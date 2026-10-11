@@ -95,6 +95,7 @@ export async function updateCalendarItemAction(
       status: formData.get("status"),
       priority: formData.get("priority"),
       scheduled_at: scheduledAt,
+      language: formData.get("language") || undefined,
       notes: formData.get("notes") || null,
     };
 
@@ -109,6 +110,7 @@ export async function updateCalendarItemAction(
       status: validation.data.status,
       priority: validation.data.priority,
       scheduled_at: validation.data.scheduled_at || null,
+      language: validation.data.language,
       notes: validation.data.notes || null,
     };
 

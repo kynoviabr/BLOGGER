@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
+import { SUPPORTED_LANGUAGES } from "@/config/languages";
 
 interface CalendarItemEditFormProps {
   item: CalendarItemWithRelations;
@@ -49,7 +50,7 @@ export function CalendarItemEditForm({ item }: CalendarItemEditFormProps) {
           <Input name="proposed_title" defaultValue={item.proposed_title} required disabled={isPending} />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Status
@@ -62,6 +63,19 @@ export function CalendarItemEditForm({ item }: CalendarItemEditFormProps) {
               <option value="SCHEDULED">SCHEDULED</option>
               <option value="PUBLISHED">PUBLISHED</option>
               <option value="FAILED">FAILED</option>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Idioma
+            </label>
+            <Select name="language" defaultValue={item.language || "pt-BR"} disabled={isPending}>
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.flag} {lang.name} ({lang.code})
+                </option>
+              ))}
             </Select>
           </div>
 

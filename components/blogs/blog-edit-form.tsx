@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
+import { SUPPORTED_LANGUAGES } from "@/config/languages";
 
 interface BlogEditFormProps {
   blog: BlogWithRelations;
@@ -54,6 +55,19 @@ export function BlogEditForm({ blog }: BlogEditFormProps) {
               <option value="archived">Arquivado</option>
             </Select>
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Idioma Padrão do Blog
+          </label>
+          <Select name="default_language" defaultValue={blog.default_language || "pt-BR"} disabled={isPending}>
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.flag} {lang.name} ({lang.code})
+              </option>
+            ))}
+          </Select>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

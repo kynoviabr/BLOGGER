@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
+import { Modal } from "@/components/ui/modal";
+import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
@@ -46,6 +48,10 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
   const [isGeneratingText, setIsGeneratingText] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [selectedGenerationLanguage, setSelectedGenerationLanguage] = useState<string>(
+    initialContent.language || "pt-BR"
+  );
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
@@ -78,14 +84,17 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     });
   };
 
-  // 2. Disparar Endpoint de Geração de Artigo com IA (Gemini)
-  const handleGenerateText = async () => {
+  // 2. Disparar Endpoint de Geração de Artigo com IA
+  const handleGenerateText = async (languageToUse?: string) => {
+    const lang = languageToUse || selectedGenerationLanguage || content.language || "pt-BR";
     setNotification(null);
     setIsGeneratingText(true);
 
     try {
       const res = await fetch(`/api/content/${content.id}/generate`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: lang }),
       });
       const data = await res.json();
 
@@ -102,6 +111,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
         meta_description: updated.meta_description,
         body: updated.body,
         status: updated.status,
+        language: lang,
       }));
       setFormData((prev) => ({
         ...prev,
@@ -112,7 +122,11 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
         status: updated.status,
       }));
 
-      showNotification("success", "Artigo gerado com sucesso pelo Gemini! Status atualizado para READY.");
+      const langInfo = getLanguageConfig(lang);
+      showNotification(
+        "success",
+        `Artigo gerado com sucesso em ${langInfo.name} (${langInfo.flag})! Status atualizado para READY.`
+      );
       router.refresh();
     } catch (err) {
       showNotification("error", err instanceof Error ? err.message : "Erro ao gerar artigo com IA.");
@@ -239,7 +253,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
               type="button"
               variant="outline"
               size="sm"
-              onClick={handleGenerateText}
+              onClick={() => setIsGenerateModalOpen(true)}
               disabled={isAnyActionRunning}
               className="bg-white hover:bg-slate-50 border-blue-200 text-blue-700 hover:text-blue-800 dark:bg-slate-900 dark:border-blue-900 dark:text-blue-300"
             >
@@ -251,7 +265,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
               ) : (
                 <>
                   <Sparkles className="mr-1.5 h-3.5 w-3.5 text-purple-600" />
-                  Gerar Artigo com IA
+                  Gerar Artigo ({getLanguageConfig(content.language).flag} {getLanguageConfig(content.language).code})
                 </>
               )}
             </Button>
@@ -556,6 +570,66 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
           </div>
         </div>
       </form>
+
+      {/* Modal de Confirmação de Idioma para Geração */}
+      <Modal
+        isOpen={isGenerateModalOpen}
+        onClose={() => setIsGenerateModalOpen(false)}
+        title="Confirmar Geração de Artigo com IA"
+        description="Confirme o idioma e as diretrizes editoriais antes de iniciar a produção do artigo."
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-200 dark:bg-slate-800/40 dark:border-slate-700 text-xs space-y-1">
+            <div className="text-slate-500 font-medium">Pauta / Título do Artigo:</div>
+            <div className="text-slate-900 dark:text-slate-100 font-semibold text-sm">
+              {content.title}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Idioma de Produção *
+            </label>
+            <Select
+              value={selectedGenerationLanguage}
+              onChange={(e) => setSelectedGenerationLanguage(e.target.value)}
+              disabled={isGeneratingText}
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.flag} {lang.name} ({lang.code})
+                </option>
+              ))}
+            </Select>
+            <p className="text-[11px] text-slate-500">
+              O vocabulário, estrutura gramatical, pesquisa factual e avisos legais serão rigorosamente adaptados para a região do idioma selecionado.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsGenerateModalOpen(false)}
+              disabled={isGeneratingText}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setIsGenerateModalOpen(false);
+                handleGenerateText(selectedGenerationLanguage);
+              }}
+              disabled={isGeneratingText}
+              className="gap-1.5"
+            >
+              <Sparkles className="h-4 w-4" />
+              Confirmar e Gerar Artigo
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

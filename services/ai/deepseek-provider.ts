@@ -19,12 +19,14 @@ import { AIProviderError } from '@/lib/errors/ai.errors';
 import { logger } from '@/lib/logger';
 import {
   DEEPSEEK_MASTER_SYSTEM_PROMPT,
+  buildDeepSeekMasterSystemPrompt,
   buildDeepSeekArticleUserPrompt,
   DEEPSEEK_IDEA_SYSTEM_PROMPT,
   buildDeepSeekIdeaUserPrompt,
   DeepSeekArticlePromptOptions,
   DeepSeekIdeaPromptOptions,
 } from '@/prompts/deepseek-prompts';
+import { getLanguageStopWords, getLanguageConfig } from '@/config/languages';
 import { FactualAuditClaim, FactualAuditReport } from '@/services/research/research.types';
 
 export interface DeepSeekProviderConfig {
@@ -328,10 +330,12 @@ export class DeepSeekProvider implements AIProvider {
     };
 
     const userPrompt = buildDeepSeekArticleUserPrompt(promptOptions);
+    const targetLanguage = context?.language || 'pt-BR';
+    const systemPrompt = buildDeepSeekMasterSystemPrompt(targetLanguage);
 
     const completion = await this.executeChatCompletion(
       [
-        { role: 'system', content: DEEPSEEK_MASTER_SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
       {
@@ -384,12 +388,13 @@ export class DeepSeekProvider implements AIProvider {
       }
     }
 
-    // Detecção básica de idioma pt-BR
-    const commonPtBrWords = ['que', 'para', 'com', 'não', 'uma', 'como', 'você', 'seu', 'sua'];
+    // Detecção de idioma alvo (Quality Gate flexível e multilíngue)
+    const stopWords = getLanguageStopWords(targetLanguage);
+    const targetLangConfig = getLanguageConfig(targetLanguage);
     const lowerContent = parsed.content.toLowerCase();
-    const hasPtBr = commonPtBrWords.some((w) => lowerContent.includes(` ${w} `));
-    if (!hasPtBr) {
-      qualityGateNotes.push('AVISO: O conteúdo pode não estar no idioma Português do Brasil esperado.');
+    const hasExpectedLanguage = stopWords.some((w) => lowerContent.includes(` ${w} `) || lowerContent.includes(` ${w},`) || lowerContent.includes(` ${w}.`));
+    if (!hasExpectedLanguage) {
+      qualityGateNotes.push(`AVISO: O conteúdo pode não estar no idioma esperado (${targetLangConfig.name}).`);
     }
 
     // Validação de meta description

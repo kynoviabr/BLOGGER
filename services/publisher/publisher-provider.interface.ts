@@ -19,6 +19,7 @@ export interface ArticlePublishInput {
   slug?: string;
   content: string; // HTML renderizado ou Markdown sanitizado
   excerpt?: string;
+  language?: string;
   status: 'publish' | 'draft' | 'pending' | 'future';
   scheduledDate?: string; // ISO 8601
   categorySlug?: string; // Slug oficial da categoria para resolução dinâmica obrigatória

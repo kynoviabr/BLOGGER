@@ -8,6 +8,7 @@ import { BlogService } from "@/services/blog.service";
 import { BlogEditForm } from "@/components/blogs/blog-edit-form";
 import { AutopilotSettingsCard } from "@/components/blogs/autopilot-settings-card";
 import { CategoryManager } from "@/components/blogs/category-manager";
+import { getLanguageConfig } from "@/config/languages";
 
 export const dynamic = "force-dynamic";
 
@@ -72,25 +73,30 @@ export default async function BlogDetailsPage({
             </CardHeader>
             <CardContent className="space-y-2">
               {blog.languages && blog.languages.length > 0 ? (
-                blog.languages.map((l) => (
-                  <div
-                    key={l.id}
-                    className="flex items-center justify-between rounded-brand-btn border border-border bg-[hsl(var(--bg-subtle))] p-2.5 text-xs"
-                  >
-                    <span className="font-mono font-medium text-foreground">
-                      {l.language}
-                    </span>
-                    {l.language === blog.default_language ? (
-                      <Badge variant="info">Padrão</Badge>
-                    ) : (
-                      <Badge variant="success">Ativo</Badge>
-                    )}
-                  </div>
-                ))
+                blog.languages.map((l) => {
+                  const cfg = getLanguageConfig(l.language);
+                  return (
+                    <div
+                      key={l.id}
+                      className="flex items-center justify-between rounded-brand-btn border border-border bg-[hsl(var(--bg-subtle))] p-2.5 text-xs"
+                    >
+                      <span className="font-medium text-foreground flex items-center gap-1.5">
+                        <span>{cfg.flag}</span>
+                        <span>{cfg.name}</span>
+                      </span>
+                      {l.language === blog.default_language ? (
+                        <Badge variant="info">Padrão</Badge>
+                      ) : (
+                        <Badge variant="success">Ativo</Badge>
+                      )}
+                    </div>
+                  );
+                })
               ) : (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                  {blog.default_language} (Padrão)
+                  <span>{getLanguageConfig(blog.default_language).flag}</span>
+                  <span>{getLanguageConfig(blog.default_language).name} (Padrão)</span>
                 </div>
               )}
             </CardContent>

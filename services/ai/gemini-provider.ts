@@ -7,6 +7,7 @@ import {
 import { AIProviderError } from '@/lib/errors/ai.errors';
 import {
   YMYL_FINANCE_SYSTEM_PROMPT,
+  buildYMYLFinanceSystemPrompt,
   buildYMYLFinanceUserPrompt,
 } from '@/prompts/article-prompts';
 import { logger } from '@/lib/logger';
@@ -323,7 +324,7 @@ export class GeminiProvider implements AIProvider {
 
     const parsed = await this.generateWithResilience<GeneratedArticle>('generateArticle', {
       contents: userPrompt,
-      systemInstruction: YMYL_FINANCE_SYSTEM_PROMPT,
+      systemInstruction: buildYMYLFinanceSystemPrompt(context?.language),
       temperature: this.temperature,
       responseJsonSchema: {
         type: Type.OBJECT,

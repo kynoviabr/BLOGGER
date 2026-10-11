@@ -8,6 +8,7 @@ import { BlogService } from "@/services/blog.service";
 import { toggleBlogStatusAction } from "@/app/actions/blog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { BlogWithRelations } from "@/types/blog";
+import { getLanguageConfig } from "@/config/languages";
 
 export const dynamic = "force-dynamic";
 
@@ -94,8 +95,9 @@ export default async function BlogsPage() {
                         <span className="text-muted-foreground flex items-center gap-1">
                           <Languages className="h-3.5 w-3.5" /> Idioma Padrão:
                         </span>
-                        <span className="font-mono font-medium text-foreground">
-                          {blog.default_language}
+                        <span className="font-medium text-foreground flex items-center gap-1.5">
+                          <span>{getLanguageConfig(blog.default_language).flag}</span>
+                          <span>{getLanguageConfig(blog.default_language).name}</span>
                         </span>
                       </div>
                       <div className="flex justify-between items-center">

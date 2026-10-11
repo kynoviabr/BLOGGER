@@ -13,6 +13,7 @@ export interface PipelineExecutionOptions {
   userId?: string;
   dryRun?: boolean;
   postStatus?: 'draft' | 'publish';
+  language?: string;
 }
 
 export interface PipelineExecutionResult {
@@ -128,6 +129,15 @@ export class PipelineService {
         .eq('editorial_calendar_id', calendarId)
         .maybeSingle();
 
+      const itemLanguage = options.language || calendarItem.language || blog?.default_language || 'pt-BR';
+
+      if (options.language && options.language !== calendarItem.language) {
+        await adminSupabase
+          .from('editorial_calendar')
+          .update({ language: options.language, updated_at: new Date().toISOString() })
+          .eq('id', calendarId);
+      }
+
       let contentId: string;
 
       if (existingContent) {
@@ -138,7 +148,7 @@ export class PipelineService {
           .insert({
             blog_id: calendarItem.blog_id,
             editorial_calendar_id: calendarId,
-            language: calendarItem.language || blog?.default_language || 'pt-BR',
+            language: itemLanguage,
             title: calendarItem.proposed_title || calendarItem.topic,
             slug: `${tempSlug}-${Date.now().toString().slice(-4)}`,
             status: 'draft',
@@ -166,7 +176,7 @@ export class PipelineService {
         keywords,
         niche: blog?.niche || undefined,
         currentDate,
-        language: 'pt-BR',
+        language: itemLanguage,
         contentId,
       });
 
@@ -196,7 +206,7 @@ export class PipelineService {
       const generatedArticle = await aiProvider.generateArticle(calendarItem.topic, keywords, {
         niche: blog?.niche,
         audience: blog?.audience || undefined,
-        language: calendarItem.language || blog?.default_language || 'pt-BR',
+        language: itemLanguage,
         category: calendarCategory?.name || categorySlug,
         notes: calendarItem.notes || undefined,
         currentDate,
@@ -211,6 +221,7 @@ export class PipelineService {
           slug: generatedArticle.slug,
           meta_description: generatedArticle.metaDescription,
           body: generatedArticle.content,
+          language: itemLanguage,
           status: 'ready',
           updated_at: new Date().toISOString(),
         })
@@ -356,6 +367,7 @@ export class PipelineService {
         metaTitle: generatedArticle.title,
         metaDescription: generatedArticle.metaDescription,
         primaryKeyword: keywords[0],
+        language: itemLanguage,
         dryRun: options.dryRun,
       });
 

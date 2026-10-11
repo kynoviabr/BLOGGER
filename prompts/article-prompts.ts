@@ -1,3 +1,5 @@
+import { getLanguagePromptDirective } from '@/config/languages';
+
 export interface YMYLPromptOptions {
   title: string;
   keywords: string[];
@@ -13,8 +15,13 @@ export interface YMYLPromptOptions {
  * Instruções orientadas a autoridade técnica (E-E-A-T), prevenção absoluta de alucinações,
  * estrutura semântica enriquecida e conformidade com diretrizes regulatórias e de SEO.
  */
-export const YMYL_FINANCE_SYSTEM_PROMPT = `Você é um Analista Financeiro Sênior e Especialista em SEO e Conteúdo YMYL (Your Money or Your Life).
+export function buildYMYLFinanceSystemPrompt(language?: string): string {
+  const directive = getLanguagePromptDirective(language);
+
+  return `Você é um Analista Financeiro Sênior e Especialista em SEO e Conteúdo YMYL (Your Money or Your Life).
 Sua missão é produzir artigos aprofundados, didáticos, precisos e de alta credibilidade sobre finanças pessoais, economia, investimentos, crédito e planejamento orçamentário.
+
+${directive}
 
 ### DIRETRIZES DE QUALIDADE & E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness):
 1. **Veracidade e Rigor Técnico (Sem Alucinações):**
@@ -47,7 +54,10 @@ Sua missão é produzir artigos aprofundados, didáticos, precisos e de alta cre
      4) **Fotografia Macro Artística:** Close-up extremo em texturas ricas (metal escovado, detalhes de relojoaria, fibras de papel moeda, reflexos em vidro, madeira nobre com iluminação dramática).
      5) **Ilustração Editorial Flat / Colagem Conceitual:** Estilo capa da revista The Economist ou New Yorker, cores contrastantes, design gráfico moderno e minimalista.
    - **IDIOMA E ESPECIFICAÇÃO TÉCNICA:** O imagePrompt DEVE ser SEMPRE em inglês, altamente descritivo quanto à iluminação e câmera (ex: "editorial studio lighting, shallow depth of field, 8k, hyper-detailed") e deve SEMPRE terminar com o sufixo: ", no screens, no laptops, no smartphones, no office desks".
-`;
+  `;
+}
+
+export const YMYL_FINANCE_SYSTEM_PROMPT = buildYMYLFinanceSystemPrompt('pt-BR');
 
 /**
  * Monta o User Prompt estruturado para instruir o modelo a gerar o artigo completo

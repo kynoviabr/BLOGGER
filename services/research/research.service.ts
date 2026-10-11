@@ -98,16 +98,50 @@ export class ResearchService {
       .replace(/\s+/g, " ")
       .trim();
 
+    const lang = (request.language || 'pt-BR').toLowerCase();
+
     if (riskLevel === "HIGH") {
-      // Query 1: Focada em portais governamentais e normativos oficiais (.gov.br)
-      queries.push(`${cleanKeyword} site:gov.br`);
-      // Query 2: Focada no Banco Central / órgãos reguladores
-      queries.push(`${cleanKeyword} site:bcb.gov.br`);
-      // Query 3: Busca ampla recente para contextualização de mercado e instituições
-      queries.push(`${cleanKeyword} ${currentYear}`);
+      if (lang === 'en-us') {
+        queries.push(`${cleanKeyword} site:gov`);
+        queries.push(`${cleanKeyword} site:consumerfinance.gov`);
+        queries.push(`${cleanKeyword} ${currentYear}`);
+      } else if (lang === 'en-gb') {
+        queries.push(`${cleanKeyword} site:gov.uk`);
+        queries.push(`${cleanKeyword} site:fca.org.uk`);
+        queries.push(`${cleanKeyword} ${currentYear}`);
+      } else if (lang === 'en-au') {
+        queries.push(`${cleanKeyword} site:gov.au`);
+        queries.push(`${cleanKeyword} site:moneysmart.gov.au`);
+        queries.push(`${cleanKeyword} ${currentYear}`);
+      } else if (lang.startsWith('es')) {
+        queries.push(`${cleanKeyword} site:gob.es`);
+        queries.push(`${cleanKeyword} site:bde.es`);
+        queries.push(`${cleanKeyword} ${currentYear}`);
+      } else if (lang.startsWith('de')) {
+        queries.push(`${cleanKeyword} site:bafin.de`);
+        queries.push(`${cleanKeyword} site:bundesbank.de`);
+        queries.push(`${cleanKeyword} ${currentYear}`);
+      } else if (lang.startsWith('pl')) {
+        queries.push(`${cleanKeyword} site:gov.pl`);
+        queries.push(`${cleanKeyword} site:knf.gov.pl`);
+        queries.push(`${cleanKeyword} ${currentYear}`);
+      } else {
+        // pt-BR
+        queries.push(`${cleanKeyword} site:gov.br`);
+        queries.push(`${cleanKeyword} site:bcb.gov.br`);
+        queries.push(`${cleanKeyword} ${currentYear}`);
+      }
     } else if (riskLevel === "MEDIUM") {
       queries.push(`${cleanKeyword} ${currentYear}`);
-      queries.push(`como funciona ${cleanKeyword}`);
+      if (lang.startsWith('en')) {
+        queries.push(`how it works ${cleanKeyword}`);
+      } else if (lang.startsWith('de')) {
+        queries.push(`wie funktioniert ${cleanKeyword}`);
+      } else if (lang.startsWith('pl')) {
+        queries.push(`jak dziala ${cleanKeyword}`);
+      } else {
+        queries.push(`como funciona ${cleanKeyword}`);
+      }
     } else {
       queries.push(`${cleanKeyword} ${currentYear}`);
     }

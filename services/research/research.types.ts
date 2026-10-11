@@ -8,7 +8,7 @@ export interface ResearchRequest {
   keywords?: string[];
   niche?: string;
   currentDate: string;
-  language?: 'pt-BR';
+  language?: string;
   contentId?: string;
 }
 
