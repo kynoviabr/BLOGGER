@@ -8,6 +8,9 @@ export const createBlogSchema = z.object({
   audience: z.string().trim().max(200).optional().nullable(),
   default_language: z.string().trim().min(2).max(10).default('pt-BR'),
   description: z.string().trim().max(1000).optional().nullable(),
+  wp_site_url: z.string().trim().max(255).optional().nullable().or(z.literal('')),
+  wp_username: z.string().trim().max(100).optional().nullable().or(z.literal('')),
+  wp_application_password: z.string().trim().max(255).optional().nullable().or(z.literal('')),
 });
 
 export const updateBlogSchema = z.object({
@@ -20,6 +23,9 @@ export const updateBlogSchema = z.object({
   status: z.enum(['active', 'inactive', 'archived'], {
     message: 'Status do blog inválido.',
   }),
+  wp_site_url: z.string().trim().max(255).optional().nullable().or(z.literal('')),
+  wp_username: z.string().trim().max(100).optional().nullable().or(z.literal('')),
+  wp_application_password: z.string().trim().max(255).optional().nullable().or(z.literal('')),
 });
 
 export type CreateBlogInput = z.infer<typeof createBlogSchema>;

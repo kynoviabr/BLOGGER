@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useActionState } from "react";
 import Link from "next/link";
-import { ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertCircle, Loader2, Globe } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -110,6 +110,55 @@ export default function NewBlogPage() {
                 rows={3}
                 disabled={isPending}
               />
+            </div>
+
+            {/* Integração WordPress */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" />
+                  Integração WordPress (Publicação Direta - Opcional)
+                </h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Informe credenciais REST API deste WordPress para publicar artigos nele. Se deixar em branco, o sistema utilizará as variáveis padrão globais (.env).
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Usuário WordPress (REST API)
+                  </label>
+                  <Input
+                    name="wp_username"
+                    placeholder="Ex: admin ou editor_ai"
+                    disabled={isPending}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Senha de Aplicativo (Application Password)
+                  </label>
+                  <Input
+                    name="wp_application_password"
+                    type="password"
+                    placeholder="Ex: abcd efgh ijkl mnop"
+                    disabled={isPending}
+                    autoComplete="new-password"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  URL do WordPress (Opcional)
+                </label>
+                <Input
+                  name="wp_site_url"
+                  placeholder="Ex: https://meublog.com (em branco usa https://{dominio})"
+                  disabled={isPending}
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">

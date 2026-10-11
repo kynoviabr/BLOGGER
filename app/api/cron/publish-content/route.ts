@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronSecret } from '@/lib/auth/cron';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
-import { createPublisherProvider } from '@/services/publisher';
+import { createPublisherProvider, createPublisherProviderForBlog } from '@/services/publisher';
 import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
 
@@ -55,7 +55,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const publisher = createPublisherProvider();
     const results = [];
 
     // 3. Processar cada artigo do lote
@@ -67,6 +66,8 @@ export async function GET(request: NextRequest) {
         logger.warn('Cron.publishContent', `Artigo ${article.id} sem corpo de texto. Ignorando.`);
         continue;
       }
+
+      const publisher = createPublisherProviderForBlog(article.blog);
 
       try {
         logger.info('Cron.publishContent', `Publicando artigo: "${article.title}"`, {

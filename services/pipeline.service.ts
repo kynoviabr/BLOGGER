@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { createAIProvider, createImageProvider } from '@/services/ai';
 import { ResearchService } from '@/services/research';
-import { createPublisherProvider } from '@/services/publisher';
+import { createPublisherProvider, createPublisherProviderForBlog } from '@/services/publisher';
 import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
@@ -324,12 +324,7 @@ export class PipelineService {
       }
 
       // 6. ETAPA 3: Publicar no WordPress
-      const blogDomain = blog?.domain
-        ? (blog.domain.startsWith('http') ? blog.domain : `https://${blog.domain}`)
-        : undefined;
-      const publisher = createPublisherProvider({
-        siteUrl: blogDomain || process.env.WORDPRESS_SITE_URL,
-      });
+      const publisher = createPublisherProviderForBlog(blog);
 
       let wpFeaturedMediaId: string | number | undefined;
 

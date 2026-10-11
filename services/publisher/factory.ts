@@ -33,3 +33,45 @@ export function createPublisherProvider(options: PublisherFactoryOptions = {}): 
     applicationPassword: appPassword,
   });
 }
+
+/**
+ * Extrai as credenciais e endpoint do WordPress configurados para um Blog específico.
+ * Se não estiverem preenchidos no cadastro do Blog, faz fallback para as variáveis de ambiente globais.
+ */
+export function getWordPressConfigForBlog(blog?: {
+  domain?: string | null;
+  editorial_config?: unknown;
+} | null): PublisherFactoryOptions {
+  const edConfig = blog?.editorial_config as Record<string, unknown> | null;
+  const wpConfig = edConfig?.wordpress as {
+    wp_site_url?: string;
+    wp_username?: string;
+    wp_application_password?: string;
+  } | undefined;
+
+  let siteUrl = wpConfig?.wp_site_url?.trim();
+  if (!siteUrl && blog?.domain) {
+    siteUrl = blog.domain.startsWith('http') ? blog.domain : `https://${blog.domain}`;
+  }
+
+  return {
+    siteUrl: siteUrl || process.env.WORDPRESS_SITE_URL,
+    username: wpConfig?.wp_username?.trim() || process.env.WORDPRESS_USERNAME,
+    applicationPassword: wpConfig?.wp_application_password?.trim() || process.env.WORDPRESS_APPLICATION_PASSWORD,
+  };
+}
+
+/**
+ * Cria uma instância do PublisherProvider com credenciais específicas do Blog.
+ */
+export function createPublisherProviderForBlog(
+  blog?: { domain?: string | null; editorial_config?: unknown } | null,
+  options?: Partial<PublisherFactoryOptions>
+): PublisherProvider {
+  const blogOptions = getWordPressConfigForBlog(blog);
+  return createPublisherProvider({
+    ...blogOptions,
+    ...options,
+  });
+}
+

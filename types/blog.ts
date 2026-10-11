@@ -21,6 +21,12 @@ export interface AutopilotConfig {
   autopilot_daily_limit?: number;
 }
 
+export interface WordPressConfig {
+  wp_site_url?: string;
+  wp_username?: string;
+  wp_application_password?: string;
+}
+
 export interface EditorialConfig {
   tone?: string;
   min_words?: number;
@@ -28,6 +34,7 @@ export interface EditorialConfig {
   target_reading_level?: string;
   include_code_examples?: boolean;
   autopilot?: AutopilotConfig;
+  wordpress?: WordPressConfig;
 }
 
 export interface SeoConfig {

@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Globe } from "lucide-react";
 import { updateBlogAction, ActionResult } from "@/app/actions/blog";
-import { BlogWithRelations } from "@/types/blog";
+import { BlogWithRelations, WordPressConfig } from "@/types/blog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +20,9 @@ const initialState: ActionResult = {};
 export function BlogEditForm({ blog }: BlogEditFormProps) {
   const updateWithId = updateBlogAction.bind(null, blog.id);
   const [state, formAction, isPending] = useActionState(updateWithId, initialState);
+
+  const edConfig = (blog.editorial_config as Record<string, unknown>) || {};
+  const wpConfig = (edConfig.wordpress as WordPressConfig) || {};
 
   return (
     <div>
@@ -95,6 +98,60 @@ export function BlogEditForm({ blog }: BlogEditFormProps) {
             rows={3}
             disabled={isPending}
           />
+        </div>
+
+        {/* Seção de Credenciais WordPress */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Globe className="h-4 w-4 text-primary" />
+              Integração WordPress (Publicação Direta)
+            </h4>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Credenciais da REST API exclusivas deste blog. Se não preenchidas, o sistema usa as variáveis padrão globais (.env).
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Usuário WordPress (REST API)
+              </label>
+              <Input
+                name="wp_username"
+                defaultValue={wpConfig.wp_username || ""}
+                placeholder="Ex: admin ou editor_ai"
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Senha de Aplicativo (Application Password)
+              </label>
+              <Input
+                name="wp_application_password"
+                type="password"
+                placeholder={wpConfig.wp_application_password ? "•••••••••••• (deixe em branco p/ manter)" : "Ex: abcd efgh ijkl mnop"}
+                disabled={isPending}
+                autoComplete="new-password"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              URL do WordPress (Opcional)
+            </label>
+            <Input
+              name="wp_site_url"
+              defaultValue={wpConfig.wp_site_url || ""}
+              placeholder={`Ex: https://${blog.domain}`}
+              disabled={isPending}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Deixe em branco para usar automaticamente https://{blog.domain}.
+            </p>
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/auth';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
-import { createPublisherProvider } from '@/services/publisher';
+import { createPublisherProvider, createPublisherProviderForBlog } from '@/services/publisher';
 import { PublishingError } from '@/lib/errors/publisher.errors';
 import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
@@ -66,13 +66,8 @@ export async function POST(
       }
     }
 
-    // 3. Instanciar WordPressProvider via Factory
-    const blogDomain = blog?.domain
-      ? (blog.domain.startsWith('http') ? blog.domain : `https://${blog.domain}`)
-      : undefined;
-    const publisher = createPublisherProvider({
-      siteUrl: blogDomain || process.env.WORDPRESS_SITE_URL,
-    });
+    // 3. Instanciar WordPressProvider via Factory com credenciais específicas do blog
+    const publisher = createPublisherProviderForBlog(blog);
 
     logger.info('API.publish', `Iniciando publicação com ${publisher.name} para o artigo ${id}`, {
       categorySlug,

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { BlogService } from "@/services/blog.service";
-import { BlogInsert, BlogUpdate } from "@/types/blog";
+import { BlogInsert, BlogUpdate, WordPressConfig } from "@/types/blog";
 import { requireAuth } from "@/lib/supabase/auth";
 import { createBlogSchema, updateBlogSchema } from "@/lib/validations/blog.schema";
 import { slugify } from "@/lib/utils";
@@ -31,6 +31,9 @@ export async function createBlogAction(
       audience: formData.get("audience") || null,
       default_language: formData.get("default_language") || "pt-BR",
       description: formData.get("description") || null,
+      wp_site_url: formData.get("wp_site_url") || null,
+      wp_username: formData.get("wp_username") || null,
+      wp_application_password: formData.get("wp_application_password") || null,
     };
 
     const validation = createBlogSchema.safeParse(rawInput);
@@ -38,8 +41,13 @@ export async function createBlogAction(
       return { error: validation.error.issues[0]?.message || "Dados do blog inválidos." };
     }
 
-    const { name, slug, domain, niche, audience, default_language, description } = validation.data;
+    const { name, slug, domain, niche, audience, default_language, description, wp_site_url, wp_username, wp_application_password } = validation.data;
     const finalSlug = slug && slug.trim().length > 0 ? slugify(slug) : slugify(name);
+
+    const wordpressConfig: WordPressConfig = {};
+    if (wp_site_url && wp_site_url.trim()) wordpressConfig.wp_site_url = wp_site_url.trim();
+    if (wp_username && wp_username.trim()) wordpressConfig.wp_username = wp_username.trim();
+    if (wp_application_password && wp_application_password.trim()) wordpressConfig.wp_application_password = wp_application_password.trim();
 
     const input: BlogInsert = {
       name,
@@ -51,7 +59,12 @@ export async function createBlogAction(
       description: description || null,
       status: "active",
       theme_config: { primary_color: "#2563eb", dark_mode: true },
-      editorial_config: { min_words: 1200, max_words: 2500, tone: "autoritário e prático" },
+      editorial_config: {
+        min_words: 1200,
+        max_words: 2500,
+        tone: "autoritário e prático",
+        ...(Object.keys(wordpressConfig).length > 0 ? { wordpress: wordpressConfig } : {}),
+      },
       seo_config: { author_name: "Content Factory AI" },
       monetization_config: {},
     };
@@ -87,6 +100,9 @@ export async function updateBlogAction(
       description: formData.get("description") || null,
       default_language: formData.get("default_language") || undefined,
       status: formData.get("status"),
+      wp_site_url: formData.get("wp_site_url") || null,
+      wp_username: formData.get("wp_username") || null,
+      wp_application_password: formData.get("wp_application_password") || null,
     };
 
     const validation = updateBlogSchema.safeParse(rawInput);
@@ -94,8 +110,42 @@ export async function updateBlogAction(
       return { error: validation.error.issues[0]?.message || "Dados de atualização inválidos." };
     }
 
+    const blog = await BlogService.getBlogById(id);
+    if (!blog) {
+      return { error: "Blog não encontrado." };
+    }
+
+    const currentEd = (blog.editorial_config as Record<string, unknown>) || {};
+    const currentWp = (currentEd.wordpress as WordPressConfig) || {};
+
+    const updatedWp: WordPressConfig = {
+      ...currentWp,
+    };
+
+    const wpSiteUrlVal = validation.data.wp_site_url?.trim();
+    if (wpSiteUrlVal !== undefined) {
+      updatedWp.wp_site_url = wpSiteUrlVal ? wpSiteUrlVal : undefined;
+    }
+
+    const wpUserVal = validation.data.wp_username?.trim();
+    if (wpUserVal !== undefined) {
+      updatedWp.wp_username = wpUserVal ? wpUserVal : undefined;
+    }
+
+    // Se uma nova senha de aplicação foi digitada, atualiza. Se deixada em branco, mantém a existente.
+    const wpPassVal = validation.data.wp_application_password?.trim();
+    if (wpPassVal && wpPassVal.length > 0) {
+      updatedWp.wp_application_password = wpPassVal;
+    }
+
+    const { wp_site_url, wp_username, wp_application_password, ...baseUpdates } = validation.data;
+
     const updates: BlogUpdate = {
-      ...validation.data,
+      ...baseUpdates,
+      editorial_config: {
+        ...currentEd,
+        wordpress: updatedWp,
+      },
     };
 
     // 3. Persistência real
