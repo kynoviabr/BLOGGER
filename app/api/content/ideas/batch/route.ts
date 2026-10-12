@@ -45,7 +45,9 @@ export async function POST(request: NextRequest) {
       const parsedKeywords = idea.keywords
         ? idea.keywords.split(',').map((k) => k.trim()).filter(Boolean)
         : [];
-      const scopeCheck = validateEditorialScope(idea.title, parsedKeywords);
+      const scopeCheck = validateEditorialScope(idea.title, parsedKeywords, {
+        availableCategories: categoriesList,
+      });
 
       if (scopeCheck.isAllowed && scopeCheck.matchedCategorySlug) {
         const found = categoriesList.find((c) => c.slug.toLowerCase() === scopeCheck.matchedCategorySlug);

@@ -6,7 +6,6 @@ import { MonetizationService } from '@/services/monetization';
 import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
-import { OFFICIAL_CATEGORIES, OfficialCategorySlug } from '@/lib/constants/categories';
 import { InternalLinksService } from '@/services/editorial/internal-links.service';
 import crypto from 'crypto';
 

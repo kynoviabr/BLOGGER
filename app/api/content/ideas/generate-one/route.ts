@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     // Buscar categorias ativas deste blog
     const { data: blogCategories } = await adminSupabase
       .from('categories')
-      .select('name')
+      .select('id, name, slug')
       .eq('blog_id', blogId);
 
     const availableCategories = (blogCategories || []).map((c) => c.name);
@@ -86,9 +86,9 @@ export async function POST(request: NextRequest) {
     }
 
     const idea = await aiProvider.generateIdea({
-      niche: blog.niche || 'Finanças Pessoais',
-      audience: blog.audience || 'Público interessado em finanças, economia e crédito',
-      purpose: blog.description || 'Educação financeira com alta credibilidade e precisão técnica',
+      niche: blog.niche || 'Geral',
+      audience: blog.audience || 'Público leitor interessado no tema',
+      purpose: blog.description || 'Conteúdo editorial informativo com alta credibilidade e precisão técnica',
       category: category || undefined,
       availableCategories: availableCategories.length > 0 ? availableCategories : undefined,
       language: language || blog.default_language || 'pt-BR',
@@ -104,14 +104,21 @@ export async function POST(request: NextRequest) {
       throw new Error('A IA retornou uma pauta vazia ou com título inválido.');
     }
 
-    // 4.1 Validação de escopo editorial (bloqueio de temas fora de Finanças)
-    const scopeCheck = validateEditorialScope(idea.title, idea.keywords ? idea.keywords.split(',') : []);
+    // 4.1 Validação de escopo editorial compatível com o blog
+    const scopeCheck = validateEditorialScope(
+      idea.title,
+      idea.keywords ? idea.keywords.split(',') : [],
+      {
+        blog,
+        availableCategories: blogCategories || [],
+      }
+    );
     let finalCategory = idea.category || category || availableCategories[0] || 'Geral';
 
     if (scopeCheck.isAllowed && scopeCheck.matchedCategoryName) {
       finalCategory = scopeCheck.matchedCategoryName;
     } else if (!scopeCheck.isAllowed) {
-      logger.warn('API.ideas.generateOne', `Pauta gerada fora do escopo estrito: "${idea.title}". Ajustando categoria com base em Finanças.`);
+      logger.warn('API.ideas.generateOne', `Pauta gerada fora do escopo estrito: "${idea.title}".`);
     }
     const durationMs = Date.now() - startTime;
     const modelUsed = (aiProvider as { defaultModel?: string }).defaultModel || process.env.GEMINI_IDEAS_MODEL || 'gemini-2.5-flash';
