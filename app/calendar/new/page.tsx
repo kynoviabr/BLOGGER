@@ -2,10 +2,20 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { cookies } from "next/headers";
 import { BlogService } from "@/services/blog.service";
 import { CalendarItemForm } from "@/components/calendar/calendar-item-form";
 
-export default async function NewCalendarItemPage() {
+export default async function NewCalendarItemPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ blogId?: string }>;
+}) {
+  const { blogId: queryBlogId } = await searchParams;
+  const cookieStore = await cookies();
+  const cookieBlogId = cookieStore.get("selected_blog_id")?.value;
+  const defaultBlogId = queryBlogId || (cookieBlogId !== "all" ? cookieBlogId : undefined);
+
   const blogs = await BlogService.listBlogs().catch(() => []);
 
   return (
@@ -31,7 +41,7 @@ export default async function NewCalendarItemPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CalendarItemForm blogs={blogs} />
+          <CalendarItemForm blogs={blogs} defaultBlogId={defaultBlogId} />
         </CardContent>
       </Card>
     </div>

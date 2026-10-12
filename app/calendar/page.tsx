@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Plus, Filter, AlertCircle, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,13 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ blogId?: string; status?: CalendarStatus }>;
 }) {
-  const { blogId, status } = await searchParams;
+  const { blogId: queryBlogId, status } = await searchParams;
+  const cookieStore = await cookies();
+  const cookieBlogId = cookieStore.get("selected_blog_id")?.value;
+
+  const rawBlogId = queryBlogId !== undefined ? queryBlogId : cookieBlogId;
+  const blogId = rawBlogId && rawBlogId !== "all" ? rawBlogId : undefined;
+
   let items: CalendarItemWithRelations[] = [];
   let loadError: string | null = null;
 
@@ -41,13 +48,13 @@ export default async function CalendarPage({
         description="Planeje pautas, defina datas de publicação e acompanhe ou execute o ciclo completo de produção de cada artigo."
         actions={
           <div className="flex items-center gap-2.5">
-            <Link href="/ideas">
+            <Link href={`/ideas${blogId ? `?blogId=${blogId}` : ""}`}>
               <Button size="sm" variant="outline" className="gap-1.5 border-primary/30 text-primary hover:bg-[hsl(var(--primary-light))]">
                 <Sparkles className="h-4 w-4 text-primary" />
                 Gerar Ideias com IA
               </Button>
             </Link>
-            <Link href="/calendar/new">
+            <Link href={`/calendar/new${blogId ? `?blogId=${blogId}` : ""}`}>
               <Button size="sm" className="gap-1.5">
                 <Plus className="h-4 w-4" />
                 Nova Pauta
@@ -73,7 +80,7 @@ export default async function CalendarPage({
           <Filter className="h-3.5 w-3.5" />
           <span>Filtrar por Status:</span>
         </div>
-        <Link href="/calendar">
+        <Link href={`/calendar${blogId ? `?blogId=${blogId}` : ""}`}>
           <Badge variant={!status ? "info" : "outline"} className="cursor-pointer">
             Todos
           </Badge>
@@ -96,7 +103,11 @@ export default async function CalendarPage({
       {items.length === 0 && !loadError ? (
         <EmptyState
           title="Nenhuma pauta encontrada"
-          description="Cadastre um tema e uma data/hora programada para iniciar a produção automatizada."
+          description={
+            blogId
+              ? "Nenhuma pauta cadastrada para este blog com o status selecionado."
+              : "Cadastre um tema e uma data/hora programada para iniciar a produção automatizada."
+          }
           actionLabel="Cadastrar Pauta"
         />
       ) : (

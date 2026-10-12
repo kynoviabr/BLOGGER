@@ -60,11 +60,23 @@ export class PipelineService {
       }
 
       const blog = calendarItem.blog;
+      let calendarCategory = calendarItem.category as { id: string; name: string; slug: string } | null;
 
-      // 1.1 Validação Prévia de Escopo Editorial (ScopeGuard - Bloqueio de temas fora de Finanças)
+      // 1.1 Buscar categorias cadastradas do blog no banco
+      const { data: blogCategories } = await adminSupabase
+        .from('categories')
+        .select('id, name, slug')
+        .eq('blog_id', calendarItem.blog_id);
+
+      // 1.2 Validação Prévia de Escopo Editorial (ScopeGuard multi-blog e multi-nicho)
       const scopeCheck = validateEditorialScope(
         calendarItem.proposed_title || calendarItem.topic,
-        calendarItem.keywords || []
+        calendarItem.keywords || [],
+        {
+          blog,
+          calendarCategory,
+          availableCategories: blogCategories || [],
+        }
       );
 
       if (!scopeCheck.isAllowed) {
@@ -82,25 +94,21 @@ export class PipelineService {
         throw new Error(rejectionMsg);
       }
 
-      // 1.2 Resolver categoria oficial obrigatória por slug
-      let categorySlug: OfficialCategorySlug = scopeCheck.matchedCategorySlug || 'saindo-das-dividas';
-      let calendarCategory = calendarItem.category as { id: string; name: string; slug: string } | null;
+      // 1.3 Resolver categoria oficial do blog
+      let categorySlug: string = calendarCategory?.slug || scopeCheck.matchedCategorySlug || blogCategories?.[0]?.slug || 'geral';
 
-      // Sincroniza categoria no Supabase se ausente ou divergente
-      const { data: dbCategory } = await adminSupabase
-        .from('categories')
-        .select('id, name, slug')
-        .eq('blog_id', calendarItem.blog_id)
-        .eq('slug', categorySlug)
-        .maybeSingle();
-
-      if (dbCategory) {
-        calendarCategory = dbCategory;
-        if (calendarItem.category_id !== dbCategory.id) {
-          await adminSupabase
-            .from('editorial_calendar')
-            .update({ category_id: dbCategory.id, updated_at: new Date().toISOString() })
-            .eq('id', calendarId);
+      // Se calendarCategory não existia na pauta mas encontramos uma correspondente no blog, sincroniza
+      if (!calendarCategory && blogCategories && blogCategories.length > 0) {
+        const matchedDbCat = blogCategories.find((c) => c.slug.toLowerCase() === categorySlug.toLowerCase()) || blogCategories[0];
+        if (matchedDbCat) {
+          calendarCategory = matchedDbCat;
+          categorySlug = matchedDbCat.slug;
+          if (calendarItem.category_id !== matchedDbCat.id) {
+            await adminSupabase
+              .from('editorial_calendar')
+              .update({ category_id: matchedDbCat.id, updated_at: new Date().toISOString() })
+              .eq('id', calendarId);
+          }
         }
       }
 

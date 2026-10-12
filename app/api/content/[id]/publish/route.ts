@@ -46,8 +46,15 @@ export async function POST(
       );
     }
 
-    // Validação estrita de escopo editorial
-    const scopeCheck = validateEditorialScope(contentItem.title, [contentItem.slug]);
+    const blog = contentItem.blog;
+    const edCal = contentItem.editorial_calendar as { category?: { id: string; name: string; slug: string } } | null;
+    const calendarCategory = edCal?.category || null;
+
+    // Validação de escopo editorial compatível com o blog
+    const scopeCheck = validateEditorialScope(contentItem.title, [contentItem.slug], {
+      blog,
+      calendarCategory,
+    });
     if (!scopeCheck.isAllowed) {
       return NextResponse.json(
         { success: false, error: `Publicação rejeitada pelo ScopeGuard: ${scopeCheck.reason}` },
@@ -55,17 +62,8 @@ export async function POST(
       );
     }
 
-    const blog = contentItem.blog;
-
-    // Resolução estrita do categorySlug oficial
-    let categorySlug: OfficialCategorySlug = scopeCheck.matchedCategorySlug || 'saindo-das-dividas';
-    const edCal = contentItem.editorial_calendar as { category?: { name: string; slug: string } } | null;
-    if (edCal?.category?.slug) {
-      const slugVal = edCal.category.slug.toLowerCase().trim();
-      if (slugVal === 'cartoes' || slugVal === 'emprestimos' || slugVal === 'investimentos' || slugVal === 'milhas-e-pontos' || slugVal === 'saindo-das-dividas') {
-        categorySlug = slugVal as OfficialCategorySlug;
-      }
-    }
+    // Resolução dinâmica do categorySlug do blog
+    let categorySlug: string = calendarCategory?.slug || scopeCheck.matchedCategorySlug || 'geral';
 
     // 3. Instanciar WordPressProvider via Factory com credenciais específicas do blog
     const publisher = createPublisherProviderForBlog(blog);

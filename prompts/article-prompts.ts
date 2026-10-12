@@ -26,11 +26,17 @@ export interface YMYLPromptOptions {
  * Instruções orientadas a autoridade técnica (E-E-A-T), prevenção absoluta de alucinações,
  * estrutura semântica enriquecida e conformidade com diretrizes regulatórias e de SEO.
  */
-export function buildYMYLFinanceSystemPrompt(language?: string): string {
+export function buildYMYLFinanceSystemPrompt(language?: string, niche?: string, audience?: string): string {
   const directive = getLanguagePromptDirective(language);
 
-  return `Você é um Analista Financeiro Sênior e Especialista em SEO e Conteúdo YMYL (Your Money or Your Life).
-Sua missão é produzir artigos aprofundados, didáticos, precisos e de alta credibilidade sobre finanças pessoais, economia, investimentos, crédito e planejamento orçamentário.
+  const isFinance = !niche || niche.toLowerCase().includes('finanç') || niche.toLowerCase().includes('dinheiro');
+  const roleIntro = isFinance
+    ? `Você é um Analista Financeiro Sênior e Especialista em SEO e Conteúdo YMYL (Your Money or Your Life).
+Sua missão é produzir artigos aprofundados, didáticos, precisos e de alta credibilidade sobre finanças pessoais, economia, investimentos, crédito e planejamento orçamentário.`
+    : `Você é um Redator Especialista, Jornalista Sênior e Autoridade em SEO no nicho de ${niche}.
+Sua missão é produzir artigos aprofundados, didáticos, precisos e de alta credibilidade voltados para ${audience || 'o público leitor do portal'}.`;
+
+  return `${roleIntro}
 
 ${directive}
 

@@ -14,13 +14,18 @@ import { SUPPORTED_LANGUAGES } from "@/config/languages";
 
 interface CalendarItemFormProps {
   blogs: BlogWithRelations[];
+  defaultBlogId?: string;
 }
 
 const initialState: ActionResult = {};
 
-export function CalendarItemForm({ blogs }: CalendarItemFormProps) {
+export function CalendarItemForm({ blogs, defaultBlogId }: CalendarItemFormProps) {
   const [state, formAction, isPending] = useActionState(createCalendarItemAction, initialState);
-  const [selectedBlogId, setSelectedBlogId] = React.useState<string>(blogs[0]?.id || "");
+  const [selectedBlogId, setSelectedBlogId] = React.useState<string>(
+    defaultBlogId && blogs.some((b) => b.id === defaultBlogId)
+      ? defaultBlogId
+      : blogs[0]?.id || ""
+  );
   const [selectedCategoryId, setSelectedCategoryId] = React.useState<string>("");
 
   const currentBlog = blogs.find((b) => b.id === selectedBlogId);

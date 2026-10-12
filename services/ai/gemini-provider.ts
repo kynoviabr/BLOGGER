@@ -338,7 +338,7 @@ export class GeminiProvider implements AIProvider {
 
     const parsed = await this.generateWithResilience<GeneratedArticle>('generateArticle', {
       contents: userPrompt,
-      systemInstruction: buildYMYLFinanceSystemPrompt(context?.language),
+      systemInstruction: buildYMYLFinanceSystemPrompt(context?.language, context?.niche, context?.audience),
       temperature: this.temperature,
       responseJsonSchema: {
         type: Type.OBJECT,

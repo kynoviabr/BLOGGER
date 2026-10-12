@@ -102,15 +102,11 @@ export class MonetizationBackfillService {
     }
 
     // 3. Determina a categoria do artigo
-    const scopeCheck = validateEditorialScope(item.title, [item.slug]);
-    let categorySlug: OfficialCategorySlug = scopeCheck.matchedCategorySlug || 'saindo-das-dividas';
     const edCal = item.editorial_calendar as { category?: { name: string; slug: string } } | null;
-    if (edCal?.category?.slug) {
-      const slugVal = edCal.category.slug.toLowerCase().trim();
-      if (['cartoes', 'emprestimos', 'investimentos', 'milhas-e-pontos', 'saindo-das-dividas'].includes(slugVal)) {
-        categorySlug = slugVal as OfficialCategorySlug;
-      }
-    }
+    const scopeCheck = validateEditorialScope(item.title, [item.slug], {
+      calendarCategory: edCal?.category || null,
+    });
+    let categorySlug: string = edCal?.category?.slug || scopeCheck.matchedCategorySlug || 'geral';
 
     // 4. Busca as ofertas correspondentes para o blog e categoria
     const offers = await MonetizationService.getOffersForCategory(item.blog_id, categorySlug);
