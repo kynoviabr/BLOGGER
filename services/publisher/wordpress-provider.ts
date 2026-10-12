@@ -23,6 +23,7 @@ export class WordPressProvider implements PublisherProvider {
   private readonly authHeader: string;
   private readonly timeoutMs: number;
   private categoriesCache: Array<{ id: number; name: string; slug: string }> | null = null;
+  private tagsCache: Map<string, number> = new Map();
 
   constructor(config: WordPressConfig = {}) {
     const siteUrl = config.siteUrl || process.env.WORDPRESS_SITE_URL || '';
@@ -245,6 +246,100 @@ export class WordPressProvider implements PublisherProvider {
   }
 
   /**
+   * Resolve os IDs numéricos das tags no WordPress.
+   * Consulta tags existentes por busca e, caso não existam, cria dinamicamente via REST API.
+   */
+  async resolveTagIds(tagNames: string[]): Promise<number[]> {
+    if (!tagNames || tagNames.length === 0) return [];
+
+    const resolvedIds: number[] = [];
+
+    for (const rawName of tagNames) {
+      const name = rawName.trim();
+      if (!name) continue;
+
+      const normalized = this.normalizeString(name);
+
+      // 1. Verificar cache em memória
+      if (this.tagsCache.has(normalized)) {
+        resolvedIds.push(this.tagsCache.get(normalized)!);
+        continue;
+      }
+
+      try {
+        // 2. Buscar tag existente via /wp-json/wp/v2/tags?search=<name>
+        const searchEndpoint = `${this.siteUrl}/wp-json/wp/v2/tags?search=${encodeURIComponent(name)}&per_page=10`;
+        const searchRes = await fetch(searchEndpoint, {
+          headers: {
+            Authorization: this.authHeader,
+            Accept: 'application/json',
+          },
+        });
+
+        if (searchRes.ok) {
+          const found = await searchRes.json();
+          if (Array.isArray(found) && found.length > 0) {
+            const match = found.find(
+              (t: any) =>
+                this.normalizeString(String(t.name)) === normalized ||
+                this.normalizeString(String(t.slug)) === normalized
+            ) || found[0];
+
+            const tagId = Number(match.id);
+            this.tagsCache.set(normalized, tagId);
+            resolvedIds.push(tagId);
+            logger.info(this.name, `Tag existente mapeada no WordPress: "${name}" -> ID ${tagId}`);
+            continue;
+          }
+        }
+
+        // 3. Criar tag caso não exista
+        const slugCandidate = name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
+
+        const createEndpoint = `${this.siteUrl}/wp-json/wp/v2/tags`;
+        const createRes = await fetch(createEndpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: this.authHeader,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            name,
+            slug: slugCandidate,
+          }),
+        });
+
+        if (createRes.ok) {
+          const created = await createRes.json();
+          const tagId = Number(created.id);
+          this.tagsCache.set(normalized, tagId);
+          resolvedIds.push(tagId);
+          logger.info(this.name, `Nova tag criada no WordPress: "${name}" (ID ${tagId})`);
+        } else {
+          const errData = await createRes.json().catch(() => ({}));
+          if (errData?.data?.term_id) {
+            const tagId = Number(errData.data.term_id);
+            this.tagsCache.set(normalized, tagId);
+            resolvedIds.push(tagId);
+          } else {
+            logger.warn(this.name, `Falha ao criar tag no WordPress: "${name}": ${JSON.stringify(errData)}`);
+          }
+        }
+      } catch (tagErr) {
+        logger.warn(this.name, `Erro ao resolver tag "${name}" no WP: ${String(tagErr)}`);
+      }
+    }
+
+    return Array.from(new Set(resolvedIds));
+  }
+
+  /**
    * Upload de imagem/mídia para o WordPress via /wp-json/wp/v2/media
    */
   async uploadMedia(media: MediaUploadInput): Promise<MediaUploadResult> {
@@ -402,8 +497,18 @@ export class WordPressProvider implements PublisherProvider {
       payload.categories = finalCategories;
     }
 
-    if (article.tags && article.tags.length > 0) {
-      payload.tags = article.tags;
+    let finalTags = article.tags && article.tags.length > 0 ? [...article.tags] : [];
+    if (article.tagNames && article.tagNames.length > 0) {
+      const resolvedTagIds = await this.resolveTagIds(article.tagNames);
+      for (const tId of resolvedTagIds) {
+        if (!finalTags.includes(tId)) {
+          finalTags.push(tId);
+        }
+      }
+    }
+
+    if (finalTags.length > 0) {
+      payload.tags = finalTags;
     }
 
     if (article.featuredMediaId) {
@@ -416,16 +521,23 @@ export class WordPressProvider implements PublisherProvider {
       payload.author = authorId;
     }
 
-    // Metadados Rank Math SEO
-    const rankMathMeta: Record<string, string> = {};
-    if (article.metaTitle) rankMathMeta.rank_math_title = article.metaTitle;
-    if (article.metaDescription || formatted.excerpt) {
-      rankMathMeta.rank_math_description = article.metaDescription || formatted.excerpt;
-    }
-    if (article.primaryKeyword) rankMathMeta.rank_math_focus_keyword = article.primaryKeyword;
+    // Metadados SEO (Compatibilidade com Yoast SEO e Rank Math)
+    const seoFocusKw = article.focusKeyword || article.primaryKeyword;
+    const seoMetaDesc = article.metaDescription || formatted.excerpt;
 
-    if (Object.keys(rankMathMeta).length > 0) {
-      payload.meta = rankMathMeta;
+    const seoMeta: Record<string, string> = {};
+    if (article.metaTitle) seoMeta.rank_math_title = article.metaTitle;
+    if (seoMetaDesc) {
+      seoMeta.rank_math_description = seoMetaDesc;
+      seoMeta._yoast_wpseo_metadesc = seoMetaDesc;
+    }
+    if (seoFocusKw) {
+      seoMeta.rank_math_focus_keyword = seoFocusKw;
+      seoMeta._yoast_wpseo_focuskw = seoFocusKw;
+    }
+
+    if (Object.keys(seoMeta).length > 0) {
+      payload.meta = seoMeta;
     }
 
     // Modo Dry Run: não dispara POST, apenas simula retorno

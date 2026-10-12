@@ -13,7 +13,9 @@
 export interface GeneratedArticle {
   title: string;
   slug: string;
+  focusKeyword?: string;
   metaDescription: string;
+  tags?: string[];
   content: string; // Markdown limpo ou HTML
   keywords: string[];
   readingTimeMinutes?: number;
@@ -33,6 +35,15 @@ export interface ArticleGenerationContext {
    * Quando presente, tem prioridade máxima sobre o conhecimento interno do modelo.
    */
   sourcesOrResearch?: string;
+  /**
+   * Lista de artigos reais já publicados no blog disponíveis para linkagem interna determinística.
+   */
+  internalLinks?: Array<{
+    title: string;
+    slug: string;
+    url: string;
+    category?: string;
+  }>;
   [key: string]: unknown;
 }
 

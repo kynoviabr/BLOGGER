@@ -31,7 +31,9 @@ export class MockAIProvider implements AIProvider {
     return {
       title,
       slug,
+      focusKeyword: keywords[0] || title.toLowerCase(),
       metaDescription: `Guia completo e descomplicado sobre ${title}. Descubra dicas financeiras práticas e estratégias comprovadas.`,
+      tags: keywords.length > 0 ? keywords.slice(0, 5) : ['Finanças', 'Economia', 'Dicas'],
       content: `## Introdução\n\nNeste artigo prático sobre **${title}**, vamos analisar os principais fundamentos econômicos e passos essenciais para tomada de decisão consciente.\n\n## Principais Vantagens e Riscos\n\n- **Rentabilidade e Liquidez:** Compreenda o impacto no seu orçamento.\n- **Taxas e Custos Ocultos:** Mantenha o foco na eficiência patrimonial.\n\n## Conclusão e Isenção de Responsabilidade\n\nEste material tem caráter educativo e informativo.`,
       keywords,
       readingTimeMinutes: 5,

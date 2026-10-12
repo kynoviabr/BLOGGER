@@ -13,6 +13,8 @@ import {
   Image as ImageIcon,
   Send,
   Zap,
+  Tag as TagIcon,
+  Search,
 } from "lucide-react";
 import { ContentItemWithRelations } from "@/types/content";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
+import { Badge } from "@/components/ui/badge";
 import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -41,6 +44,8 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     body: initialContent.body || "",
     seo_title: initialContent.seo_title || "",
     meta_description: initialContent.meta_description || "",
+    focus_keyword: initialContent.focus_keyword || "",
+    tags: Array.isArray(initialContent.tags) ? initialContent.tags.join(", ") : "",
     status: initialContent.status,
   });
 
@@ -73,7 +78,11 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
 
     startSaving(async () => {
       try {
-        const result = await updateContentAction(content.id, null, formData);
+        const payload = {
+          ...formData,
+          tags: formData.tags ? formData.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+        };
+        const result = await updateContentAction(content.id, null, payload);
         if (result.success) {
           showNotification("success", "Artigo salvo com sucesso!");
           router.refresh();
@@ -113,6 +122,8 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
         meta_description: updated.meta_description,
         body: updated.body,
         status: updated.status,
+        focus_keyword: updated.focus_keyword,
+        tags: updated.tags,
         language: lang,
       }));
       setFormData((prev) => ({
@@ -122,6 +133,8 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
         meta_description: updated.meta_description || "",
         body: updated.body,
         status: updated.status,
+        focus_keyword: updated.focus_keyword || "",
+        tags: Array.isArray(updated.tags) ? updated.tags.join(", ") : (updated.tags || ""),
       }));
 
       const langInfo = getLanguageConfig(lang);
@@ -463,12 +476,54 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
             {/* Metadados de SEO */}
             <Card>
               <CardHeader>
-                <CardTitle>Otimização SEO (Search Engine Optimization)</CardTitle>
-                <CardDescription>
-                  Metadados gerados automaticamente para motores de busca e indexação.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Otimização SEO (Search Engine Optimization)</CardTitle>
+                    <CardDescription>
+                      Metadados e taxonomia para indexação e sincronização com Yoast SEO & Rank Math no WordPress.
+                    </CardDescription>
+                  </div>
+                  {formData.focus_keyword && (
+                    <Badge variant="success" className="text-xs">
+                      SEO Ativo
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Palavra-Chave Foco */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Search className="h-3.5 w-3.5 text-blue-500" />
+                      Palavra-Chave Foco (Focus Keyword)
+                    </label>
+                    {(() => {
+                      const words = formData.focus_keyword.trim()
+                        ? formData.focus_keyword.trim().split(/\s+/).length
+                        : 0;
+                      if (words === 0) {
+                        return <Badge variant="outline" className="text-[10px]">Não definida</Badge>;
+                      }
+                      if (words >= 3 && words <= 5) {
+                        return <Badge variant="success" className="text-[10px]">{words} palavras (Ideal: 3-5)</Badge>;
+                      }
+                      return <Badge variant="warning" className="text-[10px]">{words} palavras</Badge>;
+                    })()}
+                  </div>
+                  <Input
+                    name="focus_keyword"
+                    value={formData.focus_keyword}
+                    onChange={(e) => setFormData({ ...formData, focus_keyword: e.target.value })}
+                    placeholder="Ex: como declarar tesouro direto"
+                    disabled={isAnyActionRunning}
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Sincronizada diretamente com os campos <code className="font-mono text-[10px]">_yoast_wpseo_focuskw</code> e <code className="font-mono text-[10px]">rank_math_focus_keyword</code> no WordPress.
+                  </p>
+                </div>
+
+                {/* Título SEO */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Título SEO (Tag Title)
@@ -482,18 +537,81 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
                   />
                 </div>
 
+                {/* Meta Description com contador de caracteres */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Meta Description
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Meta Description
+                    </label>
+                    {(() => {
+                      const len = formData.meta_description.length;
+                      if (len === 0) {
+                        return <Badge variant="outline" className="text-[10px]">0 / 160 caracteres</Badge>;
+                      }
+                      if (len >= 140 && len <= 160) {
+                        return <Badge variant="success" className="text-[10px]">{len} / 160 caracteres (Ideal)</Badge>;
+                      }
+                      if (len > 160) {
+                        return <Badge variant="warning" className="text-[10px]">{len} / 160 caracteres (Truncará no Google)</Badge>;
+                      }
+                      return <Badge variant="info" className="text-[10px]">{len} / 160 caracteres (Mín. 140)</Badge>;
+                    })()}
+                  </div>
                   <Textarea
                     name="meta_description"
                     value={formData.meta_description}
                     onChange={(e) => setFormData({ ...formData, meta_description: e.target.value })}
                     rows={2}
-                    placeholder="Descrição para snippets do Google..."
+                    placeholder="Descrição persuasiva contendo a Focus Keyword (140-160 caracteres)..."
                     disabled={isAnyActionRunning}
                   />
+                  <p className="text-[11px] text-slate-500">
+                    Ideal entre 140 e 160 caracteres para exibição perfeita nos snippets de busca do Google e redes sociais.
+                  </p>
+                </div>
+
+                {/* Tags do Artigo (WordPress Tags) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <TagIcon className="h-3.5 w-3.5 text-indigo-500" />
+                      Tags do Artigo (WordPress)
+                    </label>
+                    {(() => {
+                      const tagsList = formData.tags
+                        .split(",")
+                        .map((t) => t.trim())
+                        .filter(Boolean);
+                      return (
+                        <Badge variant={tagsList.length >= 4 && tagsList.length <= 6 ? "success" : "info"} className="text-[10px]">
+                          {tagsList.length} tags (Ideal: 4-6)
+                        </Badge>
+                      );
+                    })()}
+                  </div>
+                  <Input
+                    name="tags"
+                    value={formData.tags}
+                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                    placeholder="Separe as tags por vírgula (ex: renda fixa, tesouro direto, tesouro selic, reserva de emergencia)"
+                    disabled={isAnyActionRunning}
+                  />
+                  {formData.tags && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {formData.tags
+                        .split(",")
+                        .map((t) => t.trim())
+                        .filter(Boolean)
+                        .map((tag, idx) => (
+                          <Badge key={idx} variant="info" className="text-[11px] font-normal">
+                            #{tag}
+                          </Badge>
+                        ))}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-slate-500">
+                    Tags são resolvidas ou criadas automaticamente no WordPress via <code className="font-mono text-[10px]">/wp-json/wp/v2/tags</code> no momento da publicação.
+                  </p>
                 </div>
               </CardContent>
             </Card>

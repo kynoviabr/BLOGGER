@@ -435,7 +435,11 @@ export class DeepSeekProvider implements AIProvider {
     const result: DeepSeekArticleResult = {
       title: parsed.title.trim(),
       slug,
+      focusKeyword: parsed.primaryKeyword || keywords[0] || title.toLowerCase(),
       metaDescription,
+      tags: Array.isArray(parsed.secondaryKeywords) && parsed.secondaryKeywords.length > 0
+        ? [parsed.primaryKeyword || keywords[0], ...parsed.secondaryKeywords].slice(0, 6)
+        : keywords.slice(0, 5),
       content: parsed.content.trim(),
       keywords: Array.isArray(parsed.secondaryKeywords) && parsed.primaryKeyword
         ? [parsed.primaryKeyword, ...parsed.secondaryKeywords]

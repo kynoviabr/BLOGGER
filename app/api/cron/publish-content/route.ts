@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronSecret } from '@/lib/auth/cron';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { createPublisherProvider, createPublisherProviderForBlog } from '@/services/publisher';
+import { MonetizationService } from '@/services/monetization';
 import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
 
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     // 2. Buscar artigos elegíveis com status 'ready' (Batch limit: 2 a 3)
     const { data: readyArticles, error: fetchError } = await adminSupabase
       .from('content_items')
-      .select('*, blog:blogs(*), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
+      .select('*, blog:blogs(*), editorial_calendar:editorial_calendar(category), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
       .eq('status', 'ready')
       .order('created_at', { ascending: true })
       .limit(3);
@@ -103,14 +104,25 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        const categorySlug = (article as any).editorial_calendar?.category || undefined;
+        const monetizationOffers = article.blog_id
+          ? await MonetizationService.getOffersForCategory(article.blog_id, categorySlug)
+          : [];
+
         // 3.2. Publicar artigo no WordPress
         const publishResult = await publisher.publishArticle({
           title: article.title,
           slug: article.slug,
           content: article.body,
-          excerpt: article.excerpt || undefined,
+          excerpt: article.excerpt || article.meta_description || undefined,
           status: 'publish',
+          categorySlug,
           featuredMediaId: wpFeaturedMediaId,
+          metaTitle: article.seo_title || article.title,
+          metaDescription: article.meta_description || article.excerpt || undefined,
+          focusKeyword: article.focus_keyword || undefined,
+          tagNames: Array.isArray(article.tags) ? article.tags : undefined,
+          offers: monetizationOffers,
         });
 
         const itemDuration = Date.now() - itemStartTime;

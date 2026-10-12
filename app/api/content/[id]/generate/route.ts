@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
 import { MonetizationService } from '@/services/monetization';
 import { injectMonetizationBoxes } from '@/services/editorial/content-formatter';
+import { InternalLinksService } from '@/services/editorial/internal-links.service';
 
 export const maxDuration = 60; // 60 segundos para Vercel Serverless
 
@@ -97,7 +98,16 @@ export async function POST(
       ? await MonetizationService.getOffersForCategory(blog.id, categorySlugOrId || '')
       : [];
 
-    // Executar geração do artigo entregando o FactualResearchBrief através de sourcesOrResearch
+    // 5.1 Buscar até 15 artigos reais já publicados no blog para linkagem interna determinística
+    const internalLinks = blog?.id
+      ? await InternalLinksService.getPublishedArticlesForInternalLinking(blog.id, {
+          currentArticleId: id,
+          categoryId: calendar?.category_id || undefined,
+          limit: 15,
+        })
+      : [];
+
+    // Executar geração do artigo entregando o FactualResearchBrief através de sourcesOrResearch e links internos
     const generated = await aiProvider.generateArticle(topic, keywords, {
       niche: blog?.niche,
       audience: blog?.audience || undefined,
@@ -107,6 +117,7 @@ export async function POST(
       currentDate,
       sourcesOrResearch: researchBrief.rawBriefingText,
       monetizationOffers,
+      internalLinks,
     });
 
     const durationMs = Date.now() - startTime;
@@ -117,13 +128,15 @@ export async function POST(
         ? injectMonetizationBoxes(generated.content, monetizationOffers)
         : generated.content;
 
-    // 6. Atualizar content_items no Supabase com novo texto, slug, meta_description, language e status 'ready'
+    // 6. Atualizar content_items no Supabase com novo texto, slug, SEO (focus_keyword, meta_description, tags), language e status 'ready'
     const { data: updatedItem, error: updateError } = await supabase
       .from('content_items')
       .update({
         title: generated.title,
         slug: generated.slug,
+        focus_keyword: generated.focusKeyword || keywords[0] || generated.title,
         meta_description: generated.metaDescription,
+        tags: generated.tags || keywords.slice(0, 5),
         body: finalBody,
         language: targetLanguage,
         status: 'ready',

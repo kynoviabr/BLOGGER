@@ -30,7 +30,9 @@ export interface ArticlePublishInput {
   metaTitle?: string;
   metaDescription?: string;
   primaryKeyword?: string;
+  focusKeyword?: string;
   tags?: number[];
+  tagNames?: string[];
   featuredMediaId?: string | number;
   authorId?: number;
   dryRun?: boolean;
@@ -63,6 +65,11 @@ export interface PublisherProvider {
    * Resolve ou cria uma categoria no CMS remoto e retorna seu ID numérico.
    */
   resolveCategory?(nameOrSlug: string): Promise<number | null>;
+
+  /**
+   * Resolve ou cria tags no CMS remoto e retorna seus IDs numéricos.
+   */
+  resolveTagIds?(tagNames: string[]): Promise<number[]>;
 
   /**
    * Localiza um post no CMS pelo slug.

@@ -67,9 +67,21 @@ export default async function ContentListPage() {
                     >
                       {item.title}
                     </Link>
-                    <span className="text-xs text-muted-foreground font-mono block truncate mt-0.5">
-                      /{item.slug}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <span className="text-[11px] text-muted-foreground font-mono truncate max-w-[180px]">
+                        /{item.slug}
+                      </span>
+                      {item.focus_keyword && (
+                        <span className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          🎯 {item.focus_keyword}
+                        </span>
+                      )}
+                      {item.tags && item.tags.length > 0 && (
+                        <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          #{item.tags.length} {item.tags.length === 1 ? "tag" : "tags"}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-xs text-foreground">
                     {item.blog?.name || "Blog"}

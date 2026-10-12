@@ -10,6 +10,8 @@ export const updateContentSchema = z.object({
   }),
   seo_title: z.string().trim().max(150).optional().nullable(),
   meta_description: z.string().trim().max(300).optional().nullable(),
+  focus_keyword: z.string().trim().max(100).optional().nullable(),
+  tags: z.array(z.string().trim()).optional(),
 });
 
 export type UpdateContentInput = z.infer<typeof updateContentSchema>;

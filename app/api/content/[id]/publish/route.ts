@@ -124,6 +124,8 @@ export async function POST(
       featuredMediaId: wpFeaturedMediaId,
       metaTitle: contentItem.seo_title || contentItem.title,
       metaDescription: contentItem.meta_description || contentItem.excerpt || undefined,
+      focusKeyword: contentItem.focus_keyword || undefined,
+      tagNames: Array.isArray(contentItem.tags) ? contentItem.tags : undefined,
       offers: monetizationOffers,
     });
 

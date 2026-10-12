@@ -333,6 +333,7 @@ export class GeminiProvider implements AIProvider {
         pitchHook: monetizationOffer.pitchHook || monetizationOffer.pitch_hook || '',
         ctaButtonText: monetizationOffer.ctaButtonText || monetizationOffer.cta_button_text || '',
       } : undefined,
+      internalLinks: context?.internalLinks,
     });
 
     const parsed = await this.generateWithResilience<GeneratedArticle>('generateArticle', {
@@ -348,15 +349,24 @@ export class GeminiProvider implements AIProvider {
           },
           slug: {
             type: Type.STRING,
-            description: 'Slug amigável para URL em letras minúsculas separadas por hífen.',
+            description: 'Slug amigável para URL em letras minúsculas separadas por hífen contendo a focusKeyword.',
+          },
+          focusKeyword: {
+            type: Type.STRING,
+            description: 'Palavra-chave foco principal de cauda longa (3 a 5 palavras) com alto potencial de busca.',
           },
           metaDescription: {
             type: Type.STRING,
-            description: 'Meta description concisa e atrativa com 120 a 155 caracteres.',
+            description: 'Meta description persuasiva com 140 a 155 caracteres contendo obrigatoriamente a focusKeyword.',
+          },
+          tags: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Lista de 4 a 6 tags temáticas curtas relevantes para o artigo.',
           },
           content: {
             type: Type.STRING,
-            description: 'Texto integral do artigo formatado em Markdown rico ou HTML semântico com H2, H3, listas e FAQ.',
+            description: 'Texto integral do artigo formatado em Markdown rico ou HTML semântico com H2, H3, links internos contextuais, listas e FAQ.',
           },
           keywords: {
             type: Type.ARRAY,
@@ -372,8 +382,8 @@ export class GeminiProvider implements AIProvider {
             description: 'Prompt altamente descritivo e artístico em inglês para a imagem de destaque. Traduza o tema em uma METÁFORA VISUAL escolhendo aleatoriamente 1 entre 5 estilos: 1) Fotografia Conceitual Minimalista (Still Life) com objetos físicos de estúdio; 2) Renderização Editorial 3D Isométrica; 3) Fotografia Arquitetônica e Urbana de grande escala; 4) Fotografia Macro Artística com texturas e iluminação dramática; 5) Ilustração Editorial Flat/Colagem (estilo The Economist). REGRA ABSOLUTA: É estritamente proibido descrever pessoas olhando para smartphones, telas, notebooks ou sentadas em mesas de escritório. Evite rostos humanos em close-up. Deve terminar obrigatoriamente com o sufixo: ", no screens, no laptops, no smartphones, no office desks".',
           },
         },
-        required: ['title', 'slug', 'metaDescription', 'content', 'keywords', 'imagePrompt'],
-        propertyOrdering: ['title', 'slug', 'metaDescription', 'content', 'keywords', 'readingTimeMinutes', 'imagePrompt'],
+        required: ['title', 'slug', 'focusKeyword', 'metaDescription', 'tags', 'content', 'keywords', 'imagePrompt'],
+        propertyOrdering: ['title', 'slug', 'focusKeyword', 'metaDescription', 'tags', 'content', 'keywords', 'readingTimeMinutes', 'imagePrompt'],
       },
     });
 
@@ -384,6 +394,15 @@ export class GeminiProvider implements AIProvider {
         isRetryable: true,
       });
     }
+
+    // Garante fallback para focusKeyword e tags se o modelo omitir
+    const cleanFocusKeyword = parsed.focusKeyword?.trim() || keywords[0] || parsed.title.toLowerCase();
+    const cleanTags = Array.isArray(parsed.tags) && parsed.tags.length > 0
+      ? parsed.tags.map((t) => String(t).trim()).filter(Boolean)
+      : keywords.slice(0, 5);
+
+    parsed.focusKeyword = cleanFocusKeyword;
+    parsed.tags = cleanTags;
 
     logger.info(this.name, `Artigo gerado com sucesso: "${parsed.title}"`, {
       slug: parsed.slug,

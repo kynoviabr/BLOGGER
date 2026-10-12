@@ -20,6 +20,8 @@ export interface ContentFormData {
   status: ContentStatus;
   seo_title?: string | null;
   meta_description?: string | null;
+  focus_keyword?: string | null;
+  tags?: string[];
 }
 
 export async function updateContentAction(
@@ -41,8 +43,13 @@ export async function updateContentAction(
           status: data.get("status"),
           seo_title: data.get("seo_title") || null,
           meta_description: data.get("meta_description") || null,
+          focus_keyword: data.get("focus_keyword") || null,
+          tags: data.get("tags") ? String(data.get("tags")).split(",").map((t) => t.trim()).filter(Boolean) : undefined,
         }
-      : data;
+      : {
+          ...data,
+          tags: data.tags ?? undefined,
+        };
 
     const validation = updateContentSchema.safeParse(rawInput);
     if (!validation.success) {
@@ -51,6 +58,7 @@ export async function updateContentAction(
 
     const updates: ContentItemUpdate = {
       ...validation.data,
+      tags: validation.data.tags ?? undefined,
     };
 
     // 3. Persistência real

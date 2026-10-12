@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
 import { OFFICIAL_CATEGORIES, OfficialCategorySlug } from '@/lib/constants/categories';
+import { InternalLinksService } from '@/services/editorial/internal-links.service';
 import crypto from 'crypto';
 
 export interface PipelineExecutionOptions {
@@ -211,6 +212,15 @@ export class PipelineService {
           )
         : [];
 
+      // 4.2. Buscar artigos já publicados para linkagem interna determinística
+      const internalLinks = blog?.id
+        ? await InternalLinksService.getPublishedArticlesForInternalLinking(blog.id, {
+            currentArticleId: contentId,
+            categorySlug,
+            limit: 15,
+          })
+        : [];
+
       const aiProvider = createAIProvider();
       const generatedArticle = await aiProvider.generateArticle(calendarItem.topic, keywords, {
         niche: blog?.niche,
@@ -221,6 +231,7 @@ export class PipelineService {
         currentDate,
         sourcesOrResearch: researchBrief.rawBriefingText,
         monetizationOffers,
+        internalLinks,
       });
 
       // Salva o artigo gerado imediatamente (resiliência contra falhas subsequentes)
@@ -229,7 +240,9 @@ export class PipelineService {
         .update({
           title: generatedArticle.title,
           slug: generatedArticle.slug,
+          focus_keyword: generatedArticle.focusKeyword || keywords[0] || generatedArticle.title,
           meta_description: generatedArticle.metaDescription,
+          tags: generatedArticle.tags || keywords.slice(0, 5),
           body: generatedArticle.content,
           language: itemLanguage,
           status: 'ready',
@@ -372,6 +385,8 @@ export class PipelineService {
         metaTitle: generatedArticle.title,
         metaDescription: generatedArticle.metaDescription,
         primaryKeyword: keywords[0],
+        focusKeyword: generatedArticle.focusKeyword || keywords[0],
+        tagNames: generatedArticle.tags || keywords.slice(0, 5),
         language: itemLanguage,
         dryRun: options.dryRun,
         offers: monetizationOffers,

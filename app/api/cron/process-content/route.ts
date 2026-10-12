@@ -4,6 +4,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { createAIProvider, createImageProvider } from '@/services/ai';
 import { logger } from '@/lib/logger';
 import { Database, Json } from '@/types/database';
+import { InternalLinksService } from '@/services/editorial/internal-links.service';
 
 export const maxDuration = 60; // 60 segundos para Vercel Serverless
 
@@ -112,12 +113,21 @@ export async function GET(request: NextRequest) {
           ? calendarItem.keywords
           : [calendarItem.topic];
 
+        const internalLinks = blog?.id
+          ? await InternalLinksService.getPublishedArticlesForInternalLinking(blog.id, {
+              currentArticleId: contentItem.id,
+              categoryId: calendarItem.category_id || undefined,
+              limit: 15,
+            })
+          : [];
+
         const generatedArticle = await aiProvider.generateArticle(calendarItem.topic, keywords, {
           niche: blog?.niche,
           audience: blog?.audience || undefined,
           language: calendarItem.language || blog?.default_language || 'pt-BR',
           category: calendarItem.category_id || undefined,
           notes: calendarItem.notes || undefined,
+          internalLinks,
         });
 
         // 3.4. Salvar o artigo gerado imediatamente (garante integridade do texto contra falhas de mídia)
@@ -126,7 +136,9 @@ export async function GET(request: NextRequest) {
           .update({
             title: generatedArticle.title,
             slug: generatedArticle.slug,
+            focus_keyword: generatedArticle.focusKeyword || keywords[0] || generatedArticle.title,
             meta_description: generatedArticle.metaDescription,
+            tags: generatedArticle.tags || keywords.slice(0, 5),
             body: generatedArticle.content,
             status: 'ready',
             updated_at: new Date().toISOString(),

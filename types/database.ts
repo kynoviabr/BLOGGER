@@ -245,6 +245,8 @@ export type Database = {
           status: ContentStatus;
           seo_title: string | null;
           meta_description: string | null;
+          focus_keyword: string | null;
+          tags: string[];
           featured_image_id: string | null;
           published_at: string | null;
           created_at: string;
@@ -262,6 +264,8 @@ export type Database = {
           status?: ContentStatus;
           seo_title?: string | null;
           meta_description?: string | null;
+          focus_keyword?: string | null;
+          tags?: string[];
           featured_image_id?: string | null;
           published_at?: string | null;
           created_at?: string;
@@ -279,6 +283,8 @@ export type Database = {
           status?: ContentStatus;
           seo_title?: string | null;
           meta_description?: string | null;
+          focus_keyword?: string | null;
+          tags?: string[];
           featured_image_id?: string | null;
           published_at?: string | null;
           created_at?: string;
