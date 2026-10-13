@@ -239,7 +239,25 @@ export async function GET(request: NextRequest) {
               .eq('id', contentItem.id);
           }
         } catch (imageErr) {
-          logger.warn('Cron.processContent', `Aviso: Geração de imagem falhou de forma não bloqueante para pauta ${calendarItem.id}: ${String(imageErr)}`);
+          const errMsg = `Falha na geração de imagem com OpenAI para a pauta "${calendarItem.proposed_title || calendarItem.topic}": ${imageErr instanceof Error ? imageErr.message : String(imageErr)}`;
+          logger.error('Cron.processContent', errMsg, { error: imageErr });
+          try {
+            await adminSupabase.from('system_logs').insert({
+              level: 'error',
+              service: 'OpenAIImageProvider',
+              message: errMsg,
+              metadata: {
+                calendarId: calendarItem.id,
+                contentId: contentItem.id,
+                blogId: calendarItem.blog_id,
+                error: imageErr instanceof Error ? imageErr.message : String(imageErr),
+                provider: 'OpenAIImageProvider',
+                model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini',
+              } as any,
+            });
+          } catch (logErr) {
+            logger.error('Cron.processContent', `Falha ao persistir erro de imagem em system_logs: ${String(logErr)}`);
+          }
         }
 
         // 3.6. Atualizar status do editorial_calendar para 'READY'

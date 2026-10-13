@@ -142,9 +142,9 @@ export async function POST(
     // 7. Registrar execução em ai_runs
     await supabase.from('ai_runs').insert({
       content_id: id,
-      agent: 'ImageAgent (Pollinations)',
+      agent: 'ImageAgent (OpenAI)',
       provider: imageProvider.name,
-      model: 'pollinations',
+      model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini',
       status: 'completed',
       input_summary: prompt.slice(0, 150),
       output_summary: `Imagem gerada: ${publicUrl.slice(0, 80)}`,
@@ -156,7 +156,7 @@ export async function POST(
     await LogService.recordLog(
       'info',
       'API.image',
-      `Imagem de destaque gerada com sucesso para artigo ${id}`,
+      `Imagem de destaque gerada com sucesso via OpenAI para artigo ${id}`,
       { contentId: id, mediaId: mediaAsset.id, durationMs, userId: user.id }
     );
 
@@ -171,21 +171,21 @@ export async function POST(
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao gerar imagem.';
     const statusCode = error instanceof ImageProviderError ? (error.statusCode || 500) : 500;
 
-    logger.error('API.image', `Erro durante o processo de geração de imagem: ${errorMessage}`, { error });
+    logger.error('API.image', `Erro durante o processo de geração de imagem com OpenAI: ${errorMessage}`, { error });
 
     try {
       const supabase = await getSupabaseServerClient();
       await supabase.from('ai_runs').insert({
         content_id: id,
-        agent: 'ImageAgent (Pollinations)',
-        provider: 'PollinationsImageProvider',
-        model: 'pollinations',
+        agent: 'ImageAgent (OpenAI)',
+        provider: 'OpenAIImageProvider',
+        model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini',
         status: 'failed',
         error: errorMessage,
         duration_ms: durationMs,
         estimated_cost: 0,
       });
-      await LogService.recordLog('error', 'API.image', `Falha ao gerar imagem para artigo ${id}: ${errorMessage}`, { error });
+      await LogService.recordLog('error', 'OpenAIImageProvider', `Falha ao gerar imagem com OpenAI para artigo ${id}: ${errorMessage}`, { error });
     } catch (logErr) {
       logger.warn('API.image', `Falha ao registrar log de erro: ${String(logErr)}`);
     }

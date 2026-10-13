@@ -284,13 +284,22 @@ export class OpenAIImageProvider implements ImageProvider {
       }
     }
 
-    throw (
+    const finalError =
       lastError ||
-      new ImageProviderError('Falha desconhecida ao gerar imagem com OpenAI.', {
+      new ImageProviderError('Falha ao gerar imagem com OpenAI.', {
         provider: this.name,
         statusCode: 502,
-        isRetryable: true,
-      })
-    );
+        isRetryable: false,
+      });
+
+    logger.error(this.name, `Falha definitiva ao gerar imagem com OpenAI após ${totalAttempts} tentativa(s): ${finalError.message}`, {
+      error: finalError,
+      model: this.model,
+      quality: this.quality,
+      size: this.size,
+      prompt: cleanPrompt.slice(0, 150),
+    });
+
+    throw finalError;
   }
 }

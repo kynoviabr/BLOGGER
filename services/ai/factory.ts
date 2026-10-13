@@ -1,9 +1,7 @@
 import { AIProvider } from './ai-provider.interface';
 import { ImageProvider } from './image-provider.interface';
 import { GeminiProvider } from './gemini-provider';
-import { PollinationsImageProvider } from './pollinations-image-provider';
 import { OpenAIImageProvider } from './openai-image-provider';
-import { FallbackImageProvider } from './fallback-image-provider';
 import { NanoBananaProvider } from './nano-banana-provider';
 import { MockAIProvider, MockImageProvider } from './mock-ai-provider';
 import { DeepSeekProvider } from './deepseek-provider';
@@ -92,9 +90,8 @@ export function createAIProvider(options: AIFactoryOptions = {}): AIProvider {
 
 /**
  * Factory para criação do provedor de geração de imagens.
- * Suporta IMAGE_PROVIDER=openai e IMAGE_PROVIDER=pollinations.
- * Para openai, instancia OpenAIImageProvider com FallbackImageProvider (Pollinations) automático.
- * A existência de IMAGE_API_KEY NÃO afeta a seleção automática do provider.
+ * Provedor oficial: OpenAI (OpenAIImageProvider).
+ * Sem fallback para Pollinations; qualquer erro é registrado no log de erro.
  */
 export function createImageProvider(options: AIFactoryOptions = {}): ImageProvider {
   const isMock =
@@ -110,20 +107,7 @@ export function createImageProvider(options: AIFactoryOptions = {}): ImageProvid
   const rawProvider = options.imageProvider || process.env.IMAGE_PROVIDER;
   const openaiApiKey = options.openaiApiKey || process.env.OPENAI_API_KEY;
 
-  let selectedProvider: string;
-  if (rawProvider) {
-    selectedProvider = rawProvider.toLowerCase().trim();
-  } else if (openaiApiKey) {
-    selectedProvider = 'openai';
-  } else {
-    selectedProvider = 'pollinations';
-    logger.info(
-      'AIFactory',
-      'OPENAI_API_KEY não encontrada e IMAGE_PROVIDER não especificado. Utilizando PollinationsImageProvider como padrão seguro.'
-    );
-  }
-
-  if (selectedProvider === 'nanobanana') {
+  if (rawProvider && rawProvider.toLowerCase().trim() === 'nanobanana') {
     logger.info('AIFactory', 'Instanciando NanoBananaProvider explicitamente configurado');
     return new NanoBananaProvider({
       apiUrl: options.imageApiUrl,
@@ -131,46 +115,22 @@ export function createImageProvider(options: AIFactoryOptions = {}): ImageProvid
     });
   }
 
-  if (selectedProvider === 'pollinations') {
-    logger.info('AIFactory', 'Instanciando PollinationsImageProvider explicitamente configurado');
-    return new PollinationsImageProvider({
-      baseUrl: options.imageApiUrl,
-    });
+  if (!openaiApiKey) {
+    throw new ImageProviderError(
+      'Configuração inválida: OPENAI_API_KEY não foi informada para geração de imagens.',
+      {
+        provider: 'OpenAIImageProvider',
+        statusCode: 401,
+        isRetryable: false,
+      }
+    );
   }
 
-  if (selectedProvider === 'openai') {
-    if (!openaiApiKey) {
-      throw new ImageProviderError(
-        'Configuração inválida: IMAGE_PROVIDER está configurado como "openai", mas OPENAI_API_KEY não foi informada.',
-        {
-          provider: 'OpenAIImageProvider',
-          statusCode: 401,
-          isRetryable: false,
-        }
-      );
-    }
-
-    logger.info('AIFactory', 'Instanciando OpenAIImageProvider com Fallback para PollinationsImageProvider');
-    const primary = new OpenAIImageProvider({
-      apiKey: openaiApiKey,
-      model: options.openaiImageModel || process.env.OPENAI_IMAGE_MODEL,
-      quality: options.openaiImageQuality || process.env.OPENAI_IMAGE_QUALITY,
-      size: options.openaiImageSize || process.env.OPENAI_IMAGE_SIZE,
-    });
-
-    const fallback = new PollinationsImageProvider({
-      baseUrl: options.imageApiUrl,
-    });
-
-    return new FallbackImageProvider(primary, fallback);
-  }
-
-  throw new ImageProviderError(
-    `Provedor de imagem desconhecido ou não suportado: "${selectedProvider}". Use "openai" ou "pollinations".`,
-    {
-      provider: 'AIFactory',
-      statusCode: 400,
-      isRetryable: false,
-    }
-  );
+  logger.info('AIFactory', 'Instanciando OpenAIImageProvider (exclusivo, sem fallback Pollinations)');
+  return new OpenAIImageProvider({
+    apiKey: openaiApiKey,
+    model: options.openaiImageModel || process.env.OPENAI_IMAGE_MODEL,
+    quality: options.openaiImageQuality || process.env.OPENAI_IMAGE_QUALITY,
+    size: options.openaiImageSize || process.env.OPENAI_IMAGE_SIZE,
+  });
 }

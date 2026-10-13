@@ -275,11 +275,9 @@ async function runTests() {
     imageProvider: 'openai',
     openaiApiKey: 'sk-test-valid',
   });
-  assert(factoryOpenAI instanceof FallbackImageProvider, 'Factory openai retorna FallbackImageProvider');
-  assert((factoryOpenAI as FallbackImageProvider).primary instanceof OpenAIImageProvider, 'Primário é OpenAIImageProvider');
-  assert((factoryOpenAI as FallbackImageProvider).fallback instanceof PollinationsImageProvider, 'Secundário é PollinationsImageProvider');
+  assert(factoryOpenAI instanceof OpenAIImageProvider, 'Factory openai retorna OpenAIImageProvider exclusivo (sem fallback)');
 
-  // 5.2. IMAGE_PROVIDER=openai SEM chave -> Erro 401 explícito
+  // 5.2. SEM chave -> Erro 401 explícito
   let threwMissingKey = false;
   const oldKey = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
@@ -291,28 +289,7 @@ async function runTests() {
     assert((err as ImageProviderError).statusCode === 401, 'Erro tem statusCode 401');
   }
   if (oldKey) process.env.OPENAI_API_KEY = oldKey;
-  assert(threwMissingKey, 'Factory deve lançar erro explícito se IMAGE_PROVIDER=openai sem chave');
-
-  // 5.3. IMAGE_PROVIDER=pollinations
-  const factoryPollinations = createImageProvider({ imageProvider: 'pollinations' });
-  assert(factoryPollinations instanceof PollinationsImageProvider, 'Factory pollinations retorna PollinationsImageProvider');
-
-  // 5.4. Default sem chave e sem provider definido -> Pollinations seguro
-  delete process.env.OPENAI_API_KEY;
-  delete process.env.IMAGE_PROVIDER;
-  const factoryDefaultSafe = createImageProvider({});
-  assert(factoryDefaultSafe instanceof PollinationsImageProvider, 'Sem chave e sem provider -> default seguro Pollinations');
-  if (oldKey) process.env.OPENAI_API_KEY = oldKey;
-
-  // 5.5. Provedor desconhecido
-  let threwUnknown = false;
-  try {
-    createImageProvider({ imageProvider: 'invalid-provider' });
-  } catch (err) {
-    threwUnknown = true;
-    assert((err as ImageProviderError).statusCode === 400, 'Provedor desconhecido retorna 400');
-  }
-  assert(threwUnknown, 'Factory rejeita provider desconhecido');
+  assert(threwMissingKey, 'Factory deve lançar erro explícito sem chave');
 
   console.log('\n==================================================');
   console.log('TODOS OS TESTES ISOLADOS PASSARAM COM SUCESSO! 🎉');

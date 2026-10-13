@@ -372,8 +372,25 @@ export class PipelineService {
             .eq('id', contentId);
         }
       } catch (imageError) {
-        const imgErrMsg = `Falha obrigatória na geração de imagem de destaque: ${imageError instanceof Error ? imageError.message : String(imageError)}`;
-        logger.error('PipelineService', imgErrMsg);
+        const imgErrMsg = `Falha na geração de imagem com OpenAI para a pauta "${calendarItem.proposed_title || calendarItem.topic}": ${imageError instanceof Error ? imageError.message : String(imageError)}`;
+        logger.error('PipelineService', imgErrMsg, { error: imageError });
+        try {
+          await adminSupabase.from('system_logs').insert({
+            level: 'error',
+            service: 'OpenAIImageProvider',
+            message: imgErrMsg,
+            metadata: {
+              calendarId,
+              contentId,
+              blogId: calendarItem.blog_id,
+              error: imageError instanceof Error ? imageError.message : String(imageError),
+              provider: 'OpenAIImageProvider',
+              model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini',
+            } as any,
+          });
+        } catch (logErr) {
+          logger.error('PipelineService', `Falha ao persistir erro de imagem em system_logs: ${String(logErr)}`);
+        }
         throw new Error(imgErrMsg);
       }
 
