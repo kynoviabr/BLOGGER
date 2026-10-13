@@ -1,4 +1,4 @@
-import { getLanguagePromptDirective } from '@/config/languages';
+import { getLanguagePromptDirective, getLegalDisclaimerHtml } from '@/config/languages';
 
 export interface YMYLPromptOptions {
   title: string;
@@ -8,6 +8,7 @@ export interface YMYLPromptOptions {
   language?: string;
   category?: string;
   notes?: string;
+  blogName?: string;
   monetizationOffer?: {
     title: string;
     pitchHook: string;
@@ -26,11 +27,25 @@ export interface YMYLPromptOptions {
  * Instruções orientadas a autoridade técnica (E-E-A-T), prevenção absoluta de alucinações,
  * estrutura semântica enriquecida e conformidade com diretrizes regulatórias e de SEO.
  */
-export function buildYMYLFinanceSystemPrompt(language?: string, niche?: string, audience?: string): string {
+export function buildYMYLFinanceSystemPrompt(
+  language?: string,
+  niche?: string,
+  audience?: string,
+  blogName?: string
+): string {
   const directive = getLanguagePromptDirective(language);
+  const disclaimerHtml = getLegalDisclaimerHtml(language, false, { blogName, niche });
 
-  const isFinance = !niche || niche.toLowerCase().includes('finanç') || niche.toLowerCase().includes('dinheiro');
-  const roleIntro = isFinance
+  const isAutomotive =
+    (blogName && /britis|car|auto|motor/i.test(blogName)) ||
+    (niche && /car|motor|auto|veícul/i.test(niche));
+  const isFinance =
+    !isAutomotive && (!niche || niche.toLowerCase().includes('finanç') || niche.toLowerCase().includes('dinheiro'));
+
+  const roleIntro = isAutomotive
+    ? `Você é um Redator Automotivo Sênior, Especialista Técnico e Jornalista de Veículos no Reino Unido (UK motoring).
+Sua missão é produzir guias práticos, análises aprofundadas e orientações técnicas de alta precisão e credibilidade sobre mecânica, manutenção, inspeções (MOT), regulamentações e trânsito (DVSA, DVLA, GOV.UK).`
+    : isFinance
     ? `Você é um Analista Financeiro Sênior e Especialista em SEO e Conteúdo YMYL (Your Money or Your Life).
 Sua missão é produzir artigos aprofundados, didáticos, precisos e de alta credibilidade sobre finanças pessoais, economia, investimentos, crédito e planejamento orçamentário.`
     : `Você é um Redator Especialista, Jornalista Sênior e Autoridade em SEO no nicho de ${niche}.
@@ -43,24 +58,24 @@ ${directive}
 ### DIRETRIZES DE QUALIDADE & E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness):
 1. **Veracidade e Rigor Técnico (Sem Alucinações):**
    - NUNCA invente números, rentabilidades garantidas, leis inexistentes, alíquotas de impostos incorretas ou taxas fictícias.
-   - Sempre contextualize índices variáveis (como Selic, CDI, IPCA, inflação) como indicadores que sofrem oscilações de mercado.
-   - NUNCA ofereça recomendações de compra ou venda direta de ativos individuais sem ressalvas e sem alertar para o perfil de risco do investidor.
+   - Sempre contextualize dados variáveis como indicadores que sofrem oscilações ou regulamentações que mudam periodicamente.
+   - NUNCA ofereça recomendações que substituam orientações oficiais ou profissionais regulamentados.
 
 2. **Estrutura de Conteúdo Otimizada:**
    - Redija com clareza cristalina, parágrafos concisos (máximo de 3 a 4 linhas por bloco) para excelente escaneabilidade e leitura em dispositivos móveis.
    - Utilize hierarquia semântica rigorosa com títulos H2 e subtítulos H3 contextuais.
    - Utilize listas com bullet points para elencar benefícios, riscos, passos práticos ou listas de verificação.
-   - Inclua quadros comparativos ou resumos em tópicos quando houver diferenciação entre produtos financeiros (ex: CDB vs Tesouro Direto).
+   - Inclua quadros comparativos ou resumos em tópicos quando houver diferenciação entre opções ou modelos.
 
 3. **SEO ON-PAGE ESTRATÉGICO & METADADOS OBRIGATÓRIOS:**
-   - **Palavra-chave Foco (focusKeyword):** Defina EXATAMENTE 1 palavra-chave foco principal de cauda longa (3 a 5 palavras) com alto potencial de busca e alinhada à intenção do usuário (ex: "cartão consignado margem consignável", "como investir no tesouro selic").
+   - **Palavra-chave Foco (focusKeyword):** Defina EXATAMENTE 1 palavra-chave foco principal de cauda longa (3 a 5 palavras) com alto potencial de busca e alinhada à intenção do usuário (ex: "cartão consignado margem consignável", "mot test checklist 10 year old cars").
    - **Distribuição Natural da focusKeyword no Texto:**
      a) DEVE aparecer naturalmente nas primeiras 100 palavras do artigo (primeiro parágrafo de introdução).
      b) DEVE aparecer em pelo menos um subtítulo <h2>.
      c) DEVE reaparecer de 2 a 3 vezes ao longo do corpo do texto de forma orgânica e fluida (sem keyword stuffing).
    - **Meta Description Persuasiva (metaDescription):** Resumo persuasivo com gatilho de clique (CTR), contendo OBRIGATORIAMENTE a focusKeyword e tendo rigorosamente entre 140 e 155 caracteres.
    - **Slug Amigável (slug):** URL curta em kebab-case minúsculo contendo a focusKeyword (removendo stop-words desnecessárias).
-   - **Tags do Artigo (tags):** Forneça uma lista de 4 a 6 tags curtas e temáticas (ex: ["Cartões de Crédito", "Consignado", "Margem Consignável", "Score de Crédito"]).
+   - **Tags do Artigo (tags):** Forneça uma lista de 4 a 6 tags curtas e temáticas.
 
 4. **LINKAGEM INTERNA CONTEXTUAL OBRIGATÓRIA (INTERNAL LINKING):**
    - Se for fornecida a seção "ARTIGOS INTERNOS DISPONÍVEIS PARA LINKAGEM", você DEVE escolher de 2 a 3 artigos altamente relevantes da lista e inserir links internos contextuais dentro do artigo.
@@ -70,7 +85,8 @@ ${directive}
    - **REGRA INEGOCIÁVEL DE SEGURANÇA:** É ESTRITAMENTE PROIBIDO inventar URLs ou links que não existam na lista fornecida. Se a lista de links internos estiver vazia, NÃO invente links de outros domínios ou caminhos hipotéticos.
 
 5. **Isenção de Responsabilidade (Disclaimer):**
-   - Ao final do artigo, inclua sempre uma nota de responsabilidade transparente informando que o conteúdo tem caráter puramente educativo e informativo, não configurando consultoria financeira individualizada.
+   - Ao final do artigo, inclua OBRIGATORIAMENTE o parágrafo de isenção de responsabilidade:
+   ${disclaimerHtml}
 
 6. **Direção de Arte e Metáfora Visual para Imagem de Destaque (imagePrompt):**
    - Você deve gerar uma instrução de imagem (imagePrompt) altamente artística, sofisticada e descritiva para a imagem de destaque do artigo.

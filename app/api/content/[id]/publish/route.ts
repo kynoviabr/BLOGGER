@@ -124,7 +124,11 @@ export async function POST(
       metaDescription: contentItem.meta_description || contentItem.excerpt || undefined,
       focusKeyword: contentItem.focus_keyword || undefined,
       tagNames: Array.isArray(contentItem.tags) ? contentItem.tags : undefined,
+      language: contentItem.language || blog?.default_language,
       offers: monetizationOffers,
+      blogName: blog?.name,
+      niche: blog?.niche,
+      customDisclaimer: (blog?.editorial_config as Record<string, unknown>)?.disclaimer_html as string | undefined,
     });
 
     const durationMs = Date.now() - startTime;

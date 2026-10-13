@@ -37,6 +37,9 @@ export interface ArticlePublishInput {
   authorId?: number;
   dryRun?: boolean;
   offers?: MonetizationOffer[];
+  blogName?: string;
+  niche?: string;
+  customDisclaimer?: string;
 }
 
 export interface PublishResult {

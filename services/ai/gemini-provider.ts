@@ -326,19 +326,25 @@ export class GeminiProvider implements AIProvider {
       niche: context?.niche,
       audience: context?.audience,
       language: context?.language,
-      category: context?.category,
-      notes: context?.notes,
+      category: context?.category as string | undefined,
+      notes: context?.notes as string | undefined,
+      blogName: context?.blogName as string | undefined,
       monetizationOffer: monetizationOffer ? {
         title: monetizationOffer.title,
         pitchHook: monetizationOffer.pitchHook || monetizationOffer.pitch_hook || '',
         ctaButtonText: monetizationOffer.ctaButtonText || monetizationOffer.cta_button_text || '',
       } : undefined,
-      internalLinks: context?.internalLinks,
+      internalLinks: context?.internalLinks as any,
     });
 
     const parsed = await this.generateWithResilience<GeneratedArticle>('generateArticle', {
       contents: userPrompt,
-      systemInstruction: buildYMYLFinanceSystemPrompt(context?.language, context?.niche, context?.audience),
+      systemInstruction: buildYMYLFinanceSystemPrompt(
+        context?.language as string | undefined,
+        context?.niche as string | undefined,
+        context?.audience as string | undefined,
+        context?.blogName as string | undefined
+      ),
       temperature: this.temperature,
       responseJsonSchema: {
         type: Type.OBJECT,

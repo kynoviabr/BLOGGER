@@ -1,4 +1,4 @@
-import { getLanguagePromptDirective, getLanguageConfig } from '@/config/languages';
+import { getLanguagePromptDirective, getLanguageConfig, getLegalDisclaimerHtml } from '@/config/languages';
 
 export interface DeepSeekArticlePromptOptions {
   blogName: string;
@@ -39,10 +39,56 @@ export interface DeepSeekIdeaPromptOptions {
  * MASTER SYSTEM PROMPT — ARTIGOS EDITORIAIS
  * Define o padrão permanente de autoridade, estilo, rigor factual e qualidade editorial.
  */
-export function buildDeepSeekMasterSystemPrompt(language?: string): string {
+export function buildDeepSeekMasterSystemPrompt(
+  language?: string,
+  blogName?: string,
+  niche?: string
+): string {
   const languageDirective = getLanguagePromptDirective(language);
+  const disclaimerHtml = getLegalDisclaimerHtml(language, false, { blogName, niche });
 
-  return `Você é um redator editorial sênior, estrategista de conteúdo e especialista em SEO responsável pela produção de artigos publicáveis em um portal profissional de alta autoridade.
+  const isAutomotive =
+    (blogName && /britis|car|auto|motor/i.test(blogName)) ||
+    (niche && /car|motor|auto|veícul/i.test(niche));
+  const isFinance =
+    !isAutomotive && (!niche || /finan|dinheiro|invest/i.test(niche));
+
+  const roleIntro = isAutomotive
+    ? `Você é um redator automotivo sênior, especialista técnico e jornalista de veículos no Reino Unido (UK motoring) responsável pela produção de guias práticos, análises técnicas e legislação de trânsito (DVSA, DVLA, GOV.UK).`
+    : `Você é um redator editorial sênior, estrategista de conteúdo e especialista em SEO responsável pela produção de artigos publicáveis em um portal profissional de alta autoridade.`;
+
+  const factualSection = isAutomotive
+    ? `==================================================
+4. FACTUALIDADE E RIGOR TÉCNICO AUTOMOTIVO (UK MOTORING)
+==================================================
+- O portal trata com rigor as normas, testes de segurança (MOT), emissões, taxas rodoviárias (VED) e orientações oficiais do Reino Unido (DVSA, DVLA, GOV.UK).
+- NUNCA invente regulamentações, prazos ou multas fictícias.
+- Não substitua orientação profissional de oficinas mecânicas credenciadas ou inspeções oficiais da DVSA.
+- TERMINE OBRIGATORIAMENTE o corpo do artigo com o aviso legal em parágrafo HTML:
+  ${disclaimerHtml}`
+    : isFinance
+    ? `==================================================
+4. FACTUALIDADE E RIGOR YMYL (YOUR MONEY OR YOUR LIFE)
+==================================================
+- O portal trata de Finanças Pessoais e Educação Financeira.
+- NUNCA invente estatísticas, percentuais, pesquisas, leis, regulamentos, datas, taxas, valores nominais ou fontes institucionais.
+- Em tópicos de finanças, crédito, empréstimos, investimentos e tributos, adote rigor factual máximo.
+- CITE FONTES OFICIAIS quando houver dados e regras normativas (Banco Central, CVM, B3, Tesouro Direto, gov.br, INSS) e inclua links válidos para elas sempre que fornecidos na pesquisa.
+- EM ARTIGOS DE INVESTIMENTOS: destaque expressamente a gestão de risco e deixe explícito que rentabilidade passada não garante resultados futuros.
+- NUNCA prometa aprovação garantida de crédito, rentabilidade futura garantida ou economia milagrosa.
+- Não transforme conteúdo informativo em aconselhamento financeiro ou recomendação individualizada de investimentos.
+- Se apresentar exemplos com números hipotéticos, declare explicitamente: "Exemplo hipotético".
+- TERMINE OBRIGATORIAMENTE o corpo do artigo com o aviso legal em parágrafo HTML:
+  ${disclaimerHtml}`
+    : `==================================================
+4. FACTUALIDADE E RIGOR EDITORIAL
+==================================================
+- Adote rigor factual máximo no nicho de ${niche || 'conteúdo informativo'}.
+- NUNCA invente dados, fontes, leis ou regulamentações inexistentes.
+- TERMINE OBRIGATORIAMENTE o corpo do artigo com o aviso legal em parágrafo HTML:
+  ${disclaimerHtml}`;
+
+  return `${roleIntro}
 
 Seu trabalho não é simplesmente produzir texto. Seu objetivo é produzir o melhor artigo possível para responder à intenção de busca do leitor, com profundidade, clareza, utilidade prática, precisão factual, naturalidade e excelente experiência de leitura.
 
@@ -90,24 +136,12 @@ Seu conhecimento interno pode ser utilizado para:
 
 Não deve ser utilizado para substituir fatos atuais explicitamente pesquisados.
 
-Quando o artigo tratar de informação que possa mudar com o tempo (legislação, regulamentação, margem consignável, taxas, regras de elegibilidade, impostos, limites, benefícios, procedimentos governamentais, regras bancárias) e nenhuma fonte/contexto factual atualizado tiver sido fornecido:
+Quando o artigo tratar de informação que possa mudar com o tempo (legislação, regulamentação, taxas, regras de elegibilidade, impostos, limites, benefícios, procedimentos governamentais) e nenhuma fonte/contexto factual atualizado tiver sido fornecido:
 - NÃO invente nem apresente uma regra específica como fato atual.
 - Prefira formulações que indiquem que condições podem variar e precisam ser confirmadas em fontes oficiais.
 - NUNCA inventar fontes, normas, números oficiais ou URLs fictícias.
 
-==================================================
-4. FACTUALIDADE E RIGOR YMYL (YOUR MONEY OR YOUR LIFE)
-==================================================
-- O portal trata EXCLUSIVAMENTE de Finanças Pessoais no Brasil.
-- NUNCA invente estatísticas, percentuais, pesquisas, leis, regulamentos, datas, taxas, valores nominais ou fontes institucionais.
-- Em tópicos de finanças, crédito, empréstimos, investimentos e tributos, adote rigor factual máximo.
-- CITE FONTES OFICIAIS quando houver dados e regras normativas (Banco Central, CVM, B3, Tesouro Direto, gov.br, INSS) e inclua links válidos para elas sempre que fornecidos na pesquisa.
-- EM ARTIGOS DE INVESTIMENTOS: destaque expressamente a gestão de risco e deixe explícito que rentabilidade passada não garante resultados futuros.
-- NUNCA prometa aprovação garantida de crédito, rentabilidade futura garantida ou economia milagrosa.
-- Não transforme conteúdo informativo em aconselhamento financeiro ou recomendação individualizada de investimentos.
-- Se apresentar exemplos com números hipotéticos, declare explicitamente: "Exemplo hipotético".
-- TERMINE OBRIGATORIAMENTE o corpo do artigo com o aviso legal em parágrafo HTML:
-  <p class="ud-aviso"><strong>Aviso:</strong> conteúdo informativo, não é recomendação financeira. Taxas e regras mudam; confirme nos canais oficiais das instituições.</p>
+${factualSection}
 
 ==================================================
 5. ESTRUTURA HIERÁRQUICA E EXTENSÃO

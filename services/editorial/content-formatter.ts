@@ -292,6 +292,9 @@ export async function formatArticleForWordPress(
     providedExcerpt?: string;
     language?: string;
     offers?: MonetizationOffer[];
+    blogName?: string;
+    niche?: string;
+    customDisclaimer?: string;
   }
 ): Promise<FormattedContentResult> {
   const sanitizedMd = sanitizeMarkdown(rawMarkdown, options.title);
@@ -303,9 +306,22 @@ export async function formatArticleForWordPress(
   }
 
   const isInvestment = options.categorySlug === "investimentos";
-  const disclaimer = getLegalDisclaimerHtml(options.language || "pt-BR", isInvestment);
+  const disclaimer = getLegalDisclaimerHtml(options.language || "pt-BR", isInvestment, {
+    blogName: options.blogName,
+    niche: options.niche,
+    customDisclaimer: options.customDisclaimer,
+  });
 
-  if (!html.includes("ud-aviso")) {
+  if (html.includes("ud-aviso")) {
+    // Se for blog específico (ex: British Car Guide ou customizado), substitui qualquer aviso legal genérico ou em português anterior
+    if (
+      options.customDisclaimer ||
+      options.blogName?.toLowerCase().includes("britis") ||
+      (options.niche && /car|motoring|automot/i.test(options.niche))
+    ) {
+      html = html.replace(/<p class="ud-aviso">[\s\S]*?<\/p>/g, disclaimer);
+    }
+  } else {
     html = `${html}\n\n${disclaimer}`;
   }
 

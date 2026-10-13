@@ -331,7 +331,11 @@ export class DeepSeekProvider implements AIProvider {
 
     const userPrompt = buildDeepSeekArticleUserPrompt(promptOptions);
     const targetLanguage = context?.language || 'pt-BR';
-    const systemPrompt = buildDeepSeekMasterSystemPrompt(targetLanguage);
+    const systemPrompt = buildDeepSeekMasterSystemPrompt(
+      targetLanguage,
+      promptOptions.blogName,
+      promptOptions.niche
+    );
 
     const completion = await this.executeChatCompletion(
       [

@@ -230,6 +230,7 @@ export class PipelineService {
 
       const aiProvider = createAIProvider();
       const generatedArticle = await aiProvider.generateArticle(calendarItem.topic, keywords, {
+        blogName: blog?.name,
         niche: blog?.niche,
         audience: blog?.audience || undefined,
         language: itemLanguage,
@@ -241,21 +242,44 @@ export class PipelineService {
         internalLinks,
       });
 
-      // Salva o artigo gerado imediatamente (resiliência contra falhas subsequentes)
-      await adminSupabase
+      // Salva o artigo gerado imediatamente (resiliência contra falhas subsequentes e cache de schema)
+      const contentUpdatePayload: Record<string, unknown> = {
+        title: generatedArticle.title,
+        slug: generatedArticle.slug,
+        body: generatedArticle.content,
+        language: itemLanguage,
+        status: 'ready',
+        updated_at: new Date().toISOString(),
+      };
+      if (generatedArticle.metaDescription) {
+        contentUpdatePayload.meta_description = generatedArticle.metaDescription;
+      }
+      if (generatedArticle.focusKeyword || keywords[0]) {
+        contentUpdatePayload.focus_keyword = generatedArticle.focusKeyword || keywords[0];
+      }
+      if (generatedArticle.tags && generatedArticle.tags.length > 0) {
+        contentUpdatePayload.tags = generatedArticle.tags;
+      }
+
+      const { error: contentSaveErr } = await adminSupabase
         .from('content_items')
-        .update({
-          title: generatedArticle.title,
-          slug: generatedArticle.slug,
-          focus_keyword: generatedArticle.focusKeyword || keywords[0] || generatedArticle.title,
-          meta_description: generatedArticle.metaDescription,
-          tags: generatedArticle.tags || keywords.slice(0, 5),
-          body: generatedArticle.content,
-          language: itemLanguage,
-          status: 'ready',
-          updated_at: new Date().toISOString(),
-        })
+        .update(contentUpdatePayload as any)
         .eq('id', contentId);
+
+      if (contentSaveErr) {
+        logger.warn('PipelineService', `Aviso ao salvar com metadados de SEO em content_items: ${contentSaveErr.message}. Salvando corpo e título.`);
+        await adminSupabase
+          .from('content_items')
+          .update({
+            title: generatedArticle.title,
+            slug: generatedArticle.slug,
+            body: generatedArticle.content,
+            language: itemLanguage,
+            status: 'ready',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contentId);
+      }
 
       // 5. ETAPA 2: Gerar Imagem de Destaque com IA (Obrigatória - Proibido publicar sem imagem)
       let generatedImage: { imageUrl?: string; buffer?: Buffer; mimeType?: string; altText?: string; provider?: string } | null = null;
@@ -397,6 +421,9 @@ export class PipelineService {
         language: itemLanguage,
         dryRun: options.dryRun,
         offers: monetizationOffers,
+        blogName: blog?.name,
+        niche: blog?.niche,
+        customDisclaimer: (blog?.editorial_config as Record<string, unknown>)?.disclaimer_html as string | undefined,
       });
 
       const totalDuration = Date.now() - startTime;

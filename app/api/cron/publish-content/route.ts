@@ -122,7 +122,11 @@ export async function GET(request: NextRequest) {
           metaDescription: article.meta_description || article.excerpt || undefined,
           focusKeyword: article.focus_keyword || undefined,
           tagNames: Array.isArray(article.tags) ? article.tags : undefined,
+          language: article.language,
           offers: monetizationOffers,
+          blogName: (article as any).blogs?.name,
+          niche: (article as any).blogs?.niche,
+          customDisclaimer: ((article as any).blogs?.editorial_config as any)?.disclaimer_html,
         });
 
         const itemDuration = Date.now() - itemStartTime;

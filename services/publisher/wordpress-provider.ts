@@ -460,6 +460,9 @@ export class WordPressProvider implements PublisherProvider {
       providedExcerpt: article.excerpt,
       language: article.language,
       offers: article.offers,
+      blogName: article.blogName,
+      niche: article.niche,
+      customDisclaimer: article.customDisclaimer,
     });
 
     const payload: Record<string, unknown> = {

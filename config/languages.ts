@@ -24,10 +24,40 @@ export function getLanguageConfig(code?: string): SupportedLanguage {
   return found || SUPPORTED_LANGUAGES[0];
 }
 
+export interface DisclaimerBlogContext {
+  blogName?: string;
+  niche?: string;
+  customDisclaimer?: string;
+}
+
 /**
- * Retorna o parágrafo de disclaimer legal formatado em HTML nativo para cada idioma.
+ * Retorna o parágrafo de disclaimer legal formatado em HTML nativo para cada idioma e nicho de blog.
  */
-export function getLegalDisclaimerHtml(code?: string, isInvestment = false): string {
+export function getLegalDisclaimerHtml(
+  code?: string,
+  isInvestment = false,
+  blogContext?: DisclaimerBlogContext
+): string {
+  if (blogContext?.customDisclaimer && blogContext.customDisclaimer.trim().length > 0) {
+    return blogContext.customDisclaimer.trim();
+  }
+
+  const blogNameLower = (blogContext?.blogName || '').toLowerCase();
+  const nicheLower = (blogContext?.niche || '').toLowerCase();
+
+  // British Car Guide ou qualquer blog automotivo / motoring no Reino Unido
+  if (
+    blogNameLower.includes('britis') ||
+    blogNameLower.includes('british') ||
+    nicheLower.includes('car') ||
+    nicheLower.includes('motoring') ||
+    nicheLower.includes('automot') ||
+    nicheLower.includes('veícul') ||
+    nicheLower.includes('veicul')
+  ) {
+    return '<p class="ud-aviso"><strong>Disclaimer:</strong> This content is for general informational purposes only and does not constitute official DVSA, DVLA, or professional mechanical advice. Motoring laws and tax rates change; always verify current regulations on GOV.UK.</p>';
+  }
+
   const normalized = (code || 'pt-BR').toLowerCase();
 
   if (normalized.startsWith('en')) {
