@@ -50,19 +50,17 @@ export function AppShell({ children, blogs = [] }: AppShellProps) {
       } catch {}
     }
 
-    // Se estiver no Calendário Editorial, sincroniza a query string imediatamente
-    if (pathname === "/calendar") {
-      const currentSearch = typeof window !== "undefined" ? window.location.search : "";
-      const params = new URLSearchParams(currentSearch);
-      if (newBlogId && newBlogId !== "all") {
-        params.set("blogId", newBlogId);
-      } else {
-        params.delete("blogId");
-      }
-      const newQuery = params.toString();
-      router.push(`/calendar${newQuery ? `?${newQuery}` : ""}`);
-      router.refresh();
+    // Atualiza a query string da rota atual e sincroniza imediatamente os dados da página
+    const currentSearch = typeof window !== "undefined" ? window.location.search : "";
+    const params = new URLSearchParams(currentSearch);
+    if (newBlogId && newBlogId !== "all") {
+      params.set("blogId", newBlogId);
+    } else {
+      params.delete("blogId");
     }
+    const newQuery = params.toString();
+    router.push(`${pathname}${newQuery ? `?${newQuery}` : ""}`);
+    router.refresh();
   };
 
   if (pathname === "/login") return <div className="min-h-screen bg-background text-foreground">{children}</div>;
