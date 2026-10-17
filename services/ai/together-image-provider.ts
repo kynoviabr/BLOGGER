@@ -69,8 +69,28 @@ export class TogetherImageProvider implements ImageProvider {
 
     const cleanPrompt = `${prompt.trim()}\n\n${TOGETHER_QUALITY_INSTRUCTIONS}`;
     const model = options?.model || this.model;
-    const width = options?.width || 1200;
-    const height = options?.height || 675; // Proporção 16:9 padrão do WordPress
+
+    // Resolução de dimensões garantindo estritamente múltiplos de 32 (exigência da API Together AI / FLUX)
+    let width = 1216; // 38 * 32
+    let height = 672; // 21 * 32 (proporção ~16:9 ideal para destaque de artigos no WordPress)
+
+    if (options?.aspectRatio === "1:1") {
+      width = 1024;
+      height = 1024;
+    } else if (options?.aspectRatio === "4:3") {
+      width = 1152;
+      height = 864;
+    } else if (options?.aspectRatio === "9:16") {
+      width = 672;
+      height = 1216;
+    }
+
+    if (options?.width) {
+      width = Math.max(256, Math.round(options.width / 32) * 32);
+    }
+    if (options?.height) {
+      height = Math.max(256, Math.round(options.height / 32) * 32);
+    }
 
     const totalAttempts = 1 + this.maxRetries;
     let lastError: Error | null = null;
