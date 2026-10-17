@@ -15,6 +15,7 @@ import {
   Globe,
   Sparkles,
   Zap,
+  Shield,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export interface ProviderInfo {
   links: {
     consoleUrl: string;
     billingUrl: string;
+    settingsUrl?: string;
     docsUrl: string;
   };
 }
@@ -52,13 +54,14 @@ export function ApiControlRoom() {
     },
     {
       id: "together",
-      name: "Together AI (FLUX / Nano Banana)",
+      name: "Together AI (FLUX.1.1-pro)",
       category: "image",
       isConfigured: false,
       status: "unconfigured",
       links: {
         consoleUrl: "https://api.together.ai/settings/api-keys",
         billingUrl: "https://api.together.ai/settings/billing",
+        settingsUrl: "https://api.together.ai/settings",
         docsUrl: "https://docs.together.ai/",
       },
     },
@@ -291,6 +294,18 @@ export function ApiControlRoom() {
                         Faturamento / Saldo
                         <ExternalLink className="h-2.5 w-2.5 opacity-60" />
                       </a>
+                      {provider.links.settingsUrl && (
+                        <a
+                          href={provider.links.settingsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                        >
+                          <Shield className="h-3 w-3 text-sky-400" />
+                          Privacidade & Ajustes
+                          <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                        </a>
+                      )}
                       <a
                         href={provider.links.docsUrl}
                         target="_blank"

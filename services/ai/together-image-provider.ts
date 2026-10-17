@@ -32,7 +32,7 @@ export class TogetherImageProvider implements ImageProvider {
     this.model =
       config.model ||
       process.env.TOGETHER_IMAGE_MODEL ||
-      "black-forest-labs/FLUX.1-schnell";
+      "black-forest-labs/FLUX.1.1-pro";
     this.timeoutMs = config.timeoutMs || 45000;
     this.maxRetries = config.maxRetries ?? 2;
   }

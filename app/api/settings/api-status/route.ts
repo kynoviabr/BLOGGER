@@ -15,6 +15,7 @@ export interface ProviderStatus {
   links: {
     consoleUrl: string;
     billingUrl: string;
+    settingsUrl?: string;
     docsUrl: string;
   };
 }
@@ -46,13 +47,14 @@ export async function GET(request: NextRequest) {
     },
     {
       id: "together",
-      name: "Together AI (FLUX / Nano Banana)",
+      name: "Together AI (FLUX.1.1-pro)",
       category: "image",
       isConfigured: !!process.env.TOGETHER_API_KEY,
       status: !process.env.TOGETHER_API_KEY ? "unconfigured" : "testing",
       links: {
         consoleUrl: "https://api.together.ai/settings/api-keys",
         billingUrl: "https://api.together.ai/settings/billing",
+        settingsUrl: "https://api.together.ai/settings",
         docsUrl: "https://docs.together.ai/",
       },
     },
