@@ -29,10 +29,11 @@ import { BackfillModal } from "./backfill-modal";
 interface OffersListProps {
   initialOffers: MonetizationOffer[];
   blogs: BlogWithRelations[];
+  defaultBlogId?: string;
 }
 
-export function OffersList({ initialOffers, blogs }: OffersListProps) {
-  const [selectedBlogFilter, setSelectedBlogFilter] = useState<string>("all");
+export function OffersList({ initialOffers, blogs, defaultBlogId }: OffersListProps) {
+  const [selectedBlogFilter, setSelectedBlogFilter] = useState<string>(defaultBlogId || "all");
   const [offers, setOffers] = useState<MonetizationOffer[]>(initialOffers);
   const [isPending, startTransition] = useTransition();
   const [isBackfillOpen, setIsBackfillOpen] = useState<boolean>(false);
@@ -40,6 +41,14 @@ export function OffersList({ initialOffers, blogs }: OffersListProps) {
   React.useEffect(() => {
     setOffers(initialOffers);
   }, [initialOffers]);
+
+  React.useEffect(() => {
+    if (defaultBlogId) {
+      setSelectedBlogFilter(defaultBlogId);
+    } else {
+      setSelectedBlogFilter("all");
+    }
+  }, [defaultBlogId]);
 
   const filteredOffers = offers.filter((offer) => {
     if (selectedBlogFilter === "all") return true;

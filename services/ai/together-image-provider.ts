@@ -87,8 +87,22 @@ export class TogetherImageProvider implements ImageProvider {
           promptSnippet: cleanPrompt.slice(0, 80),
         });
 
+        const isPro = model.includes("pro");
         const isSchnell = model.includes("schnell");
-        const steps = isSchnell ? 4 : 28;
+
+        const requestPayload: Record<string, unknown> = {
+          model,
+          prompt: cleanPrompt,
+          width,
+          height,
+          n: 1,
+        };
+
+        // Modelos PRO (FLUX.1.1-pro) controlam steps internamente e rejeitam o parâmetro com 403
+        if (!isPro) {
+          requestPayload.steps = isSchnell ? 4 : 28;
+          requestPayload.response_format = "b64_json";
+        }
 
         const response = await fetch("https://api.together.xyz/v1/images/generations", {
           method: "POST",
@@ -97,15 +111,7 @@ export class TogetherImageProvider implements ImageProvider {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({
-            model,
-            prompt: cleanPrompt,
-            width,
-            height,
-            steps,
-            n: 1,
-            response_format: "b64_json",
-          }),
+          body: JSON.stringify(requestPayload),
           signal: controller.signal,
         });
 

@@ -1,8 +1,10 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
-import { Plus, Globe, FolderTree, Languages, ExternalLink, Power, AlertCircle } from "lucide-react";
+import { Plus, Globe, FolderTree, Languages, ExternalLink, Power, AlertCircle, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { BlogService } from "@/services/blog.service";
 import { toggleBlogStatusAction } from "@/app/actions/blog";
@@ -12,7 +14,18 @@ import { getLanguageConfig } from "@/config/languages";
 
 export const dynamic = "force-dynamic";
 
-export default async function BlogsPage() {
+export default async function BlogsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ blogId?: string }>;
+}) {
+  const { blogId: queryBlogId } = await searchParams;
+  const cookieStore = await cookies();
+  const cookieBlogId = cookieStore.get("selected_blog_id")?.value;
+
+  const rawBlogId = queryBlogId !== undefined ? queryBlogId : cookieBlogId;
+  const activeBlogId = rawBlogId && rawBlogId !== "all" ? rawBlogId : undefined;
+
   let blogs: BlogWithRelations[] = [];
   let loadError: string | null = null;
 
@@ -57,11 +70,27 @@ export default async function BlogsPage() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {blogs.map((blog) => {
             const toggleWithId = toggleBlogStatusAction.bind(null, blog.id);
+            const isSelectedBlog = blog.id === activeBlogId;
 
             return (
-              <Card key={blog.id} className="flex flex-col justify-between">
+              <Card
+                key={blog.id}
+                className={`flex flex-col justify-between transition-all ${
+                  isSelectedBlog
+                    ? "border-primary ring-2 ring-primary/30 shadow-card"
+                    : "border-border"
+                }`}
+              >
                 <div>
                   <CardHeader>
+                    {isSelectedBlog && (
+                      <div className="mb-2">
+                        <Badge variant="outline" className="gap-1 border-primary text-primary bg-primary/10 text-[11px] font-semibold">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Blog Ativo no Painel
+                        </Badge>
+                      </div>
+                    )}
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <CardTitle className="text-base">{blog.name}</CardTitle>

@@ -14,17 +14,33 @@ import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 
 interface IdeasGeneratorViewProps {
   blogs: BlogWithRelations[];
+  initialBlogId?: string;
 }
 
-export function IdeasGeneratorView({ blogs }: IdeasGeneratorViewProps) {
+export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewProps) {
   const router = useRouter();
 
-  const [selectedBlogId, setSelectedBlogId] = useState<string>(blogs[0]?.id || "");
+  const activeInitialBlog = initialBlogId ? blogs.find((b) => b.id === initialBlogId) : null;
+  const [selectedBlogId, setSelectedBlogId] = useState<string>(
+    activeInitialBlog?.id || blogs[0]?.id || ""
+  );
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
-    blogs[0]?.default_language || "pt-BR"
+    activeInitialBlog?.default_language || blogs[0]?.default_language || "pt-BR"
   );
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [count, setCount] = useState<number>(5);
+
+  // Sincroniza se o blog ativo for alterado no Topbar ou query params
+  React.useEffect(() => {
+    if (initialBlogId && blogs.some((b) => b.id === initialBlogId)) {
+      setSelectedBlogId(initialBlogId);
+      setSelectedCategory("");
+      const b = blogs.find((item) => item.id === initialBlogId);
+      if (b?.default_language) {
+        setSelectedLanguage(b.default_language);
+      }
+    }
+  }, [initialBlogId, blogs]);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);

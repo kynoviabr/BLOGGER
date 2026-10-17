@@ -9,9 +9,13 @@ import { navigationItems } from "@/config/navigation";
 import { logoutAction } from "@/app/actions/auth";
 
 const iconMap: Record<string, React.ElementType> = { LayoutDashboard, Globe, Calendar, Sparkles, FileText, Image: ImageIcon, BadgeDollarSign, ScrollText, Settings };
-interface SidebarProps { isOpen: boolean; onClose?: () => void; }
+interface SidebarProps {
+  isOpen: boolean;
+  onClose?: () => void;
+  selectedBlogId?: string;
+}
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, selectedBlogId }: SidebarProps) {
   const pathname = usePathname();
   return (
     <>
@@ -26,9 +30,29 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {navigationItems.map((item) => {
             const Icon = iconMap[item.icon] || Layers;
             const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            return <Link key={item.href} href={item.href} onClick={onClose} className={cn("group flex h-10 items-center justify-between rounded-lg px-3 text-sm font-medium transition-colors", isActive ? "bg-[hsl(var(--sidebar-primary))] text-white shadow-glow" : "text-white/65 hover:bg-[hsl(var(--sidebar-accent))] hover:text-white")}>
-              <div className="flex items-center gap-3"><Icon className="h-4 w-4 shrink-0" /><span>{item.title}</span></div>{isActive && <ChevronRight className="h-4 w-4" />}
-            </Link>;
+            const targetHref = selectedBlogId && selectedBlogId !== "all"
+              ? `${item.href}${item.href.includes("?") ? "&" : "?"}blogId=${selectedBlogId}`
+              : item.href;
+
+            return (
+              <Link
+                key={item.href}
+                href={targetHref}
+                onClick={onClose}
+                className={cn(
+                  "group flex h-10 items-center justify-between rounded-lg px-3 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-[hsl(var(--sidebar-primary))] text-white shadow-glow"
+                    : "text-white/65 hover:bg-[hsl(var(--sidebar-accent))] hover:text-white"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span>{item.title}</span>
+                </div>
+                {isActive && <ChevronRight className="h-4 w-4" />}
+              </Link>
+            );
           })}
         </nav>
         <div className="space-y-3 border-t border-[hsl(var(--sidebar-border))] p-4">

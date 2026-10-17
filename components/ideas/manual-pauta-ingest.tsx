@@ -26,6 +26,7 @@ import { SUPPORTED_LANGUAGES } from "@/config/languages";
 
 interface ManualPautaIngestProps {
   blogs: BlogWithRelations[];
+  initialBlogId?: string;
 }
 
 interface EnhancedPauta {
@@ -53,13 +54,27 @@ interface CannibalizationInfo {
   }>;
 }
 
-export function ManualPautaIngest({ blogs }: ManualPautaIngestProps) {
+export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestProps) {
   const router = useRouter();
 
-  const [selectedBlogId, setSelectedBlogId] = useState<string>(blogs[0]?.id || "");
-  const [selectedLanguage, setSelectedLanguage] = useState<string>(
-    blogs[0]?.default_language || "pt-BR"
+  const activeInitialBlog = initialBlogId ? blogs.find((b) => b.id === initialBlogId) : null;
+  const [selectedBlogId, setSelectedBlogId] = useState<string>(
+    activeInitialBlog?.id || blogs[0]?.id || ""
   );
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(
+    activeInitialBlog?.default_language || blogs[0]?.default_language || "pt-BR"
+  );
+
+  // Sincroniza se o blog ativo for alterado no Topbar ou query params
+  React.useEffect(() => {
+    if (initialBlogId && blogs.some((b) => b.id === initialBlogId)) {
+      setSelectedBlogId(initialBlogId);
+      const b = blogs.find((item) => item.id === initialBlogId);
+      if (b?.default_language) {
+        setSelectedLanguage(b.default_language);
+      }
+    }
+  }, [initialBlogId, blogs]);
   const [rawText, setRawText] = useState("");
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);

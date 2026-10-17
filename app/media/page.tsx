@@ -1,19 +1,43 @@
-import { Image as ImageIcon, Sparkles, Calendar, Layers, AlertCircle } from "lucide-react";
+import { cookies } from "next/headers";
+import Link from "next/link";
+import { Image as ImageIcon, Sparkles, Calendar, Layers, AlertCircle, Filter, X } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MediaService } from "@/services/media.service";
+import { BlogService } from "@/services/blog.service";
 import { formatDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MediaAsset } from "@/types/media";
 import { DeleteMediaButton } from "@/components/media/delete-media-button";
 
-export default async function MediaPage() {
+export const dynamic = "force-dynamic";
+
+export default async function MediaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ blogId?: string }>;
+}) {
+  const { blogId: queryBlogId } = await searchParams;
+  const cookieStore = await cookies();
+  const cookieBlogId = cookieStore.get("selected_blog_id")?.value;
+
+  const rawBlogId = queryBlogId !== undefined ? queryBlogId : cookieBlogId;
+  const blogId = rawBlogId && rawBlogId !== "all" ? rawBlogId : undefined;
+
   let mediaAssets: MediaAsset[] = [];
   let loadError: string | null = null;
+  let activeBlogName = "";
 
   try {
-    mediaAssets = await MediaService.listMedia();
+    const [assets, blogs] = await Promise.all([
+      MediaService.listMedia(blogId),
+      BlogService.listBlogs().catch(() => []),
+    ]);
+    mediaAssets = assets;
+    if (blogId) {
+      activeBlogName = blogs.find((b) => b.id === blogId)?.name || "";
+    }
   } catch (err) {
     loadError = err instanceof Error ? err.message : "Não foi possível carregar os assets de mídia.";
   }
@@ -24,6 +48,24 @@ export default async function MediaPage() {
         title="Galeria de Mídia"
         description="Imagens, infográficos e assets visuais gerados pela IA para os artigos dos blogs."
       />
+
+      {activeBlogName && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/25 bg-[hsl(var(--info-bg))] px-4 py-2.5 text-xs text-foreground">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-primary shrink-0" />
+            <span>
+              Filtrando assets pelo blog: <strong>{activeBlogName}</strong>
+            </span>
+          </div>
+          <Link
+            href="/media?blogId=all"
+            className="inline-flex items-center gap-1 rounded bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground border border-border transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Ver todas as mídias
+          </Link>
+        </div>
+      )}
 
       {loadError && (
         <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">

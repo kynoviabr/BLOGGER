@@ -78,6 +78,14 @@ export async function POST(request: NextRequest) {
 
     const availableCategories = (blogCategories || []).map((c) => c.name);
 
+    // Determina a categoria alvo: se o usuário escolheu "Todas as categorias" (ou não especificou),
+    // distribui de forma estritamente rotacionada (Round-Robin) entre as categorias do blog.
+    let targetCategory = category && category !== 'all' ? category : undefined;
+    if (!targetCategory && availableCategories.length > 0) {
+      const catIndex = (Math.max(1, queuePosition) - 1) % availableCategories.length;
+      targetCategory = availableCategories[catIndex];
+    }
+
     // 3. Chamar AIProvider para gerar EXATAMENTE UMA pauta com modelo rápido
     const aiProvider = createAIProvider();
 
@@ -89,7 +97,7 @@ export async function POST(request: NextRequest) {
       niche: blog.niche || 'Geral',
       audience: blog.audience || 'Público leitor interessado no tema',
       purpose: blog.description || 'Conteúdo editorial informativo com alta credibilidade e precisão técnica',
-      category: category || undefined,
+      category: targetCategory,
       availableCategories: availableCategories.length > 0 ? availableCategories : undefined,
       language: language || blog.default_language || 'pt-BR',
       blogName: blog.name,
@@ -110,14 +118,15 @@ export async function POST(request: NextRequest) {
       idea.keywords ? idea.keywords.split(',') : [],
       {
         blog,
+        calendarCategory: targetCategory ? { name: targetCategory } : undefined,
         availableCategories: blogCategories || [],
       }
     );
-    let finalCategory = idea.category || category || availableCategories[0] || 'Geral';
 
-    if (scopeCheck.isAllowed && scopeCheck.matchedCategoryName) {
-      finalCategory = scopeCheck.matchedCategoryName;
-    } else if (!scopeCheck.isAllowed) {
+    // Garante a categoria atribuída pela rota/fila ou definida pela IA
+    const finalCategory = targetCategory || idea.category || availableCategories[0] || 'Geral';
+
+    if (!scopeCheck.isAllowed) {
       logger.warn('API.ideas.generateOne', `Pauta gerada fora do escopo estrito: "${idea.title}".`);
     }
     const durationMs = Date.now() - startTime;

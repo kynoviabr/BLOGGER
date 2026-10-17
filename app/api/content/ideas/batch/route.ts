@@ -41,7 +41,20 @@ export async function POST(request: NextRequest) {
     const resolveCategoryIdForIdea = (idea: ContentIdea): string | null => {
       if (categoriesList.length === 0) return null;
 
-      // 1. Validação estrita por ScopeGuard
+      // 1. Prioriza match direto da categoria indicada explicitamente pela IA ou pela fila
+      const targetCatName = (idea.category || category || '').trim().toLowerCase();
+
+      if (targetCatName) {
+        const found = categoriesList.find((c) =>
+          c.name.toLowerCase() === targetCatName ||
+          c.slug.toLowerCase() === targetCatName ||
+          targetCatName.includes(c.name.toLowerCase()) ||
+          targetCatName.includes(c.slug.toLowerCase())
+        );
+        if (found) return found.id;
+      }
+
+      // 2. Validação de correspondência semântica e de palavras-chave
       const parsedKeywords = idea.keywords
         ? idea.keywords.split(',').map((k) => k.trim()).filter(Boolean)
         : [];
@@ -51,16 +64,6 @@ export async function POST(request: NextRequest) {
 
       if (scopeCheck.isAllowed && scopeCheck.matchedCategorySlug) {
         const found = categoriesList.find((c) => c.slug.toLowerCase() === scopeCheck.matchedCategorySlug);
-        if (found) return found.id;
-      }
-
-      const targetCatName = (idea.category || category || '').trim().toLowerCase();
-
-      if (targetCatName) {
-        const found = categoriesList.find((c) =>
-          c.name.toLowerCase() === targetCatName ||
-          c.slug.toLowerCase() === targetCatName
-        );
         if (found) return found.id;
       }
 

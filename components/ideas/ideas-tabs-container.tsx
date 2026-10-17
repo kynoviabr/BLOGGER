@@ -10,9 +10,10 @@ import { cn } from "@/lib/utils";
 
 interface IdeasTabsContainerProps {
   blogs: BlogWithRelations[];
+  initialBlogId?: string;
 }
 
-export function IdeasTabsContainer({ blogs }: IdeasTabsContainerProps) {
+export function IdeasTabsContainer({ blogs, initialBlogId }: IdeasTabsContainerProps) {
   const [activeTab, setActiveTab] = useState<"auto" | "manual">("manual");
 
   return (
@@ -49,9 +50,9 @@ export function IdeasTabsContainer({ blogs }: IdeasTabsContainerProps) {
 
       {/* Conteúdo da Aba */}
       {activeTab === "manual" ? (
-        <ManualPautaIngest blogs={blogs} />
+        <ManualPautaIngest blogs={blogs} initialBlogId={initialBlogId} />
       ) : (
-        <IdeasGeneratorView blogs={blogs} />
+        <IdeasGeneratorView blogs={blogs} initialBlogId={initialBlogId} />
       )}
     </div>
   );

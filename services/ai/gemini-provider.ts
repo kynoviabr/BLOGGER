@@ -530,7 +530,7 @@ Cada ideia deve conter:
 
     let categoryInstruction = '';
     if (context.category) {
-      categoryInstruction = `na categoria "${context.category}"`;
+      categoryInstruction = `CATEGORIA OBRIGATÓRIA DA PAUTA: "${context.category}".\nA pauta gerada DEVE ser 100% sobre esta categoria temática ("${context.category}"). NÃO crie sobre outros assuntos ou categorias do portal. O campo "category" no JSON deve ser exatamente "${context.category}".`;
     } else if (context.availableCategories && context.availableCategories.length > 0) {
       categoryInstruction = `em uma das seguintes categorias do blog: ${context.availableCategories.join(', ')}`;
     } else {
@@ -623,7 +623,7 @@ INSTRUÇÕES CRÍTICAS DE DIVERSIDADE E FORMATO:
       keywords: idea.keywords.trim(),
       description: idea.description.trim(),
       type: idea.type.trim(),
-      category: idea.category?.trim() || context.category,
+      category: context.category || idea.category?.trim(),
     };
   }
 }

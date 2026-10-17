@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import {
   Globe,
@@ -9,6 +10,8 @@ import {
   Plus,
   ArrowRight,
   TrendingUp,
+  Filter,
+  X,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,15 +25,29 @@ import { MediaService } from "@/services/media.service";
 import { LogService } from "@/services/log.service";
 import { formatDate } from "@/lib/utils";
 
-export default async function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ blogId?: string }>;
+}) {
+  const { blogId: queryBlogId } = await searchParams;
+  const cookieStore = await cookies();
+  const cookieBlogId = cookieStore.get("selected_blog_id")?.value;
+
+  const rawBlogId = queryBlogId !== undefined ? queryBlogId : cookieBlogId;
+  const blogId = rawBlogId && rawBlogId !== "all" ? rawBlogId : undefined;
+
   const [blogs, calendarItems, contentItems, mediaAssets, logs] = await Promise.all([
     BlogService.listBlogs().catch(() => []),
-    CalendarService.listCalendarItems().catch(() => []),
-    ContentService.listContent().catch(() => []),
-    MediaService.listMedia().catch(() => []),
+    CalendarService.listCalendarItems({ blogId }).catch(() => []),
+    ContentService.listContent({ blogId }).catch(() => []),
+    MediaService.listMedia(blogId).catch(() => []),
     LogService.listLogs().catch(() => []),
   ]);
 
+  const activeBlog = blogId ? blogs.find((b) => b.id === blogId) : null;
   const activeBlogs = blogs.filter((b) => b.status === "active").length;
   const plannedTopics = calendarItems.filter((c) => c.status === "PLANNED" || c.status === "IDEA").length;
   const inProgressTopics = calendarItems.filter((c) => c.status === "IN_PROGRESS").length;
@@ -44,7 +61,7 @@ export default async function DashboardPage() {
         description="Visão geral dos blogs gerenciados, pautas em pipeline e publicações agendadas."
         actions={
           <div className="flex gap-2">
-            <Link href="/calendar/new">
+            <Link href={blogId ? `/calendar/new?blogId=${blogId}` : "/calendar/new"}>
               <Button size="sm" className="gap-1.5">
                 <Plus className="h-4 w-4" />
                 Nova Pauta
@@ -60,21 +77,42 @@ export default async function DashboardPage() {
         }
       />
 
+      {/* Indicador de Filtro Ativo por Blog */}
+      {activeBlog && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/25 bg-[hsl(var(--info-bg))] px-4 py-2.5 text-xs text-foreground">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-primary shrink-0" />
+            <span>
+              Filtrando métricas e dados pelo blog: <strong>{activeBlog.name}</strong> ({activeBlog.default_language})
+            </span>
+          </div>
+          <Link
+            href="/?blogId=all"
+            className="inline-flex items-center gap-1 rounded bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground border border-border transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Ver todos os blogs
+          </Link>
+        </div>
+      )}
+
       {/* Metric Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Blogs Ativos
+              {activeBlog ? "Blog Selecionado" : "Blogs Ativos"}
             </CardTitle>
             <Globe className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {activeBlogs} <span className="text-xs font-normal text-slate-500">/ {blogs.length} total</span>
+            <div className="text-2xl font-bold text-foreground truncate" title={activeBlog ? activeBlog.name : undefined}>
+              {activeBlog ? activeBlog.name : activeBlogs} {!activeBlog && <span className="text-xs font-normal text-slate-500">/ {blogs.length} total</span>}
             </div>
             <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-              <span className="text-muted-foreground font-medium">Blogs ativos cadastrados</span>
+              <span className="text-muted-foreground font-medium">
+                {activeBlog ? `Nicho: ${activeBlog.niche || "Geral"}` : "Blogs ativos cadastrados"}
+              </span>
             </p>
           </CardContent>
         </Card>
@@ -141,7 +179,7 @@ export default async function DashboardPage() {
               Próximas Pautas no Calendário
             </h2>
             <Link
-              href="/calendar"
+              href={blogId ? `/calendar?blogId=${blogId}` : "/calendar"}
               className="text-xs font-medium text-primary hover:text-primary flex items-center gap-1"
             >
               Ver todas <ArrowRight className="h-3.5 w-3.5" />

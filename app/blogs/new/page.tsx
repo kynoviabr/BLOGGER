@@ -18,6 +18,26 @@ const initialState: ActionResult = {};
 export default function NewBlogPage() {
   const [state, formAction, isPending] = useActionState(createBlogAction, initialState);
 
+  const [formData, setFormData] = React.useState({
+    name: "",
+    slug: "",
+    domain: "",
+    default_language: "pt-BR",
+    niche: "",
+    audience: "",
+    description: "",
+    wp_username: "",
+    wp_application_password: "",
+    wp_site_url: "",
+  });
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
   return (
     <div className="space-y-6 max-w-3xl">
       <Link
@@ -54,13 +74,26 @@ export default function NewBlogPage() {
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Nome do Blog *
                 </label>
-                <Input name="name" placeholder="Ex: AI & Robotics Daily" required disabled={isPending} />
+                <Input
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="Ex: AI & Robotics Daily"
+                  required
+                  disabled={isPending}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Slug (URL amigável)
                 </label>
-                <Input name="slug" placeholder="ai-robotics-daily (opcional)" disabled={isPending} />
+                <Input
+                  name="slug"
+                  value={formData.slug}
+                  onChange={handleChange}
+                  placeholder="ai-robotics-daily (opcional)"
+                  disabled={isPending}
+                />
               </div>
             </div>
 
@@ -69,13 +102,25 @@ export default function NewBlogPage() {
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Domínio Oficial *
                 </label>
-                <Input name="domain" placeholder="exemplo.com" required disabled={isPending} />
+                <Input
+                  name="domain"
+                  value={formData.domain}
+                  onChange={handleChange}
+                  placeholder="exemplo.com"
+                  required
+                  disabled={isPending}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Idioma Padrão *
                 </label>
-                <Select name="default_language" defaultValue="pt-BR" disabled={isPending}>
+                <Select
+                  name="default_language"
+                  value={formData.default_language}
+                  onChange={handleChange}
+                  disabled={isPending}
+                >
                   {SUPPORTED_LANGUAGES.map((lang) => (
                     <option key={lang.code} value={lang.code}>
                       {lang.flag} {lang.name} ({lang.code})
@@ -90,13 +135,26 @@ export default function NewBlogPage() {
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Nicho de Atuação *
                 </label>
-                <Input name="niche" placeholder="Ex: Tecnologia, Finanças, Saúde" required disabled={isPending} />
+                <Input
+                  name="niche"
+                  value={formData.niche}
+                  onChange={handleChange}
+                  placeholder="Ex: Tecnologia, Finanças, Saúde"
+                  required
+                  disabled={isPending}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Público-Alvo
                 </label>
-                <Input name="audience" placeholder="Ex: Desenvolvedores, Founders, Estudantes" disabled={isPending} />
+                <Input
+                  name="audience"
+                  value={formData.audience}
+                  onChange={handleChange}
+                  placeholder="Ex: Desenvolvedores, Founders, Estudantes"
+                  disabled={isPending}
+                />
               </div>
             </div>
 
@@ -106,6 +164,8 @@ export default function NewBlogPage() {
               </label>
               <Textarea
                 name="description"
+                value={formData.description}
+                onChange={handleChange}
                 placeholder="Descreva o propósito deste blog, principais temáticas e posicionamento editorial desejado..."
                 rows={3}
                 disabled={isPending}
@@ -131,6 +191,8 @@ export default function NewBlogPage() {
                   </label>
                   <Input
                     name="wp_username"
+                    value={formData.wp_username}
+                    onChange={handleChange}
                     placeholder="Ex: admin ou editor_ai"
                     disabled={isPending}
                   />
@@ -142,6 +204,8 @@ export default function NewBlogPage() {
                   <Input
                     name="wp_application_password"
                     type="password"
+                    value={formData.wp_application_password}
+                    onChange={handleChange}
                     placeholder="Ex: abcd efgh ijkl mnop"
                     disabled={isPending}
                     autoComplete="new-password"
@@ -155,6 +219,8 @@ export default function NewBlogPage() {
                 </label>
                 <Input
                   name="wp_site_url"
+                  value={formData.wp_site_url}
+                  onChange={handleChange}
                   placeholder="Ex: https://meublog.com (em branco usa https://{dominio})"
                   disabled={isPending}
                 />

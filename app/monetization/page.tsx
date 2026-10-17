@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { PageHeader } from "@/components/shared/page-header";
 import { MonetizationService } from "@/services/monetization";
 import { BlogService } from "@/services/blog.service";
@@ -7,14 +8,25 @@ import { BlogWithRelations } from "@/types/blog";
 
 export const dynamic = "force-dynamic";
 
-export default async function MonetizationPage() {
+export default async function MonetizationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ blogId?: string }>;
+}) {
+  const { blogId: queryBlogId } = await searchParams;
+  const cookieStore = await cookies();
+  const cookieBlogId = cookieStore.get("selected_blog_id")?.value;
+
+  const rawBlogId = queryBlogId !== undefined ? queryBlogId : cookieBlogId;
+  const blogId = rawBlogId && rawBlogId !== "all" ? rawBlogId : undefined;
+
   let offers: MonetizationOffer[] = [];
   let blogs: BlogWithRelations[] = [];
   let errorMsg: string | null = null;
 
   try {
     [offers, blogs] = await Promise.all([
-      MonetizationService.listOffers(),
+      MonetizationService.listOffers(blogId),
       BlogService.listBlogs(),
     ]);
   } catch (err) {
@@ -129,7 +141,7 @@ END $$;`}
           </div>
         </div>
       ) : (
-        <OffersList initialOffers={offers} blogs={blogs} />
+        <OffersList initialOffers={offers} blogs={blogs} defaultBlogId={blogId} />
       )}
     </div>
   );

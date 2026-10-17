@@ -553,7 +553,7 @@ export class DeepSeekProvider implements AIProvider {
       keywords: parsed.keywords.trim(),
       description: parsed.description.trim(),
       type: parsed.type?.trim() || 'Guia Completo',
-      category: parsed.category?.trim() || context.category,
+      category: context.category || parsed.category?.trim(),
       durationMs: completion.durationMs,
       usage: completion.usage
         ? {

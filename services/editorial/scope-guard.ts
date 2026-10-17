@@ -41,6 +41,11 @@ const FORBIDDEN_FINANCE_TOPIC_TERMS = [
   "tráfego pago",
   "trafego pago",
   "afiliado digital",
+  "inteligência artificial",
+  "inteligencia artificial",
+  "agentes de ia",
+  "chatgpt",
+  "llm",
 ];
 
 const MULTILINGUAL_CATEGORY_KEYWORDS: Record<OfficialCategorySlug, string[]> = {
@@ -156,14 +161,19 @@ export function validateEditorialScope(
       }
     }
 
-    // Se o blog possui categorias mas não houve match por substring no título:
-    // Permite utilizando a primeira categoria cadastrada do blog
-    const firstCategory = options.availableCategories[0];
-    return {
-      isAllowed: true,
-      matchedCategorySlug: firstCategory.slug,
-      matchedCategoryName: firstCategory.name,
-    };
+    // Se o blog não for financeiro e não houve match direto, utiliza a primeira categoria
+    const bNiche = (options?.blog?.niche || '').toLowerCase();
+    const bSlug = (options?.blog?.slug || '').toLowerCase();
+    const isFinBlog = bSlug.includes('dinheiro') || bSlug.includes('finan') || bNiche.includes('finan') || !options?.blog;
+
+    if (!isFinBlog) {
+      const firstCategory = options.availableCategories[0];
+      return {
+        isAllowed: true,
+        matchedCategorySlug: firstCategory.slug,
+        matchedCategoryName: firstCategory.name,
+      };
+    }
   }
 
   // 4. Se for o blog de Finanças Pessoais (ou nicho financeiro):

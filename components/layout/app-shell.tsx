@@ -9,15 +9,18 @@ import { BlogWithRelations } from "@/types/blog";
 interface AppShellProps {
   children: React.ReactNode;
   blogs?: BlogWithRelations[];
+  initialBlogId?: string;
 }
 
-export function AppShell({ children, blogs = [] }: AppShellProps) {
+export function AppShell({ children, blogs = [], initialBlogId }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
-  // Inicializa o blog selecionado a partir do primeiro blog
-  const [selectedBlogId, setSelectedBlogId] = React.useState<string>(blogs[0]?.id || "");
+  // Inicializa o blog selecionado a partir do SSR cookie ou do primeiro blog
+  const [selectedBlogId, setSelectedBlogId] = React.useState<string>(
+    initialBlogId !== undefined ? initialBlogId : (blogs[0]?.id || "all")
+  );
 
   // Sincroniza do cookie, localStorage ou query string após a montagem no cliente
   React.useEffect(() => {
@@ -67,7 +70,7 @@ export function AppShell({ children, blogs = [] }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} selectedBlogId={selectedBlogId} />
       <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
         <Topbar
           onMenuClick={() => setSidebarOpen(true)}
