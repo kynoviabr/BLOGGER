@@ -243,6 +243,65 @@ export function sanitizeMarkdown(rawMarkdown: string, postTitle?: string): strin
 }
 
 /**
+ * Remove anotações administrativas que possam ter vazado para o corpo do artigo
+ * (ex: sugestões de ferramentas ou blocos internos de briefing).
+ */
+export function sanitizeAdminToolAnnotations(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<!--\s*ADMIN_TOOL_SUGGESTION[\s\S]*?-->/gi, '')
+    .replace(/(?:^|\n)\s*(?:\*\*|__)?(?:Sugestão de Ferramenta|Admin Tool Suggestion)[^\n]*\n?/gi, '')
+    .replace(/(?:^|\n)\s*adminToolSuggestion:[^\n]*\n?/gi, '')
+    .trim();
+}
+
+/**
+ * Formata o Resumo Executivo (AEO / Posição Zero do Google) em um Box elegante e escaneável
+ * de alta autoridade visual, sem quebrar o layout.
+ */
+export function formatAeoQuickAnswerBox(html: string): string {
+  if (!html) return '';
+
+  // 1. Caso venha envelopado em <blockquote> gerado a partir do markdown "> **Resumo Executivo...**"
+  const blockquoteRegex = /<blockquote>\s*<p>\s*<strong>Resumo Executivo\s*(?:\([^)]*\))?:?<\/strong>:?\s*(?:<br\s*\/?>)?([\s\S]*?)<\/p>\s*<\/blockquote>/gi;
+  let formatted = html.replace(blockquoteRegex, (_match, content) => {
+    return `<div class="ud-quick-answer-box" style="background-color: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; padding: 20px 24px; margin: 28px 0; color: #166534; font-size: 16px; line-height: 1.6; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+  <strong style="color: #15803d; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Resumo Executivo (Direto ao Ponto)</strong>
+  <div style="margin: 0; color: #14532d;">${content.trim()}</div>
+</div>`;
+  });
+
+  // 2. Caso venha como parágrafo normal solto
+  const paragraphRegex = /<p>\s*<strong>Resumo Executivo\s*(?:\([^)]*\))?:?<\/strong>:?\s*(?:<br\s*\/?>)?([\s\S]*?)<\/p>/gi;
+  formatted = formatted.replace(paragraphRegex, (_match, content) => {
+    return `<div class="ud-quick-answer-box" style="background-color: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; padding: 20px 24px; margin: 28px 0; color: #166534; font-size: 16px; line-height: 1.6; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+  <strong style="color: #15803d; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Resumo Executivo (Direto ao Ponto)</strong>
+  <div style="margin: 0; color: #14532d;">${content.trim()}</div>
+</div>`;
+  });
+
+  return formatted;
+}
+
+/**
+ * Envolve tabelas em contêineres responsivos com scroll horizontal suave,
+ * prevenindo quebras de layout mobile (CLS) e garantindo visualização limpa de anúncios.
+ */
+export function wrapTablesForMobileResponsiveness(html: string): string {
+  if (!html || !html.includes('<table')) return html;
+
+  // Evita re-empacotar tabelas já envolvidas
+  const cleaned = html.replace(
+    /<div class="ud-table-wrapper"[^>]*>\s*(<table[\s\S]*?<\/table>)\s*<\/div>/gi,
+    '$1'
+  );
+
+  return cleaned.replace(/(<table(?:\s+[^>]*)?>[\s\S]*?<\/table>)/gi, (tableHtml) => {
+    return `<div class="ud-table-wrapper" style="overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 28px 0; max-width: 100%;">\n${tableHtml}\n</div>`;
+  });
+}
+
+/**
  * Converte Markdown para HTML semântico válido com suporte completo a tabelas e listas.
  */
 export async function convertMarkdownToHtml(markdown: string): Promise<string> {
@@ -297,10 +356,20 @@ export async function formatArticleForWordPress(
     customDisclaimer?: string;
   }
 ): Promise<FormattedContentResult> {
-  const sanitizedMd = sanitizeMarkdown(rawMarkdown, options.title);
+  // 1. Remove anotações administrativas que possam ter vazado
+  const cleanMarkdown = sanitizeAdminToolAnnotations(rawMarkdown);
+  const sanitizedMd = sanitizeMarkdown(cleanMarkdown, options.title);
+  
+  // 2. Converte Markdown para HTML semântico
   let html = await convertMarkdownToHtml(sanitizedMd);
 
-  // Injeta ofertas de monetização antes do disclaimer final
+  // 3. Estiliza o Box AEO (Resumo Executivo para Posição Zero)
+  html = formatAeoQuickAnswerBox(html);
+
+  // 4. Envolve tabelas para prevenir quebras de layout mobile
+  html = wrapTablesForMobileResponsiveness(html);
+
+  // 5. Injeta ofertas de monetização antes do disclaimer final
   if (options.offers && options.offers.length > 0) {
     html = injectMonetizationBoxes(html, options.offers);
   }

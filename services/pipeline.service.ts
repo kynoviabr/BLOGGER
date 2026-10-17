@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
 import { InternalLinksService } from '@/services/editorial/internal-links.service';
+import { ImageOptimizer } from '@/lib/image-optimizer';
 import crypto from 'crypto';
 
 export interface PipelineExecutionOptions {
@@ -15,6 +16,8 @@ export interface PipelineExecutionOptions {
   dryRun?: boolean;
   postStatus?: 'draft' | 'publish';
   language?: string;
+  imageMode?: 'auto' | 'inspect';
+  skipInspection?: boolean;
 }
 
 export interface PipelineExecutionResult {
@@ -23,9 +26,12 @@ export interface PipelineExecutionResult {
   contentId?: string;
   wpUrl?: string;
   wpPostId?: string | number;
-  status: 'PUBLISHED' | 'FAILED';
+  status: 'PUBLISHED' | 'FAILED' | 'READY';
   durationMs: number;
   error?: string;
+  requiresApproval?: boolean;
+  imageUrl?: string;
+  altText?: string;
 }
 
 export class PipelineService {
@@ -394,6 +400,33 @@ export class PipelineService {
         throw new Error(imgErrMsg);
       }
 
+      // 5.1 Verificação de Modo de Inspeção de Imagem (AUTO vs INSPECT)
+      const blogEdConfig = (blog?.editorial_config as Record<string, unknown>) || {};
+      const imageMode = options.imageMode || (blogEdConfig.image_mode as 'auto' | 'inspect') || 'auto';
+
+      if (imageMode === 'inspect' && !options.skipInspection) {
+        logger.info('PipelineService', `Pauta "${calendarItem.proposed_title}" pausada para inspeção visual de imagem (Modo INSPECT ativo).`);
+        await adminSupabase
+          .from('editorial_calendar')
+          .update({
+            status: 'READY',
+            notes: 'Aguardando aprovação visual da imagem pelo administrador (Modo INSPECT).',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', calendarId);
+
+        return {
+          success: true,
+          calendarId,
+          contentId,
+          status: 'READY',
+          durationMs: Date.now() - startTime,
+          requiresApproval: true,
+          imageUrl: publicUrl || generatedImage?.imageUrl,
+          altText: generatedImage?.altText,
+        };
+      }
+
       // 6. ETAPA 3: Publicar no WordPress
       const publisher = createPublisherProviderForBlog(blog);
 
@@ -401,14 +434,26 @@ export class PipelineService {
 
       if (generatedImage?.buffer) {
         try {
-          const mimeType = generatedImage.mimeType || 'image/jpeg';
-          const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-          const fileName = `${generatedArticle.slug}.${ext}`;
+          // Otimiza buffer para WebP leve de alta fidelidade
+          const optimized = await ImageOptimizer.optimize(
+            generatedImage.buffer,
+            generatedImage.mimeType || 'image/jpeg',
+            { format: 'webp', quality: 82 }
+          );
+
+          // Nome de arquivo limpo e semântico para SEO no Google Imagens
+          const cleanFocusKw = (generatedArticle.focusKeyword || keywords[0] || generatedArticle.slug)
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
+          const fileName = `${cleanFocusKw || generatedArticle.slug}.webp`;
 
           const mediaUploadResult = await publisher.uploadMedia({
             fileName,
-            mimeType,
-            data: generatedImage.buffer,
+            mimeType: optimized.mimeType || 'image/webp',
+            data: optimized.buffer,
             title: generatedArticle.title,
             altText: generatedImage.altText || generatedArticle.title,
           });

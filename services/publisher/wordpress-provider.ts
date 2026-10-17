@@ -9,6 +9,13 @@ import {
 import { PublishingError } from '@/lib/errors/publisher.errors';
 import { logger } from '@/lib/logger';
 import { formatArticleForWordPress } from '@/services/editorial/content-formatter';
+import {
+  extractFaqItems,
+  buildFaqPageSchemaJson,
+  buildFaqPageSchemaScript,
+  optimizeTitleForMobile,
+  optimizeMetaDescription,
+} from '@/services/editorial/schema-generator';
 
 export interface WordPressConfig {
   siteUrl?: string; // ex: https://meublog.com
@@ -526,17 +533,39 @@ export class WordPressProvider implements PublisherProvider {
 
     // Metadados SEO (Compatibilidade com Yoast SEO e Rank Math)
     const seoFocusKw = article.focusKeyword || article.primaryKeyword;
-    const seoMetaDesc = article.metaDescription || formatted.excerpt;
+    const rawMetaDesc = article.metaDescription || formatted.excerpt;
+    const finalMetaDesc = optimizeMetaDescription(rawMetaDesc);
+    const finalTitle = optimizeTitleForMobile(article.metaTitle || article.title);
+
+    // Schema JSON-LD FAQPage (Posição Zero / Rich Snippets)
+    const faqItems = extractFaqItems(article.content || '');
+    const faqSchemaJson = buildFaqPageSchemaJson(faqItems);
+    const faqSchemaScript = buildFaqPageSchemaScript(faqItems);
+
+    // Injeção híbrida garantida: se houver FAQ, injeta <script type="application/ld+json"> no HTML
+    if (faqSchemaScript && !String(payload.content).includes('SCHEMA_FAQ_START')) {
+      if (String(payload.content).includes('ud-aviso')) {
+        payload.content = String(payload.content).replace(
+          '<p class="ud-aviso">',
+          `${faqSchemaScript}\n\n<p class="ud-aviso">`
+        );
+      } else {
+        payload.content = `${payload.content}\n\n${faqSchemaScript}`;
+      }
+    }
 
     const seoMeta: Record<string, string> = {};
-    if (article.metaTitle) seoMeta.rank_math_title = article.metaTitle;
-    if (seoMetaDesc) {
-      seoMeta.rank_math_description = seoMetaDesc;
-      seoMeta._yoast_wpseo_metadesc = seoMetaDesc;
+    if (finalTitle) seoMeta.rank_math_title = finalTitle;
+    if (finalMetaDesc) {
+      seoMeta.rank_math_description = finalMetaDesc;
+      seoMeta._yoast_wpseo_metadesc = finalMetaDesc;
     }
     if (seoFocusKw) {
       seoMeta.rank_math_focus_keyword = seoFocusKw;
       seoMeta._yoast_wpseo_focuskw = seoFocusKw;
+    }
+    if (faqSchemaJson) {
+      seoMeta.rank_math_schema_FAQPage = JSON.stringify(faqSchemaJson);
     }
 
     if (Object.keys(seoMeta).length > 0) {

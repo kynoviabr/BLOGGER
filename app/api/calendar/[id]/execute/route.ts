@@ -15,10 +15,15 @@ export async function POST(
     const user = await requireAuth();
 
     let requestLanguage: string | undefined;
+    let requestImageMode: 'auto' | 'inspect' | undefined;
+    let requestSkipInspection: boolean | undefined;
+
     try {
       const body = await request.json();
-      if (body && typeof body.language === 'string') {
-        requestLanguage = body.language;
+      if (body) {
+        if (typeof body.language === 'string') requestLanguage = body.language;
+        if (body.imageMode === 'auto' || body.imageMode === 'inspect') requestImageMode = body.imageMode;
+        if (typeof body.skipInspection === 'boolean') requestSkipInspection = body.skipInspection;
       }
     } catch {
       // Body vazio (chamada tradicional sem payload)
@@ -29,6 +34,8 @@ export async function POST(
       userId: user.id,
       triggeredBy: 'manual-ui',
       language: requestLanguage,
+      imageMode: requestImageMode,
+      skipInspection: requestSkipInspection,
     });
 
     if (!result.success) {

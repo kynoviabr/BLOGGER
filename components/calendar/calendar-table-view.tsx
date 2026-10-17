@@ -48,6 +48,17 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
   const [queueProgress, setQueueProgress] = useState<QueueProgress | null>(null);
   const [executingItem, setExecutingItem] = useState<CalendarItemWithRelations | null>(null);
   const [executionLanguage, setExecutionLanguage] = useState<string>("pt-BR");
+  const [executionImageMode, setExecutionImageMode] = useState<"auto" | "inspect">("inspect");
+  const [inspectingItem, setInspectingItem] = useState<{
+    calendarId: string;
+    contentId?: string;
+    title: string;
+    imageUrl?: string;
+    altText?: string;
+  } | null>(null);
+  const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
+  const [customImageAdjustment, setCustomImageAdjustment] = useState("");
+  const [isPublishingInspected, setIsPublishingInspected] = useState(false);
   const stopQueueRef = useRef(false);
 
   const [notification, setNotification] = useState<{
@@ -208,6 +219,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
     if (!executingItem) return;
     const item = executingItem;
     const lang = executionLanguage;
+    const mode = executionImageMode;
     setExecutingItem(null);
     setRunningId(item.id);
     setNotification(null);
@@ -216,12 +228,33 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
       const res = await fetch(`/api/calendar/${item.id}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language: lang }),
+        body: JSON.stringify({ language: lang, imageMode: mode }),
       });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Falha ao executar pipeline da pauta.");
+      }
+
+      // Se estiver em modo INSPECT e requerer aprovação da imagem
+      if (data.data?.requiresApproval) {
+        setItems((prev) =>
+          prev.map((it) =>
+            it.id === item.id ? { ...it, status: "READY" as CalendarStatus, language: lang, last_error: null } : it
+          )
+        );
+        setInspectingItem({
+          calendarId: item.id,
+          contentId: data.data.contentId,
+          title: item.proposed_title || item.topic,
+          imageUrl: data.data.imageUrl,
+          altText: data.data.altText,
+        });
+        setNotification({
+          type: "info",
+          message: `Artigo e imagem gerados com sucesso! Pauta em modo INSPECT: avalie e aprove a imagem abaixo para publicar no WordPress.`,
+        });
+        return;
       }
 
       setItems((prev) =>
@@ -251,6 +284,80 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
       });
     } finally {
       setRunningId(null);
+    }
+  };
+
+  const handleApproveAndPublish = async () => {
+    if (!inspectingItem) return;
+    setIsPublishingInspected(true);
+    try {
+      const res = await fetch(`/api/calendar/${inspectingItem.calendarId}/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skipInspection: true, language: executionLanguage }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Falha ao publicar no WordPress.");
+      }
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === inspectingItem.calendarId
+            ? { ...it, status: "PUBLISHED" as CalendarStatus, last_error: null }
+            : it
+        )
+      );
+      setNotification({
+        type: "success",
+        message: `Imagem aprovada e artigo publicado no WordPress com sucesso!`,
+        wpUrl: data.data?.wpUrl,
+      });
+      setInspectingItem(null);
+      router.refresh();
+    } catch (err: unknown) {
+      setNotification({
+        type: "error",
+        message: err instanceof Error ? err.message : "Erro ao publicar no WordPress.",
+      });
+    } finally {
+      setIsPublishingInspected(false);
+    }
+  };
+
+  const handleRegenerateImage = async () => {
+    if (!inspectingItem?.contentId) return;
+    setIsRegeneratingImage(true);
+    try {
+      const res = await fetch(`/api/content/${inspectingItem.contentId}/image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customAdjustment: customImageAdjustment }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Falha ao regerar imagem.");
+      }
+      setInspectingItem((prev) =>
+        prev
+          ? {
+              ...prev,
+              imageUrl: data.mediaAsset?.public_url || prev.imageUrl,
+              altText: data.mediaAsset?.alt_text || prev.altText,
+            }
+          : null
+      );
+      setNotification({
+        type: "success",
+        message: "Nova imagem gerada com sucesso! Avalie o resultado no modal.",
+      });
+      setCustomImageAdjustment("");
+    } catch (err: unknown) {
+      setNotification({
+        type: "error",
+        message: err instanceof Error ? err.message : "Erro ao regerar imagem.",
+      });
+    } finally {
+      setIsRegeneratingImage(false);
     }
   };
 
@@ -575,6 +682,25 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
             </p>
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Modo de Geração de Imagem *
+            </label>
+            <Select
+              value={executionImageMode}
+              onChange={(e) => setExecutionImageMode(e.target.value as "auto" | "inspect")}
+              disabled={runningId !== null}
+            >
+              <option value="inspect">👁️ Modo INSPECT (Pausar e inspecionar imagem antes de publicar)</option>
+              <option value="auto">⚡ Modo AUTO (Gerar imagem e publicar direto no WordPress)</option>
+            </Select>
+            <p className="text-[11px] text-slate-500">
+              {executionImageMode === "inspect"
+                ? "O artigo e imagem serão gerados, mas a publicação no WordPress aguardará a sua aprovação visual."
+                : "O pipeline rodará 100% autônomo e publicará o artigo e a imagem automaticamente."}
+            </p>
+          </div>
+
           <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
             <Button
               type="button"
@@ -593,6 +719,104 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
               <Play className="h-4 w-4 fill-current" />
               Confirmar e Executar Pipeline
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de Inspeção e Aprovação de Imagem (Modo INSPECT) */}
+      <Modal
+        isOpen={inspectingItem !== null}
+        onClose={() => setInspectingItem(null)}
+        title="Inspeção de Imagem: Aprovar para Publicação"
+        description="Avalie a imagem gerada para o artigo antes de enviar ao WordPress."
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-slate-50 p-3 border border-slate-200 dark:bg-slate-800/40 dark:border-slate-700 text-xs">
+            <span className="text-slate-500 block text-[11px] uppercase font-semibold">Artigo Pronto:</span>
+            <span className="text-slate-900 dark:text-slate-100 font-semibold text-sm block mt-0.5">
+              {inspectingItem?.title}
+            </span>
+          </div>
+
+          {/* Preview da Imagem Gerada em 16:9 */}
+          <div className="space-y-2">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+              Imagem de Destaque Gerada (16:9):
+            </span>
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black/10 flex items-center justify-center">
+              {inspectingItem?.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={inspectingItem.imageUrl}
+                  alt={inspectingItem.altText || inspectingItem.title}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-2 p-6 text-muted-foreground text-xs">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span>Carregando preview da imagem...</span>
+                </div>
+              )}
+            </div>
+            {inspectingItem?.altText && (
+              <p className="text-[11px] text-muted-foreground italic">
+                <span className="font-semibold not-italic">Alt Text:</span> {inspectingItem.altText}
+              </p>
+            )}
+          </div>
+
+          {/* Ajuste Opcional para Refazer Imagem */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between">
+              <span>Instrução de Ajuste para Refazer (Opcional):</span>
+              <span className="text-[10px] text-muted-foreground">Ex: "iluminação mais quente", "foco em balança"</span>
+            </label>
+            <input
+              type="text"
+              value={customImageAdjustment}
+              onChange={(e) => setCustomImageAdjustment(e.target.value)}
+              placeholder="Digite o que deseja mudar na imagem se quiser refazer..."
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              disabled={isRegeneratingImage || isPublishingInspected}
+            />
+          </div>
+
+          {/* Botões de Ação */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRegenerateImage}
+              disabled={isRegeneratingImage || isPublishingInspected}
+              className="gap-1.5 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 text-xs"
+            >
+              <RotateCcw className={`h-3.5 w-3.5 ${isRegeneratingImage ? "animate-spin" : ""}`} />
+              {isRegeneratingImage ? "Regerando Imagem..." : "Refazer Imagem"}
+            </Button>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setInspectingItem(null)}
+                disabled={isPublishingInspected || isRegeneratingImage}
+                className="text-xs"
+              >
+                Decidir Depois
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleApproveAndPublish}
+                disabled={isPublishingInspected || isRegeneratingImage}
+                className="gap-1.5 bg-success text-white hover:brightness-95 text-xs font-semibold shadow-sm"
+              >
+                <CheckCircle2 className={`h-3.5 w-3.5 ${isPublishingInspected ? "animate-spin" : ""}`} />
+                {isPublishingInspected ? "Publicando no WordPress..." : "Aprovar & Publicar no WordPress"}
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

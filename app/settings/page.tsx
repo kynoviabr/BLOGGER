@@ -1,7 +1,8 @@
-import { CheckCircle2, XCircle, Key, Server, Cpu, UploadCloud, ShieldAlert, FileCode } from "lucide-react";
+import { CheckCircle2, XCircle, Server, Cpu, UploadCloud, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ApiControlRoom } from "@/components/settings/api-control-room";
 
 export default function SettingsPage() {
   const envCheck = [
@@ -32,13 +33,23 @@ export default function SettingsPage() {
       items: [
         {
           name: "GEMINI_API_KEY",
-          description: "Chave de acesso à API do Google Gemini (Fase 02)",
+          description: "Chave de acesso à API do Google Gemini (Texto & Ideação)",
           isSet: !!process.env.GEMINI_API_KEY,
         },
         {
-          name: "IMAGE_API_KEY",
-          description: "Chave do provedor de geração de imagens (Fase 02)",
-          isSet: !!process.env.IMAGE_API_KEY,
+          name: "TOGETHER_API_KEY",
+          description: "Chave da Together AI para FLUX e Nano Banana (Imagens)",
+          isSet: !!process.env.TOGETHER_API_KEY,
+        },
+        {
+          name: "DEEPSEEK_API_KEY",
+          description: "Chave do DeepSeek V3 para redação editorial profunda",
+          isSet: !!process.env.DEEPSEEK_API_KEY,
+        },
+        {
+          name: "OPENAI_API_KEY",
+          description: "Chave da OpenAI para DALL-E / gpt-image-1-mini",
+          isSet: !!process.env.OPENAI_API_KEY,
         },
       ],
     },
@@ -52,23 +63,32 @@ export default function SettingsPage() {
           isSet: !!process.env.CRON_SECRET,
         },
         {
-          name: "PUBLISHER_TYPE",
-          description: "Driver de publicação ativo (mock, wordpress, api)",
-          isSet: !!process.env.PUBLISHER_TYPE,
+          name: "WORDPRESS_SITE_URL",
+          description: "URL base do blog WordPress de destino",
+          isSet: !!process.env.WORDPRESS_SITE_URL,
+        },
+        {
+          name: "WORDPRESS_APPLICATION_PASSWORD",
+          description: "Senha de aplicativo REST API para publicação",
+          isSet: !!process.env.WORDPRESS_APPLICATION_PASSWORD,
         },
       ],
     },
   ];
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="space-y-8 max-w-5xl">
       <PageHeader
-        title="Configurações & Ambiente"
-        description="Diagnóstico da infraestrutura, status das variáveis de ambiente e diretrizes de evolução da Content Factory."
+        title="Configurações & Sala de Controle"
+        description="Gerenciamento de conexões de IA, links diretos de faturamento, saldo de créditos e diagnóstico da infraestrutura."
       />
 
+      {/* Sala de Controle das APIs em Tempo Real */}
+      <ApiControlRoom />
+
       {/* Visão de Variáveis de Ambiente */}
-      <div className="space-y-6">
+      <div className="space-y-6 pt-4">
+        <h3 className="text-base font-semibold text-foreground">Diagnóstico de Ambiente do Servidor</h3>
         {envCheck.map((group) => {
           const Icon = group.icon;
           return (
@@ -117,10 +137,10 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-base text-amber-900 dark:text-amber-300 flex items-center gap-2">
             <ShieldAlert className="h-5 w-5 text-warning" />
-            Políticas de Segurança da Foundation
+            Políticas de Segurança e Faturamento
           </CardTitle>
           <CardDescription className="text-amber-700/90 dark:text-amber-400">
-            Nenhuma API Key ou credencial sensível é armazenada no banco de dados PostgreSQL. Todas as credenciais de provedores externos devem ser injetadas exclusivamente através de variáveis de ambiente na Vercel ou no arquivo <code>.env.local</code>.
+            Todas as chaves de API devem ser configuradas exclusivamente nas variáveis de ambiente da Vercel ou no arquivo <code>.env.local</code>. Utilize os atalhos de cada provedor acima para gerenciar seus cartões e saldos pré-pagos sem depender de depósitos mínimos obrigatórios.
           </CardDescription>
         </CardHeader>
       </Card>

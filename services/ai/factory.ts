@@ -2,6 +2,8 @@ import { AIProvider } from './ai-provider.interface';
 import { ImageProvider } from './image-provider.interface';
 import { GeminiProvider } from './gemini-provider';
 import { OpenAIImageProvider } from './openai-image-provider';
+import { TogetherImageProvider } from './together-image-provider';
+import { PollinationsImageProvider } from './pollinations-image-provider';
 import { NanoBananaProvider } from './nano-banana-provider';
 import { MockAIProvider, MockImageProvider } from './mock-ai-provider';
 import { DeepSeekProvider } from './deepseek-provider';
@@ -19,6 +21,8 @@ export interface AIFactoryOptions {
   imageApiKey?: string;
   imageApiUrl?: string;
   imageProvider?: string;
+  togetherApiKey?: string;
+  togetherImageModel?: string;
   openaiApiKey?: string;
   openaiImageModel?: string;
   openaiImageQuality?: string;
@@ -104,10 +108,38 @@ export function createImageProvider(options: AIFactoryOptions = {}): ImageProvid
     return new MockImageProvider();
   }
 
-  const rawProvider = options.imageProvider || process.env.IMAGE_PROVIDER;
-  const openaiApiKey = options.openaiApiKey || process.env.OPENAI_API_KEY;
+  const rawProvider = (
+    options.imageProvider ||
+    process.env.IMAGE_PROVIDER ||
+    (process.env.TOGETHER_API_KEY ? 'together' : process.env.OPENAI_API_KEY ? 'openai' : 'pollinations')
+  ).toLowerCase().trim();
 
-  if (rawProvider && rawProvider.toLowerCase().trim() === 'nanobanana') {
+  // 1. Provedor Together AI (FLUX.1 e Nano Banana Serverless)
+  if (rawProvider === 'together') {
+    const togetherApiKey = options.togetherApiKey || process.env.TOGETHER_API_KEY;
+    if (!togetherApiKey) {
+      throw new ImageProviderError(
+        'Configuração inválida: IMAGE_PROVIDER está configurado como "together", mas TOGETHER_API_KEY não foi informada.',
+        { provider: 'TogetherImageProvider', statusCode: 401, isRetryable: false }
+      );
+    }
+    logger.info('AIFactory', 'Instanciando TogetherImageProvider como motor oficial de imagem');
+    return new TogetherImageProvider({
+      apiKey: togetherApiKey,
+      model: options.togetherImageModel || process.env.TOGETHER_IMAGE_MODEL,
+    });
+  }
+
+  // 2. Provedor Pollinations (FLUX gratuito)
+  if (rawProvider === 'pollinations') {
+    logger.info('AIFactory', 'Instanciando PollinationsImageProvider');
+    return new PollinationsImageProvider({
+      model: process.env.POLLINATIONS_MODEL || 'flux',
+    });
+  }
+
+  // 3. Provedor Nano Banana Dedicado
+  if (rawProvider === 'nanobanana') {
     logger.info('AIFactory', 'Instanciando NanoBananaProvider explicitamente configurado');
     return new NanoBananaProvider({
       apiUrl: options.imageApiUrl,
@@ -115,18 +147,17 @@ export function createImageProvider(options: AIFactoryOptions = {}): ImageProvid
     });
   }
 
+  // 4. Provedor OpenAI (DALL-E)
+  const openaiApiKey = options.openaiApiKey || process.env.OPENAI_API_KEY;
   if (!openaiApiKey) {
-    throw new ImageProviderError(
-      'Configuração inválida: OPENAI_API_KEY não foi informada para geração de imagens.',
-      {
-        provider: 'OpenAIImageProvider',
-        statusCode: 401,
-        isRetryable: false,
-      }
-    );
+    // Fallback gracioso para Pollinations caso nenhuma chave paga esteja configurada
+    logger.warn('AIFactory', 'Nenhuma chave de imagem configurada. Utilizando PollinationsImageProvider como fallback seguro.');
+    return new PollinationsImageProvider({
+      model: process.env.POLLINATIONS_MODEL || 'flux',
+    });
   }
 
-  logger.info('AIFactory', 'Instanciando OpenAIImageProvider (exclusivo, sem fallback Pollinations)');
+  logger.info('AIFactory', 'Instanciando OpenAIImageProvider');
   return new OpenAIImageProvider({
     apiKey: openaiApiKey,
     model: options.openaiImageModel || process.env.OPENAI_IMAGE_MODEL,
