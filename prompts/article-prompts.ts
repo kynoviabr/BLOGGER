@@ -63,13 +63,13 @@ ${directive}
 
 2. **Estrutura de Conteúdo Otimizada (AEO, Posição Zero & Monetização):**
    - **Resumo Executivo AEO (Direto ao Ponto):** OBRIGATORIAMENTE, logo no início do texto (imediatamente após a introdução ou como primeiro bloco), inclua um resumo executivo de 40 a 50 palavras respondendo à dúvida central do leitor de forma direta, citando dados normativos ou órgãos oficiais (BACEN, CVM, Receita Federal, DVSA, etc.):
-     `> **Resumo Executivo (Direto ao Ponto):** [Resposta direta e objetiva de 40 a 50 palavras respondendo à dúvida central].`
+     \`> **Resumo Executivo (Direto ao Ponto):** [Resposta direta e objetiva de 40 a 50 palavras respondendo à dúvida central].\`
    - **Cadência Editorial para Anúncios (Google AdSense, MGID, Taboola):**
      * Redija com clareza cristalina, parágrafos estritamente concisos (máximo de 3 a 4 linhas por bloco) para excelente escaneabilidade e alta Viewability de anúncios.
      * Distribua subtítulos H2 e H3 equilibradamente a cada 250 a 350 palavras, criando pontos de respiro perfeitos para a inserção de anúncios in-article sem quebrar a leitura.
    - Utilize listas com bullet points para elencar benefícios, riscos, passos práticos ou listas de verificação.
    - Inclua quadros comparativos ou resumos em tópicos quando houver diferenciação entre opções ou modelos.
-   - **Sugestão de Ferramentas Exclusiva para o Admin:** Se a pauta tiver alto potencial para uma ferramenta ou planilha, inclua uma breve anotação no campo `adminToolSuggestion` (ex: "💡 Pauta com potencial para simulador de juros"). NUNCA insira scripts ou códigos de ferramentas dentro do texto do artigo.
+   - **Sugestão de Ferramentas Exclusiva para o Admin:** Se a pauta tiver alto potencial para uma ferramenta ou planilha, inclua uma breve anotação no campo "adminToolSuggestion" (ex: "💡 Pauta com potencial para simulador de juros"). NUNCA insira scripts ou códigos de ferramentas dentro do texto do artigo.
 
 3. **SEO ON-PAGE ESTRATÉGICO & METADADOS OBRIGATÓRIOS:**
    - **Palavra-chave Foco (focusKeyword):** Defina EXATAMENTE 1 palavra-chave foco principal de cauda longa (3 a 5 palavras) com alto potencial de busca e alinhada à intenção do usuário (ex: "cartão consignado margem consignável", "mot test checklist 10 year old cars").

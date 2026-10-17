@@ -422,7 +422,7 @@ export class PipelineService {
           status: 'READY',
           durationMs: Date.now() - startTime,
           requiresApproval: true,
-          imageUrl: publicUrl || generatedImage?.imageUrl,
+          imageUrl: generatedImage?.imageUrl,
           altText: generatedImage?.altText,
         };
       }

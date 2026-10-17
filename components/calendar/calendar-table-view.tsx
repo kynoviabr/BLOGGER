@@ -769,7 +769,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
           <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
             <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between">
               <span>Instrução de Ajuste para Refazer (Opcional):</span>
-              <span className="text-[10px] text-muted-foreground">Ex: "iluminação mais quente", "foco em balança"</span>
+              <span className="text-[10px] text-muted-foreground">Ex: &quot;iluminação mais quente&quot;, &quot;foco em balança&quot;</span>
             </label>
             <input
               type="text"

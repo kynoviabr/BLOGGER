@@ -216,7 +216,7 @@ export function ApiControlRoom() {
                       </Badge>
                     )}
                     {provider.status === "error" && (
-                      <Badge variant="danger" className="gap-1.5 py-1">
+                      <Badge variant="error" className="gap-1.5 py-1">
                         <XCircle className="h-3.5 w-3.5 text-rose-400" />
                         Erro de Conexão
                       </Badge>
@@ -228,7 +228,7 @@ export function ApiControlRoom() {
                       </Badge>
                     )}
                     {provider.status === "testing" && (
-                      <Badge variant="secondary" className="gap-1.5 py-1 animate-pulse">
+                      <Badge variant="info" className="gap-1.5 py-1 animate-pulse">
                         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                         Verificando
                       </Badge>
