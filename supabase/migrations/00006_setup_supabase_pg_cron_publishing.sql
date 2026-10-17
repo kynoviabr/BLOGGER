@@ -29,7 +29,7 @@ SELECT cron.schedule(
       'Authorization', 'Bearer ' || COALESCE(
         current_setting('app.settings.cron_secret', true),
         (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'CRON_SECRET' LIMIT 1),
-        'blogger-secret-cron-token-2026'
+        'Blogger@2026'
       )
     )
   );
