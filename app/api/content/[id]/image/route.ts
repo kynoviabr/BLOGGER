@@ -80,12 +80,18 @@ export async function POST(
 
     if (generatedImage.buffer) {
       try {
-        const ext = generatedImage.mimeType === 'image/png' ? 'png' : generatedImage.mimeType === 'image/webp' ? 'webp' : 'jpg';
-        const filePath = `${contentItem.blog_id}/${id}/featured-${Date.now()}.${ext}`;
+        const { ImageOptimizer } = await import('@/lib/image-optimizer');
+        const optimized = await ImageOptimizer.optimize(
+          generatedImage.buffer,
+          generatedImage.mimeType || 'image/jpeg',
+          { format: 'webp', quality: 82 }
+        );
+
+        const filePath = `${contentItem.blog_id}/${id}/featured-${Date.now()}.webp`;
         const { data: uploadData, error: uploadErr } = await supabase.storage
           .from('blog-assets')
-          .upload(filePath, generatedImage.buffer, {
-            contentType: generatedImage.mimeType,
+          .upload(filePath, optimized.buffer, {
+            contentType: 'image/webp',
             upsert: true,
           });
 

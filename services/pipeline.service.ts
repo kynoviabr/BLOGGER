@@ -321,25 +321,32 @@ export class PipelineService {
         const imageHash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
         logger.info('PipelineService', `Imagem de destaque gerada com sucesso. Hash SHA-256: ${imageHash.slice(0, 16)}...`);
 
+        // Otimização estrita para WebP leve de alta fidelidade (tanto para o Supabase quanto para o WordPress)
+        const optimized = await ImageOptimizer.optimize(
+          imageBuffer,
+          imgResult.mimeType || 'image/jpeg',
+          { format: 'webp', quality: 82 }
+        );
+
         // Alt text descritivo em português do Brasil
         const cleanAltText = (imgResult.altText || `Ilustração editorial sobre ${generatedArticle.title}`).slice(0, 120);
 
         generatedImage = {
           ...imgResult,
-          buffer: imageBuffer,
+          buffer: optimized.buffer,
+          mimeType: 'image/webp',
           altText: cleanAltText,
         };
 
         let storagePath = imgResult.imageUrl;
         let publicUrl = imgResult.imageUrl;
 
-        // Upload server-side para o bucket blog-assets
-        const ext = imgResult.mimeType === 'image/png' ? 'png' : imgResult.mimeType === 'image/webp' ? 'webp' : 'jpg';
-        const filePath = `${calendarItem.blog_id}/${contentId}/${generatedArticle.slug}.${ext}`;
+        // Upload server-side para o bucket blog-assets em WebP ultraleve
+        const filePath = `${calendarItem.blog_id}/${contentId}/${generatedArticle.slug}.webp`;
         const { data: uploadData, error: uploadErr } = await adminSupabase.storage
           .from('blog-assets')
-          .upload(filePath, imageBuffer, {
-            contentType: imgResult.mimeType || 'image/jpeg',
+          .upload(filePath, optimized.buffer, {
+            contentType: 'image/webp',
             upsert: true,
           });
 
@@ -434,13 +441,6 @@ export class PipelineService {
 
       if (generatedImage?.buffer) {
         try {
-          // Otimiza buffer para WebP leve de alta fidelidade
-          const optimized = await ImageOptimizer.optimize(
-            generatedImage.buffer,
-            generatedImage.mimeType || 'image/jpeg',
-            { format: 'webp', quality: 82 }
-          );
-
           // Nome de arquivo limpo e semântico para SEO no Google Imagens
           const cleanFocusKw = (generatedArticle.focusKeyword || keywords[0] || generatedArticle.slug)
             .toLowerCase()
@@ -452,8 +452,8 @@ export class PipelineService {
 
           const mediaUploadResult = await publisher.uploadMedia({
             fileName,
-            mimeType: optimized.mimeType || 'image/webp',
-            data: optimized.buffer,
+            mimeType: generatedImage.mimeType || 'image/webp',
+            data: generatedImage.buffer,
             title: generatedArticle.title,
             altText: generatedImage.altText || generatedArticle.title,
           });
