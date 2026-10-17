@@ -17,6 +17,7 @@ import {
   MinusSquare,
   Clock,
   SquareX,
+  CalendarX,
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
 import { CalendarItemWithRelations, CalendarStatus } from "@/types/calendar";
+import { bulkRevokeScheduleAction, updateScheduleAction } from "@/app/actions/calendar";
 
 interface CalendarTableViewProps {
   initialItems: CalendarItemWithRelations[];
@@ -198,6 +200,52 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
   const handleExecuteSelected = () => {
     const ids = Array.from(selectedIds);
     processQueue(ids);
+  };
+
+  const handleRevokeSelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    try {
+      await bulkRevokeScheduleAction(ids);
+      setItems((prev) =>
+        prev.map((it) =>
+          selectedIds.has(it.id)
+            ? { ...it, scheduled_at: null, status: "PLANNED" as CalendarStatus }
+            : it
+        )
+      );
+      setSelectedIds(new Set());
+      setNotification({
+        type: "success",
+        message: `${ids.length} agendamento(s) revogado(s) com sucesso! As pautas retornaram para status PLANNED.`,
+      });
+      router.refresh();
+    } catch (err) {
+      setNotification({
+        type: "error",
+        message: err instanceof Error ? err.message : "Erro ao revogar agendamentos selecionados.",
+      });
+    }
+  };
+
+  const handleRevokeOne = async (id: string) => {
+    try {
+      await updateScheduleAction(id, null, "PLANNED");
+      setItems((prev) =>
+        prev.map((it) => (it.id === id ? { ...it, scheduled_at: null, status: "PLANNED" as CalendarStatus } : it))
+      );
+      setNotification({
+        type: "success",
+        message: "Agendamento revogado com sucesso! Pauta retornou para status PLANNED.",
+      });
+      router.refresh();
+    } catch (err) {
+      setNotification({
+        type: "error",
+        message: err instanceof Error ? err.message : "Erro ao revogar agendamento da pauta.",
+      });
+    }
   };
 
   const handleReprocessFailed = () => {
@@ -472,6 +520,18 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
               </Button>
               <Button
                 type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRevokeSelected}
+                disabled={isProcessingQueue}
+                className="h-8 gap-1.5 border-destructive/30 text-destructive hover:bg-[hsl(var(--danger-bg))]"
+                title="Revogar a data agendada de todas as pautas selecionadas e cancelar publicação automática"
+              >
+                <CalendarX className="h-3.5 w-3.5" />
+                Revogar Agendamento ({selectedIds.size})
+              </Button>
+              <Button
+                type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedIds(new Set())}
@@ -626,6 +686,20 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                             {item.status === "FAILED" ? "Reprocessar" : "Executar"}
                           </>
                         )}
+                      </Button>
+                    )}
+
+                    {item.scheduled_at && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRevokeOne(item.id)}
+                        disabled={isRunning || runningId !== null || isProcessingQueue}
+                        className="h-8 px-2 text-xs text-destructive hover:bg-destructive/10"
+                        title="Revogar data agendada desta pauta"
+                      >
+                        <CalendarX className="h-3.5 w-3.5" />
                       </Button>
                     )}
 

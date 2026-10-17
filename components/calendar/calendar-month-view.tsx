@@ -18,6 +18,7 @@ import {
   Layers,
   Edit2,
   Send,
+  CalendarX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -227,6 +228,36 @@ export function CalendarMonthView({
       setModalFeedback({
         type: "error",
         message: err instanceof Error ? err.message : "Erro ao reagendar pauta.",
+      });
+      setIsUpdatingSchedule(false);
+    }
+  };
+
+  // Revogar agendamento individual (remover data e voltar para PLANNED)
+  const handleCancelSchedule = async () => {
+    if (!selectedItem) return;
+
+    setIsUpdatingSchedule(true);
+    setModalFeedback(null);
+
+    try {
+      await updateScheduleAction(selectedItem.id, null, "PLANNED");
+
+      setModalFeedback({
+        type: "success",
+        message: "Agendamento revogado com sucesso! A pauta retornou para status PLANNED.",
+      });
+
+      setTimeout(() => {
+        setIsUpdatingSchedule(false);
+        setSelectedItem(null);
+        router.refresh();
+        onItemsChange?.();
+      }, 1000);
+    } catch (err) {
+      setModalFeedback({
+        type: "error",
+        message: err instanceof Error ? err.message : "Erro ao revogar agendamento da pauta.",
       });
       setIsUpdatingSchedule(false);
     }
@@ -571,7 +602,20 @@ export function CalendarMonthView({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end pt-1">
+              <div className="flex items-center justify-between pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelSchedule}
+                  disabled={isUpdatingSchedule || isPublishingNow || !selectedItem.scheduled_at}
+                  className="h-8 text-xs gap-1.5 text-destructive hover:bg-destructive/10 border-destructive/30"
+                  title="Remove a data agendada desta pauta e cancela a publicação automática"
+                >
+                  <CalendarX className="h-3.5 w-3.5" />
+                  Revogar Agendamento
+                </Button>
+
                 <Button
                   type="button"
                   size="sm"

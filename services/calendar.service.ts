@@ -138,9 +138,49 @@ export class CalendarService {
         })
         .eq('editorial_calendar_id', id)
         .neq('status', 'published');
+    } else {
+      await supabase
+        .from('content_items')
+        .update({
+          status: 'draft',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('editorial_calendar_id', id)
+        .eq('status', 'scheduled');
     }
 
     return result;
+  }
+
+  static async bulkRevokeSchedules(ids: string[]): Promise<{ success: boolean; count: number }> {
+    if (ids.length === 0) return { success: true, count: 0 };
+    const supabase = await getSupabaseServerClient();
+
+    const { error } = await supabase
+      .from('editorial_calendar')
+      .update({
+        scheduled_at: null,
+        status: 'PLANNED',
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', ids);
+
+    if (error) {
+      logger.error('CalendarService.bulkRevokeSchedules', 'Erro ao revogar agendamentos em lote', { error, ids });
+      throw new Error(`Falha ao revogar agendamentos: ${error.message}`);
+    }
+
+    await supabase
+      .from('content_items')
+      .update({
+        status: 'draft',
+        updated_at: new Date().toISOString(),
+      })
+      .in('editorial_calendar_id', ids)
+      .eq('status', 'scheduled');
+
+    logger.info('CalendarService', `${ids.length} agendamentos revogados com sucesso`);
+    return { success: true, count: ids.length };
   }
 
   static async bulkScheduleItems(

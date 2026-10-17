@@ -25,6 +25,7 @@ export function CalendarItemEditForm({ item }: CalendarItemEditFormProps) {
   const formattedDate = item.scheduled_at
     ? new Date(item.scheduled_at).toISOString().slice(0, 16)
     : "";
+  const [scheduledVal, setScheduledVal] = React.useState(formattedDate);
 
   return (
     <div>
@@ -91,10 +92,28 @@ export function CalendarItemEditForm({ item }: CalendarItemEditFormProps) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Data e Hora Agendada
-            </label>
-            <Input type="datetime-local" name="scheduled_at" defaultValue={formattedDate} disabled={isPending} />
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Data e Hora Agendada
+              </label>
+              {scheduledVal && (
+                <button
+                  type="button"
+                  onClick={() => setScheduledVal("")}
+                  className="text-xs text-destructive hover:underline font-medium"
+                  title="Limpar data agendada desta pauta"
+                >
+                  Limpar / Revogar
+                </button>
+              )}
+            </div>
+            <Input
+              type="datetime-local"
+              name="scheduled_at"
+              value={scheduledVal}
+              onChange={(e) => setScheduledVal(e.target.value)}
+              disabled={isPending}
+            />
           </div>
         </div>
 

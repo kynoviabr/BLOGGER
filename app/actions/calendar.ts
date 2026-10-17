@@ -153,3 +153,11 @@ export async function bulkScheduleAction(
   return result;
 }
 
+export async function bulkRevokeScheduleAction(ids: string[]) {
+  await requireAuth();
+  const result = await CalendarService.bulkRevokeSchedules(ids);
+  revalidatePath("/calendar");
+  revalidatePath("/");
+  return result;
+}
+
