@@ -279,6 +279,7 @@ export class PipelineService {
           .update({
             title: generatedArticle.title,
             slug: generatedArticle.slug,
+            meta_description: generatedArticle.metaDescription,
             body: generatedArticle.content,
             language: itemLanguage,
             status: 'ready',

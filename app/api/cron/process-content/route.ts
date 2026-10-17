@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
         });
 
         // 3.4. Salvar o artigo gerado imediatamente (garante integridade do texto contra falhas de mídia)
-        const { error: contentSaveError } = await adminSupabase
+        let { error: contentSaveError } = await adminSupabase
           .from('content_items')
           .update({
             title: generatedArticle.title,
@@ -140,10 +140,35 @@ export async function GET(request: NextRequest) {
             meta_description: generatedArticle.metaDescription,
             tags: generatedArticle.tags || keywords.slice(0, 5),
             body: generatedArticle.content,
-            status: 'ready',
+            status: 'ready' as const,
             updated_at: new Date().toISOString(),
           })
           .eq('id', contentItem.id);
+
+        if (
+          contentSaveError &&
+          (contentSaveError.message.includes('focus_keyword') ||
+            contentSaveError.message.includes('tags') ||
+            contentSaveError.message.includes('schema cache'))
+        ) {
+          logger.warn(
+            'Cron.processContent',
+            `Colunas de SEO ainda não migradas no Supabase (${contentSaveError.message}). Salvando artigo sem campos extras.`
+          );
+          const fallbackRes = await adminSupabase
+            .from('content_items')
+            .update({
+              title: generatedArticle.title,
+              slug: generatedArticle.slug,
+              meta_description: generatedArticle.metaDescription,
+              body: generatedArticle.content,
+              status: 'ready' as const,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', contentItem.id);
+
+          contentSaveError = fallbackRes.error;
+        }
 
         if (contentSaveError) {
           throw new Error(`Falha ao salvar texto do artigo no banco: ${contentSaveError.message}`);

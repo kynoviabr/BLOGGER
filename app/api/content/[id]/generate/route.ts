@@ -129,26 +129,78 @@ export async function POST(
         : generated.content;
 
     // 6. Atualizar content_items no Supabase com novo texto, slug, SEO (focus_keyword, meta_description, tags), language e status 'ready'
-    const { data: updatedItem, error: updateError } = await supabase
+    let updatedItem: any = null;
+    let updateError: any = null;
+
+    const fullPayload = {
+      title: generated.title,
+      slug: generated.slug,
+      focus_keyword: generated.focusKeyword || keywords[0] || generated.title,
+      meta_description: generated.metaDescription,
+      tags: generated.tags || keywords.slice(0, 5),
+      body: finalBody,
+      language: targetLanguage,
+      status: 'ready' as const,
+      updated_at: new Date().toISOString(),
+    };
+
+    const initialUpdate = await supabase
       .from('content_items')
-      .update({
-        title: generated.title,
-        slug: generated.slug,
-        focus_keyword: generated.focusKeyword || keywords[0] || generated.title,
-        meta_description: generated.metaDescription,
-        tags: generated.tags || keywords.slice(0, 5),
-        body: finalBody,
-        language: targetLanguage,
-        status: 'ready',
-        updated_at: new Date().toISOString(),
-      })
+      .update(fullPayload)
       .eq('id', id)
       .select('*, featured_image:media_assets!content_items_featured_image_id_fkey(*)')
       .single();
 
+    updatedItem = initialUpdate.data;
+    updateError = initialUpdate.error;
+
+    // Resiliência defensiva: Se as colunas de SEO ainda não foram migradas no Supabase
+    if (
+      updateError &&
+      (updateError.message.includes('focus_keyword') ||
+        updateError.message.includes('tags') ||
+        updateError.message.includes('schema cache'))
+    ) {
+      logger.warn(
+        'API.generate',
+        `Colunas de SEO (focus_keyword/tags) ainda não migradas no Supabase (${updateError.message}). Salvando artigo com campos essenciais.`,
+        { error: updateError }
+      );
+
+      const fallbackPayload = {
+        title: generated.title,
+        slug: generated.slug,
+        meta_description: generated.metaDescription,
+        body: finalBody,
+        language: targetLanguage,
+        status: 'ready' as const,
+        updated_at: new Date().toISOString(),
+      };
+
+      const fallbackUpdate = await supabase
+        .from('content_items')
+        .update(fallbackPayload)
+        .eq('id', id)
+        .select('*, featured_image:media_assets!content_items_featured_image_id_fkey(*)')
+        .single();
+
+      updatedItem = fallbackUpdate.data;
+      updateError = fallbackUpdate.error;
+    }
+
     if (updateError) {
       logger.error('API.generate', `Falha ao persistir artigo gerado ${id}`, { error: updateError });
       throw new Error(`Falha ao salvar conteúdo no banco: ${updateError.message}`);
+    }
+
+    // Garante que o retorno para o frontend tenha os campos SEO gerados pela IA mesmo que as colunas ainda não estejam na tabela
+    if (updatedItem) {
+      if (!updatedItem.focus_keyword && generated.focusKeyword) {
+        updatedItem.focus_keyword = generated.focusKeyword;
+      }
+      if ((!updatedItem.tags || updatedItem.tags.length === 0) && generated.tags) {
+        updatedItem.tags = generated.tags;
+      }
     }
 
     // 6. Registrar execução em ai_runs

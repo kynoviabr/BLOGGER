@@ -56,15 +56,39 @@ export class ContentService {
 
   static async createContent(input: ContentItemInsert): Promise<ContentItem> {
     const supabase = await getSupabaseServerClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('content_items')
       .insert(input)
       .select()
       .single();
 
-    if (error) {
+    if (
+      error &&
+      (error.message.includes('focus_keyword') ||
+        error.message.includes('tags') ||
+        error.message.includes('schema cache'))
+    ) {
+      logger.warn(
+        'ContentService.createContent',
+        `Colunas de SEO ainda não migradas no Supabase (${error.message}). Inserindo sem focus_keyword e tags.`
+      );
+      const safeInput = { ...input };
+      delete (safeInput as Record<string, unknown>).focus_keyword;
+      delete (safeInput as Record<string, unknown>).tags;
+
+      const fallbackRes = await supabase
+        .from('content_items')
+        .insert(safeInput)
+        .select()
+        .single();
+
+      data = fallbackRes.data;
+      error = fallbackRes.error;
+    }
+
+    if (error || !data) {
       logger.error('ContentService.createContent', 'Erro ao inserir artigo no Supabase', { error, input });
-      throw new Error(`Não foi possível salvar o artigo: ${error.message}`);
+      throw new Error(`Não foi possível salvar o artigo: ${error?.message || 'Erro desconhecido ao salvar artigo'}`);
     }
 
     logger.info('ContentService', `Artigo criado com sucesso: ${data.title}`);
@@ -73,16 +97,41 @@ export class ContentService {
 
   static async updateContent(id: string, updates: ContentItemUpdate): Promise<ContentItem> {
     const supabase = await getSupabaseServerClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('content_items')
       .update(updates)
       .eq('id', id)
       .select()
       .single();
 
-    if (error) {
+    if (
+      error &&
+      (error.message.includes('focus_keyword') ||
+        error.message.includes('tags') ||
+        error.message.includes('schema cache'))
+    ) {
+      logger.warn(
+        'ContentService.updateContent',
+        `Colunas de SEO ainda não migradas no Supabase (${error.message}). Repetindo atualização sem focus_keyword e tags.`
+      );
+      const safeUpdates = { ...updates };
+      delete (safeUpdates as Record<string, unknown>).focus_keyword;
+      delete (safeUpdates as Record<string, unknown>).tags;
+
+      const fallbackRes = await supabase
+        .from('content_items')
+        .update(safeUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      data = fallbackRes.data;
+      error = fallbackRes.error;
+    }
+
+    if (error || !data) {
       logger.error('ContentService.updateContent', `Erro ao atualizar artigo ${id}`, { error, updates });
-      throw new Error(`Não foi possível atualizar o artigo: ${error.message}`);
+      throw new Error(`Não foi possível atualizar o artigo: ${error?.message || 'Erro desconhecido ao atualizar artigo'}`);
     }
 
     logger.info('ContentService', `Artigo ${id} atualizado com sucesso`);
