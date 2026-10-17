@@ -9,6 +9,16 @@ export interface CalendarItemWithRelations extends CalendarItem {
   blog?: Pick<Blog, 'id' | 'name' | 'slug'>;
   category?: { id: string; name: string; slug: string } | null;
   last_error?: string | null;
+  content_item?: {
+    id: string;
+    status: string;
+    title?: string;
+    featured_image?: {
+      public_url?: string;
+      alt_text?: string | null;
+    } | null;
+  } | null;
 }
 
 export type { CalendarStatus, CalendarPriority };
+

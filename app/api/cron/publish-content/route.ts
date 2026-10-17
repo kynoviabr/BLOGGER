@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronSecret } from '@/lib/auth/cron';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
-import { createPublisherProvider, createPublisherProviderForBlog } from '@/services/publisher';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { createPublisherProviderForBlog } from '@/services/publisher';
 import { MonetizationService } from '@/services/monetization';
 import { logger } from '@/lib/logger';
 import { Json } from '@/types/database';
@@ -9,18 +10,43 @@ import { Json } from '@/types/database';
 export const maxDuration = 60; // 60 segundos para Vercel Serverless
 
 export async function GET(request: NextRequest) {
+  return handlePublishContent(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handlePublishContent(request);
+}
+
+async function handlePublishContent(request: NextRequest) {
   const startTime = Date.now();
 
-  // 1. Validação do CRON_SECRET
-  if (!verifyCronSecret(request)) {
-    logger.warn('Cron.publishContent', 'Acesso negado: Bearer token ausente ou inválido');
+  // 1. Validação de Autorização: Aceita Bearer CRON_SECRET (do Supabase pg_cron) OU Sessão de Usuário Autenticado no Painel
+  const isCronAuthorized = verifyCronSecret(request);
+  let isUserAuthorized = false;
+
+  if (!isCronAuthorized) {
+    try {
+      const userSupabase = await getSupabaseServerClient();
+      const {
+        data: { user },
+      } = await userSupabase.auth.getUser();
+      if (user) {
+        isUserAuthorized = true;
+      }
+    } catch {
+      // Ignora erro de sessão se não logado
+    }
+  }
+
+  if (!isCronAuthorized && !isUserAuthorized) {
+    logger.warn('Cron.publishContent', 'Acesso negado: Autenticação ausente ou inválida (requer Bearer CRON_SECRET ou login)');
     return NextResponse.json(
-      { success: false, error: 'Não autorizado. CRON_SECRET inválido ou ausente.' },
+      { success: false, error: 'Não autorizado. Requer Bearer CRON_SECRET ou usuário autenticado.' },
       { status: 401 }
     );
   }
 
-  logger.info('Cron.publishContent', 'Iniciando batch de publicação automática no WordPress');
+  logger.info('Cron.publishContent', 'Iniciando verificação de publicações agendadas e prontas');
 
   let adminSupabase;
   try {
@@ -34,35 +60,68 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 2. Buscar artigos elegíveis com status 'ready' (Batch limit: 2 a 3)
-    const { data: readyArticles, error: fetchError } = await adminSupabase
+    // 2. Buscar artigos candidatos com status 'ready' ou 'scheduled'
+    const { data: candidates, error: fetchError } = await adminSupabase
       .from('content_items')
-      .select('*, blog:blogs(*), editorial_calendar:editorial_calendar(category), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
-      .eq('status', 'ready')
+      .select(`
+        *,
+        blog:blogs(*),
+        editorial_calendar:editorial_calendar(id, topic, category_id, scheduled_at, status, category:categories(id, name, slug)),
+        featured_image:media_assets!content_items_featured_image_id_fkey(*)
+      `)
+      .in('status', ['ready', 'scheduled'])
       .order('created_at', { ascending: true })
-      .limit(3);
+      .limit(10);
 
     if (fetchError) {
       logger.error('Cron.publishContent', 'Erro ao consultar content_items', { error: fetchError });
-      throw new Error(`Erro ao buscar artigos prontos: ${fetchError.message}`);
+      throw new Error(`Erro ao buscar artigos: ${fetchError.message}`);
     }
 
-    if (!readyArticles || readyArticles.length === 0) {
-      logger.info('Cron.publishContent', 'Nenhum artigo pronto para publicação nesta execução.');
+    if (!candidates || candidates.length === 0) {
+      logger.info('Cron.publishContent', 'Nenhum artigo agendado ou pronto nesta execução.');
       return NextResponse.json({
         success: true,
         message: 'Nenhum artigo pendente de publicação.',
         publishedCount: 0,
+        eligibleCount: 0,
+      });
+    }
+
+    // 3. Filtrar artigos cujo horário agendado já chegou (scheduled_at <= NOW) ou que estão prontos sem data
+    const now = Date.now();
+    const readyArticles = candidates
+      .filter((article) => {
+        const targetTime = (article as any).editorial_calendar?.scheduled_at;
+
+        if (targetTime) {
+          const targetTimestamp = new Date(targetTime).getTime();
+          return targetTimestamp <= now;
+        }
+
+        // Se não tem data agendada, publica se estiver expressamente 'ready'
+        return article.status === 'ready';
+      })
+      .slice(0, 5); // Processa até 5 artigos no lote para segurança de timeout
+
+    if (readyArticles.length === 0) {
+      logger.info('Cron.publishContent', 'Existem artigos agendados, mas nenhum para o horário atual ou anterior.', {
+        totalScheduledFuture: candidates.length,
+      });
+      return NextResponse.json({
+        success: true,
+        message: 'Artigos agendados aguardando o horário programado.',
+        publishedCount: 0,
+        totalScheduledFuture: candidates.length,
       });
     }
 
     const results = [];
 
-    // 3. Processar cada artigo do lote
+    // 4. Processar cada artigo elegível do lote
     for (const article of readyArticles) {
       const itemStartTime = Date.now();
 
-      // Se o artigo não possuir corpo de texto, não publica
       if (!article.body || article.body.trim().length === 0) {
         logger.warn('Cron.publishContent', `Artigo ${article.id} sem corpo de texto. Ignorando.`);
         continue;
@@ -71,14 +130,19 @@ export async function GET(request: NextRequest) {
       const publisher = createPublisherProviderForBlog(article.blog);
 
       try {
-        logger.info('Cron.publishContent', `Publicando artigo: "${article.title}"`, {
+        const categoryData = (article as any).editorial_calendar?.category;
+        const categorySlug = categoryData?.slug || undefined;
+        const categoryName = categoryData?.name || 'Geral';
+
+        logger.info('Cron.publishContent', `Publicando artigo: "${article.title}" [Categoria: ${categoryName}]`, {
           articleId: article.id,
           blogId: article.blog_id,
+          categorySlug,
         });
 
         let wpFeaturedMediaId: string | number | undefined;
 
-        // 3.1. Se houver imagem destacada, fazer download e upload para WordPress
+        // 4.1. Upload da imagem destacada para o WordPress se houver
         if (article.featured_image?.public_url) {
           try {
             const imgFetch = await fetch(article.featured_image.public_url);
@@ -104,12 +168,11 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        const categorySlug = (article as any).editorial_calendar?.category || undefined;
         const monetizationOffers = article.blog_id
           ? await MonetizationService.getOffersForCategory(article.blog_id, categorySlug)
           : [];
 
-        // 3.2. Publicar artigo no WordPress
+        // 4.2. Publicar artigo no WordPress
         const publishResult = await publisher.publishArticle({
           title: article.title,
           slug: article.slug,
@@ -131,7 +194,7 @@ export async function GET(request: NextRequest) {
 
         const itemDuration = Date.now() - itemStartTime;
 
-        // 3.3. Atualizar status no Supabase para 'published'
+        // 4.3. Atualizar status no Supabase para 'published'
         await adminSupabase
           .from('content_items')
           .update({
@@ -149,15 +212,16 @@ export async function GET(request: NextRequest) {
             .eq('id', article.editorial_calendar_id);
         }
 
-        // 3.4. Registrar log de sucesso
+        // 4.4. Registrar log de sucesso
         await adminSupabase.from('system_logs').insert({
           level: 'info',
           service: 'Cron.publishContent',
-          message: `Artigo "${article.title}" publicado automaticamente no WordPress.`,
+          message: `Artigo "${article.title}" publicado automaticamente no WordPress. Categoria: ${categoryName}.`,
           metadata: {
             contentId: article.id,
             wpPostId: publishResult.postId,
             wpUrl: publishResult.url,
+            category: categoryName,
             durationMs: itemDuration,
           } as Json,
         });
@@ -165,6 +229,7 @@ export async function GET(request: NextRequest) {
         results.push({
           articleId: article.id,
           title: article.title,
+          category: categoryName,
           status: 'PUBLISHED',
           wpPostId: publishResult.postId,
           url: publishResult.url,
@@ -174,16 +239,16 @@ export async function GET(request: NextRequest) {
         const itemErrorMessage = itemErr instanceof Error ? itemErr.message : String(itemErr);
         logger.error('Cron.publishContent', `Falha ao publicar artigo ${article.id}: ${itemErrorMessage}`, { error: itemErr });
 
-        // Tratamento de resiliência: mantém o status como 'ready' para permitir retentativa no próximo ciclo de cron
         await adminSupabase.from('system_logs').insert({
           level: 'error',
           service: 'Cron.publishContent',
-          message: `Erro ao publicar artigo ${article.id} no WordPress (mantido como 'ready' para retry): ${itemErrorMessage}`,
+          message: `Erro ao publicar artigo ${article.id} no WordPress (mantido para retry): ${itemErrorMessage}`,
           metadata: { articleId: article.id, error: itemErrorMessage } as Json,
         });
 
         results.push({
           articleId: article.id,
+          title: article.title,
           status: 'FAILED_RETRY_SCHEDULED',
           error: itemErrorMessage,
         });

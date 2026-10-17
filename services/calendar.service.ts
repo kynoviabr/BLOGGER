@@ -7,7 +7,7 @@ export class CalendarService {
     const supabase = await getSupabaseServerClient();
     let query = supabase
       .from('editorial_calendar')
-      .select('*, blog:blogs(id, name, slug), category:categories(id, name, slug)')
+      .select('*, blog:blogs(id, name, slug), category:categories(id, name, slug), content_items:content_items(id, status, title, featured_image:media_assets!content_items_featured_image_id_fkey(public_url, alt_text))')
       .order('scheduled_at', { ascending: true, nullsFirst: false });
 
     if (filters?.blogId) {
@@ -24,7 +24,14 @@ export class CalendarService {
       throw new Error(`Falha ao carregar calendário editorial: ${error.message}`);
     }
 
-    const items = (data || []) as CalendarItemWithRelations[];
+    const items = ((data || []) as any[]).map((raw) => {
+      const contentList = raw.content_items;
+      const firstContent = Array.isArray(contentList) && contentList.length > 0 ? contentList[0] : null;
+      return {
+        ...raw,
+        content_item: firstContent,
+      } as CalendarItemWithRelations;
+    });
 
     // Se houver itens com status FAILED, busca a mensagem do último erro registrado em system_logs
     const failedItems = items.filter((it) => it.status === 'FAILED');
@@ -114,4 +121,61 @@ export class CalendarService {
   static async updateStatus(id: string, status: CalendarStatus): Promise<CalendarItem> {
     return this.updateCalendarItem(id, { status });
   }
+
+  static async updateItemSchedule(id: string, scheduledAt: string | null, status: CalendarStatus = 'SCHEDULED'): Promise<CalendarItem> {
+    const supabase = await getSupabaseServerClient();
+    const result = await this.updateCalendarItem(id, {
+      scheduled_at: scheduledAt,
+      status: scheduledAt ? status : 'PLANNED',
+    });
+
+    // Sincroniza content_items correspondente se existir
+    if (scheduledAt) {
+      await supabase
+        .from('content_items')
+        .update({
+          updated_at: new Date().toISOString(),
+        })
+        .eq('editorial_calendar_id', id)
+        .neq('status', 'published');
+    }
+
+    return result;
+  }
+
+  static async bulkScheduleItems(
+    schedules: Array<{ id: string; scheduledAt: string; status?: CalendarStatus }>
+  ): Promise<{ success: boolean; count: number }> {
+    const supabase = await getSupabaseServerClient();
+    let count = 0;
+
+    for (const schedule of schedules) {
+      try {
+        await supabase
+          .from('editorial_calendar')
+          .update({
+            scheduled_at: schedule.scheduledAt,
+            status: schedule.status || 'SCHEDULED',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', schedule.id);
+
+        await supabase
+          .from('content_items')
+          .update({
+            updated_at: new Date().toISOString(),
+          })
+          .eq('editorial_calendar_id', schedule.id)
+          .neq('status', 'published');
+
+        count++;
+      } catch (err) {
+        logger.error('CalendarService.bulkScheduleItems', `Falha ao agendar pauta ${schedule.id}`, { err });
+      }
+    }
+
+    logger.info('CalendarService.bulkScheduleItems', `${count} pautas agendadas com sucesso no Supabase.`);
+    return { success: true, count };
+  }
 }
+

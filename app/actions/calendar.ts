@@ -134,3 +134,22 @@ export async function updateCalendarStatusAction(id: string, status: CalendarSta
   revalidatePath("/calendar");
   revalidatePath("/");
 }
+
+export async function updateScheduleAction(id: string, scheduledAt: string | null, status: CalendarStatus = 'SCHEDULED') {
+  await requireAuth();
+  const updated = await CalendarService.updateItemSchedule(id, scheduledAt, status);
+  revalidatePath("/calendar");
+  revalidatePath("/");
+  return { success: true, item: updated };
+}
+
+export async function bulkScheduleAction(
+  schedules: Array<{ id: string; scheduledAt: string; status?: CalendarStatus }>
+) {
+  await requireAuth();
+  const result = await CalendarService.bulkScheduleItems(schedules);
+  revalidatePath("/calendar");
+  revalidatePath("/");
+  return result;
+}
+
