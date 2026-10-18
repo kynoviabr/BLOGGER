@@ -7,22 +7,23 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "worker": "npx tsx scripts/autopilot-worker.ts"
   },
   "dependencies": {
     "@google/genai": "^2.24.0",
-    "@img/sharp-darwin-arm64": "^0.35.4",
     "@img/sharp-wasm32": "^0.35.4",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.49.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
     "marked": "^18.0.14",
-    "next": "^15.1.7",
+    "next": "15.5.27",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",
-    "sharp": "^0.35.4",
+    "sharp": "0.35.5",
     "tailwind-merge": "^3.0.1",
     "zod": "^4.6.5"
   },
@@ -33,10 +34,11 @@
     "autoprefixer": "^10.6.1",
     "eslint": "^9.20.1",
     "eslint-config-next": "^15.1.7",
-    "postcss": "^8.5.2",
+    "postcss": "8.5.23",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.23.15",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "4.1.11"
   },
   "optionalDependencies": {
     "@img/sharp-darwin-arm64": "^0.35.4",

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 
 /**
  * Valida a autenticação do acionador do Cron Job.
@@ -22,5 +23,12 @@ export function verifyCronSecret(request: NextRequest): boolean {
     return false;
   }
 
-  return token === cronSecret;
+  const tokenBuffer = Buffer.from(token);
+  const secretBuffer = Buffer.from(cronSecret);
+
+  if (tokenBuffer.length !== secretBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(tokenBuffer, secretBuffer);
 }

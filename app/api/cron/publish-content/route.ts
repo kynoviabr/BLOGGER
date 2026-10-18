@@ -9,10 +9,6 @@ import { Json } from '@/types/database';
 
 export const maxDuration = 60; // 60 segundos para Vercel Serverless
 
-export async function GET(request: NextRequest) {
-  return handlePublishContent(request);
-}
-
 export async function POST(request: NextRequest) {
   return handlePublishContent(request);
 }

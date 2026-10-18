@@ -17,21 +17,24 @@ BEGIN
 END $$;
 
 -- 3. Agendar a verificação de publicação para rodar a cada 5 minutos (*/5 * * * *)
--- Realiza chamada HTTP GET autenticada via pg_net para o endpoint de publicação
+-- Realiza chamada HTTP POST autenticada via pg_net para o endpoint de publicação.
+-- CRON_SECRET deve existir no Vault. Não há fallback inseguro no código-fonte.
 SELECT cron.schedule(
   'publish-scheduled-blogger-posts',
   '*/5 * * * *',
   $$
-  SELECT net.http_get(
+  SELECT net.http_post(
     url := 'https://blogger-bice-three.vercel.app/api/cron/publish-content',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || COALESCE(
-        current_setting('app.settings.cron_secret', true),
-        (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'CRON_SECRET' LIMIT 1),
-        'Blogger@2026'
+      'Authorization', 'Bearer ' || (
+        SELECT decrypted_secret
+        FROM vault.decrypted_secrets
+        WHERE name = 'CRON_SECRET'
+        LIMIT 1
       )
-    )
+    ),
+    body := '{}'::jsonb
   );
   $$
 );
