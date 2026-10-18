@@ -75,14 +75,36 @@ async function wordpressJson(url: string, auth: string, init: RequestInit = {}):
   return payload;
 }
 
-async function categoryId(siteUrl: string, auth: string, slug: string): Promise<number> {
+function normalizedCategoryName(value: string): string {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&#0*38;/gi, "&")
+    .replace(/&#x0*26;/gi, "&")
+    .replace(/[’‘]/g, "'")
+    .trim()
+    .toLocaleLowerCase("en-GB");
+}
+
+async function categoryId(siteUrl: string, auth: string, slug: string, name: string): Promise<number> {
   const response = await fetch(`${siteUrl}/wp-json/wp/v2/categories?slug=${encodeURIComponent(slug)}`, {
     headers: { Authorization: auth, Accept: "application/json" }, signal: AbortSignal.timeout(20_000),
   });
   const categories = await response.json().catch(() => []) as Array<JsonRecord>;
-  const id = Number(categories[0]?.id ?? 0);
-  if (!response.ok || id <= 1) throw new Error(`Categoria WordPress não encontrada: ${slug}`);
-  return id;
+  if (!response.ok) throw new Error(`WordPress ${response.status}: falha ao consultar categoria ${slug}`);
+  const exactId = Number(categories[0]?.id ?? 0);
+  if (exactId > 1) return exactId;
+
+  const fallback = await fetch(
+    `${siteUrl}/wp-json/wp/v2/categories?per_page=100&_fields=id,name,slug`,
+    { headers: { Authorization: auth, Accept: "application/json" }, signal: AbortSignal.timeout(20_000) },
+  );
+  const matches = await fallback.json().catch(() => []) as Array<JsonRecord>;
+  if (!fallback.ok) throw new Error(`WordPress ${fallback.status}: falha ao consultar categoria ${name}`);
+  const normalizedName = normalizedCategoryName(name);
+  const match = matches.find((candidate) => normalizedCategoryName(String(candidate.name ?? "")) === normalizedName);
+  const fallbackId = Number(match?.id ?? 0);
+  if (fallbackId <= 1) throw new Error(`Categoria WordPress não encontrada: ${slug} (${name})`);
+  return fallbackId;
 }
 
 async function tagIds(siteUrl: string, auth: string, names: string[]): Promise<number[]> {
@@ -180,13 +202,19 @@ export default {
         const calendar = article.editorial_calendar as JsonRecord | null;
         const category = calendar?.category as JsonRecord | null;
         const categorySlug = String(category?.slug ?? "");
+        const categoryName = String(category?.name ?? "");
         const payload: JsonRecord = {
           title: article.title, slug: article.slug, content: await articleHtml(article, blog),
           excerpt: excerpt(String(article.excerpt ?? article.meta_description ?? article.body ?? "")), status: "publish",
         };
-        if (categorySlug) payload.categories = [await categoryId(config.siteUrl, auth, categorySlug)];
+        if (categorySlug) payload.categories = [await categoryId(config.siteUrl, auth, categorySlug, categoryName)];
         if (Array.isArray(article.tags) && article.tags.length) payload.tags = await tagIds(config.siteUrl, auth, article.tags.map(String));
-        const featuredMediaId = await uploadFeaturedMedia(article, config.siteUrl, auth);
+        let featuredMediaId: number | undefined;
+        try {
+          featuredMediaId = await uploadFeaturedMedia(article, config.siteUrl, auth);
+        } catch (mediaError) {
+          throw new Error(`Upload da imagem destacada: ${errorMessage(mediaError)}`);
+        }
         if (featuredMediaId) payload.featured_media = featuredMediaId;
         payload.meta = {
           rank_math_title: String(article.seo_title ?? article.title).slice(0, 60),
@@ -203,9 +231,16 @@ export default {
         const existingPosts = existingResponse.ok
           ? await existingResponse.json().catch(() => []) as Array<JsonRecord>
           : [];
-        const published = existingPosts[0] ?? await wordpressJson(`${config.siteUrl}/wp-json/wp/v2/posts`, auth, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-        });
+        let published = existingPosts[0];
+        if (!published) {
+          try {
+            published = await wordpressJson(`${config.siteUrl}/wp-json/wp/v2/posts`, auth, {
+              method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+            });
+          } catch (postError) {
+            throw new Error(`Criação do post: ${errorMessage(postError)}`);
+          }
+        }
         const publishedAt = String(published.date_gmt ?? published.date ?? new Date().toISOString());
         await db.from("content_items").update({
           status: "published", published_at: publishedAt, publish_claimed_at: null,
