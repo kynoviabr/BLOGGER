@@ -1,40 +1,39 @@
-# Rotacao segura do segredo do cron
+# Publicador agendado integralmente no Supabase
 
-Este procedimento troca o segredo sem interromper o publicador agendado. Nunca
-registre o valor do segredo em issue, PR, log ou arquivo versionado.
+O `pg_cron` chama a Edge Function `publish-content` dentro do próprio projeto
+Supabase. A Vercel não participa do agendamento nem da execução automática.
 
-## Estado observado antes da rotacao
+## Estado anterior
 
-- O cron remoto usa `GET` e o fallback legado conhecido.
-- O Supabase Vault ainda nao possui `CRON_SECRET`.
-- A producao da Vercel possui `CRON_SECRET`; por ser secreto, seu valor nao foi lido.
-- O ambiente local ainda usa o valor legado de 12 caracteres.
-- O preview nao possui variaveis de ambiente e nao deve receber credenciais de producao.
+- O job legado chama uma rota Vercel por `GET` e precisa ser removido no rollout.
+- O Vault precisa de `project_url`, `publishable_key` e `PUBLISH_CRON_SECRET`.
+- A Edge Function usa secrets globais do WordPress como fallback; credenciais
+  específicas continuam vindo do cadastro de cada blog.
 
-## Sequencia de rollout
+## Sequência de rollout
 
-1. Gere um segredo aleatorio com no minimo 32 caracteres.
-2. Na Vercel, salve o valor legado temporariamente como `CRON_SECRET_PREVIOUS`.
-3. Atualize `CRON_SECRET` da Vercel com o valor novo, somente em Production.
-4. Implante a versao que aceita `CRON_SECRET` e `CRON_SECRET_PREVIOUS`.
-5. Cadastre o mesmo valor novo no Supabase Vault com o nome `CRON_SECRET`.
-6. Aplique `20261018150608_phase0_secure_cron.sql` de forma isolada. Nao use
-   `supabase db push`: o banco remoto atual nao possui historico de migrations.
-7. Confirme que o job usa `net.http_post`, nao contem o fallback legado e recebe HTTP 2xx.
-8. Remova `CRON_SECRET_PREVIOUS` da Vercel e faça um novo deployment.
-9. Rode os security advisors e registre o resultado.
+1. Gere `PUBLISH_CRON_SECRET` aleatório com no mínimo 32 caracteres.
+2. Cadastre `project_url`, `publishable_key` e `PUBLISH_CRON_SECRET` no Vault.
+3. Cadastre o mesmo `PUBLISH_CRON_SECRET` nos secrets da Edge Function.
+4. Cadastre `WORDPRESS_SITE_URL`, `WORDPRESS_USERNAME` e
+   `WORDPRESS_APPLICATION_PASSWORD` nos secrets da Edge Function.
+5. Faça deploy da Edge Function e valide uma chamada sem artigos elegíveis.
+6. Aplique isoladamente a migração que remove o job legado.
+7. Aplique `20261018152154_supabase_edge_publisher.sql` para preparar a fila.
+8. Revise os artigos atualmente elegíveis antes de ativar o job.
+9. Aplique `20261018152441_activate_supabase_edge_publisher.sql`. Não use `db push`:
+   o banco remoto atual não possui histórico de migrations.
+10. Confirme duas execuções HTTP 2xx em `cron.job_run_details` e nos logs da função.
 
 ## Rollback
 
-Enquanto `CRON_SECRET_PREVIOUS` estiver configurado, a aplicacao aceita o valor
-anterior. Se o novo cron falhar, restaure temporariamente o job anterior, investigue
-o erro e nao remova a variavel de transicao. O fallback literal nunca deve voltar
-para SQL versionado.
+Se a função falhar, desative o novo job com `cron.unschedule` enquanto o erro é
+investigado. Não restaure o job que chama a Vercel. Artigos não concluídos retornam
+ao status anterior e ficam disponíveis para retry.
 
 ## Regras operacionais
 
-- Nao copie segredos de Production para Preview.
-- Nao execute o endpoint manualmente durante a validacao: ele publica conteudo real.
-- Verifique apenas metadados do segredo (existencia e comprimento), nunca o valor.
-- Remova a compatibilidade anterior assim que duas execucoes consecutivas do cron
-  novo forem confirmadas.
+- Não mantenha credenciais do worker na Vercel.
+- Não execute a função manualmente se houver artigos elegíveis: ela publica conteúdo real.
+- Verifique apenas metadados dos segredos, nunca seus valores.
+- Monitore `publishing` preso por mais de 15 minutos e `last_publish_error`.
