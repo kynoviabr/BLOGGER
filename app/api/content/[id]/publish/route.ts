@@ -133,12 +133,14 @@ export async function POST(
 
     const durationMs = Date.now() - startTime;
 
+    const actualPublishedAt = publishResult.publishedAt || new Date().toISOString();
+
     // 6. Atualizar status no Supabase para 'published' com data e URL externa
     const { data: updatedItem, error: updateError } = await supabase
       .from('content_items')
       .update({
         status: 'published',
-        published_at: publishResult.publishedAt || new Date().toISOString(),
+        published_at: actualPublishedAt,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -147,6 +149,18 @@ export async function POST(
 
     if (updateError) {
       logger.error('API.publish', `Artigo publicado no WP mas erro ao atualizar Supabase: ${updateError.message}`);
+    }
+
+    // 6.1 Sincronizar pauta associada no editorial_calendar para status 'PUBLISHED' e data real
+    if (contentItem.editorial_calendar_id) {
+      await supabase
+        .from('editorial_calendar')
+        .update({
+          status: 'PUBLISHED',
+          scheduled_at: actualPublishedAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contentItem.editorial_calendar_id);
     }
 
     // 7. Registrar em system_logs

@@ -204,11 +204,17 @@ async function handlePublishContent(request: NextRequest) {
           })
           .eq('id', article.id);
 
-        // Se houver pauta associada no editorial_calendar, atualizar para 'PUBLISHED'
+        const cronPublishedAt = publishResult.publishedAt || new Date().toISOString();
+
+        // Se houver pauta associada no editorial_calendar, atualizar para 'PUBLISHED' e alinhar data no calendário
         if (article.editorial_calendar_id) {
           await adminSupabase
             .from('editorial_calendar')
-            .update({ status: 'PUBLISHED', updated_at: new Date().toISOString() })
+            .update({
+              status: 'PUBLISHED',
+              scheduled_at: cronPublishedAt,
+              updated_at: new Date().toISOString(),
+            })
             .eq('id', article.editorial_calendar_id);
         }
 

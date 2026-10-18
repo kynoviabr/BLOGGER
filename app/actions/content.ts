@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { ContentService } from "@/services/content.service";
 import { ContentItemUpdate, ContentStatus } from "@/types/content";
 import { requireAuth } from "@/lib/supabase/auth";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { updateContentSchema } from "@/lib/validations/content.schema";
 import { logger } from "@/lib/logger";
 
@@ -60,6 +61,31 @@ export async function updateContentAction(
       ...validation.data,
       tags: validation.data.tags ?? undefined,
     };
+
+    // 2.1 Verificação amigável de duplicidade de slug no mesmo blog
+    const supabase = await getSupabaseServerClient();
+    const { data: currentItem } = await supabase
+      .from('content_items')
+      .select('blog_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (currentItem && validation.data.slug) {
+      const { data: conflict } = await supabase
+        .from('content_items')
+        .select('id, title')
+        .eq('blog_id', currentItem.blog_id)
+        .eq('slug', validation.data.slug)
+        .neq('id', id)
+        .maybeSingle();
+
+      if (conflict) {
+        return {
+          success: false,
+          error: `O slug "${validation.data.slug}" já está em uso pelo artigo "${conflict.title}". Escolha outro slug para salvar.`,
+        };
+      }
+    }
 
     // 3. Persistência real
     await ContentService.updateContent(id, updates);

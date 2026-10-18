@@ -128,13 +128,29 @@ export async function POST(
         ? injectMonetizationBoxes(generated.content, monetizationOffers)
         : generated.content;
 
-    // 6. Atualizar content_items no Supabase com novo texto, slug, SEO (focus_keyword, meta_description, tags), language e status 'ready'
+    // 6. Garantir que o slug seja único dentro do blog para evitar erro em uq_blog_content_slug
+    let candidateSlug = generated.slug?.trim() || contentItem.slug;
+    const { data: slugConflict } = await supabase
+      .from('content_items')
+      .select('id')
+      .eq('blog_id', contentItem.blog_id)
+      .eq('slug', candidateSlug)
+      .neq('id', id)
+      .maybeSingle();
+
+    if (slugConflict) {
+      const suffix = Date.now().toString().slice(-4);
+      candidateSlug = `${candidateSlug}-${suffix}`;
+      logger.info('API.generate', `Slug duplicado detectado. Ajustado automaticamente para "${candidateSlug}".`);
+    }
+
+    // 7. Atualizar content_items no Supabase com novo texto, slug, SEO (focus_keyword, meta_description, tags), language e status 'ready'
     let updatedItem: any = null;
     let updateError: any = null;
 
     const fullPayload = {
       title: generated.title,
-      slug: generated.slug,
+      slug: candidateSlug,
       focus_keyword: generated.focusKeyword || keywords[0] || generated.title,
       meta_description: generated.metaDescription,
       tags: generated.tags || keywords.slice(0, 5),
@@ -154,6 +170,22 @@ export async function POST(
     updatedItem = initialUpdate.data;
     updateError = initialUpdate.error;
 
+    // Resiliência defensiva se ainda ocorrer colisão de slug (race condition)
+    if (updateError && updateError.message.includes('uq_blog_content_slug')) {
+      const emergencySlug = `${candidateSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
+      logger.warn('API.generate', `Colisão de slug no update. Tentando com slug de contingência "${emergencySlug}".`);
+      fullPayload.slug = emergencySlug;
+      const retryUpdate = await supabase
+        .from('content_items')
+        .update(fullPayload)
+        .eq('id', id)
+        .select('*, featured_image:media_assets!content_items_featured_image_id_fkey(*)')
+        .single();
+
+      updatedItem = retryUpdate.data;
+      updateError = retryUpdate.error;
+    }
+
     // Resiliência defensiva: Se as colunas de SEO ainda não foram migradas no Supabase
     if (
       updateError &&
@@ -169,7 +201,7 @@ export async function POST(
 
       const fallbackPayload = {
         title: generated.title,
-        slug: generated.slug,
+        slug: fullPayload.slug,
         meta_description: generated.metaDescription,
         body: finalBody,
         language: targetLanguage,

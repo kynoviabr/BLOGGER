@@ -248,10 +248,25 @@ export class PipelineService {
         internalLinks,
       });
 
+      // Garante slug único para evitar conflito com outros artigos do mesmo blog
+      let uniqueSlug = generatedArticle.slug;
+      const { data: conflictItem } = await adminSupabase
+        .from('content_items')
+        .select('id')
+        .eq('blog_id', calendarItem.blog_id)
+        .eq('slug', uniqueSlug)
+        .neq('id', contentId)
+        .maybeSingle();
+
+      if (conflictItem) {
+        uniqueSlug = `${uniqueSlug}-${Date.now().toString().slice(-4)}`;
+        logger.info('PipelineService', `Slug duplicado detectado. Ajustado para: "${uniqueSlug}"`);
+      }
+
       // Salva o artigo gerado imediatamente (resiliência contra falhas subsequentes e cache de schema)
       const contentUpdatePayload: Record<string, unknown> = {
         title: generatedArticle.title,
-        slug: generatedArticle.slug,
+        slug: uniqueSlug,
         body: generatedArticle.content,
         language: itemLanguage,
         status: 'ready',
@@ -491,12 +506,13 @@ export class PipelineService {
 
       const totalDuration = Date.now() - startTime;
 
-      // 7. Atualizar status finais para 'PUBLISHED'
+      // 7. Atualizar status finais para 'PUBLISHED' e alinhar data no calendário
+      const actualPublishedAt = publishResult.publishedAt || new Date().toISOString();
       await adminSupabase
         .from('content_items')
         .update({
           status: 'published',
-          published_at: publishResult.publishedAt || new Date().toISOString(),
+          published_at: actualPublishedAt,
           updated_at: new Date().toISOString(),
         })
         .eq('id', contentId);
@@ -505,6 +521,7 @@ export class PipelineService {
         .from('editorial_calendar')
         .update({
           status: 'PUBLISHED',
+          scheduled_at: actualPublishedAt,
           updated_at: new Date().toISOString(),
         })
         .eq('id', calendarId);
