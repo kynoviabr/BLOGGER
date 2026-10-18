@@ -124,9 +124,10 @@ export class CalendarService {
 
   static async updateItemSchedule(id: string, scheduledAt: string | null, status: CalendarStatus = 'SCHEDULED'): Promise<CalendarItem> {
     const supabase = await getSupabaseServerClient();
+    const finalStatus = scheduledAt ? status : (status === 'PUBLISHED' ? 'PUBLISHED' : 'PLANNED');
     const result = await this.updateCalendarItem(id, {
       scheduled_at: scheduledAt,
-      status: scheduledAt ? status : 'PLANNED',
+      status: finalStatus,
     });
 
     // Sincroniza content_items correspondente se existir
@@ -156,18 +157,35 @@ export class CalendarService {
     if (ids.length === 0) return { success: true, count: 0 };
     const supabase = await getSupabaseServerClient();
 
-    const { error } = await supabase
+    // 1. Pautas que NÃO estão publicadas -> voltam para PLANNED
+    const { error: err1 } = await supabase
       .from('editorial_calendar')
       .update({
         scheduled_at: null,
         status: 'PLANNED',
         updated_at: new Date().toISOString(),
       })
-      .in('id', ids);
+      .in('id', ids)
+      .neq('status', 'PUBLISHED');
 
-    if (error) {
-      logger.error('CalendarService.bulkRevokeSchedules', 'Erro ao revogar agendamentos em lote', { error, ids });
-      throw new Error(`Falha ao revogar agendamentos: ${error.message}`);
+    if (err1) {
+      logger.error('CalendarService.bulkRevokeSchedules', 'Erro ao revogar agendamentos em lote (não-publicadas)', { error: err1, ids });
+      throw new Error(`Falha ao revogar agendamentos: ${err1.message}`);
+    }
+
+    // 2. Pautas que JÁ ESTÃO publicadas -> apenas remove scheduled_at sem alterar status
+    const { error: err2 } = await supabase
+      .from('editorial_calendar')
+      .update({
+        scheduled_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', ids)
+      .eq('status', 'PUBLISHED');
+
+    if (err2) {
+      logger.error('CalendarService.bulkRevokeSchedules', 'Erro ao remover scheduled_at de pautas publicadas', { error: err2, ids });
+      throw new Error(`Falha ao remover agendamento de pautas publicadas: ${err2.message}`);
     }
 
     await supabase
@@ -179,7 +197,7 @@ export class CalendarService {
       .in('editorial_calendar_id', ids)
       .eq('status', 'scheduled');
 
-    logger.info('CalendarService', `${ids.length} agendamentos revogados com sucesso`);
+    logger.info('CalendarService', `${ids.length} agendamentos revogados/limpos com sucesso`);
     return { success: true, count: ids.length };
   }
 

@@ -211,14 +211,14 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
       setItems((prev) =>
         prev.map((it) =>
           selectedIds.has(it.id)
-            ? { ...it, scheduled_at: null, status: "PLANNED" as CalendarStatus }
+            ? { ...it, scheduled_at: null, status: it.status === "PUBLISHED" ? "PUBLISHED" : ("PLANNED" as CalendarStatus) }
             : it
         )
       );
       setSelectedIds(new Set());
       setNotification({
         type: "success",
-        message: `${ids.length} agendamento(s) revogado(s) com sucesso! As pautas retornaram para status PLANNED.`,
+        message: `${ids.length} agendamento(s) processado(s) com sucesso!`,
       });
       router.refresh();
     } catch (err) {
@@ -231,13 +231,18 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
 
   const handleRevokeOne = async (id: string) => {
     try {
-      await updateScheduleAction(id, null, "PLANNED");
+      const target = items.find((it) => it.id === id);
+      const isPublished = target?.status === "PUBLISHED";
+      const targetStatus: CalendarStatus = isPublished ? "PUBLISHED" : "PLANNED";
+      await updateScheduleAction(id, null, targetStatus);
       setItems((prev) =>
-        prev.map((it) => (it.id === id ? { ...it, scheduled_at: null, status: "PLANNED" as CalendarStatus } : it))
+        prev.map((it) => (it.id === id ? { ...it, scheduled_at: null, status: targetStatus } : it))
       );
       setNotification({
         type: "success",
-        message: "Agendamento revogado com sucesso! Pauta retornou para status PLANNED.",
+        message: isPublished
+          ? "Data agendada removida do calendário! O artigo continua publicado."
+          : "Agendamento revogado com sucesso! Pauta retornou para status PLANNED.",
       });
       router.refresh();
     } catch (err) {

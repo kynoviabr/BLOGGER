@@ -233,7 +233,7 @@ export function CalendarMonthView({
     }
   };
 
-  // Revogar agendamento individual (remover data e voltar para PLANNED)
+  // Revogar agendamento individual (remover data e voltar para PLANNED, ou manter PUBLISHED)
   const handleCancelSchedule = async () => {
     if (!selectedItem) return;
 
@@ -241,11 +241,15 @@ export function CalendarMonthView({
     setModalFeedback(null);
 
     try {
-      await updateScheduleAction(selectedItem.id, null, "PLANNED");
+      const isPublished = selectedItem.status === "PUBLISHED";
+      const targetStatus: CalendarStatus = isPublished ? "PUBLISHED" : "PLANNED";
+      await updateScheduleAction(selectedItem.id, null, targetStatus);
 
       setModalFeedback({
         type: "success",
-        message: "Agendamento revogado com sucesso! A pauta retornou para status PLANNED.",
+        message: isPublished
+          ? "Data agendada removida do calendário! O artigo continua com status PUBLICADO."
+          : "Agendamento revogado com sucesso! A pauta retornou para status PLANNED.",
       });
 
       setTimeout(() => {
@@ -610,10 +614,10 @@ export function CalendarMonthView({
                   onClick={handleCancelSchedule}
                   disabled={isUpdatingSchedule || isPublishingNow || !selectedItem.scheduled_at}
                   className="h-8 text-xs gap-1.5 text-destructive hover:bg-destructive/10 border-destructive/30"
-                  title="Remove a data agendada desta pauta e cancela a publicação automática"
+                  title="Remove a data agendada desta pauta do calendário"
                 >
                   <CalendarX className="h-3.5 w-3.5" />
-                  Revogar Agendamento
+                  {selectedItem.status === "PUBLISHED" ? "Remover do Calendário" : "Revogar Agendamento"}
                 </Button>
 
                 <Button
