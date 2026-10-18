@@ -4,7 +4,7 @@ DECLARE
   missing_names text[];
 BEGIN
   SELECT array_agg(required.name ORDER BY required.name) INTO missing_names
-  FROM (VALUES ('project_url'), ('publishable_key'), ('PUBLISH_CRON_SECRET')) AS required(name)
+  FROM (VALUES ('project_url'), ('secret_key'), ('PUBLISH_CRON_SECRET')) AS required(name)
   WHERE NOT EXISTS (
     SELECT 1 FROM vault.decrypted_secrets secret
     WHERE secret.name = required.name
@@ -35,7 +35,7 @@ SELECT cron.schedule(
       || '/functions/v1/publish-content',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'apikey', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'publishable_key' LIMIT 1),
+      'apikey', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'secret_key' LIMIT 1),
       'x-cron-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'PUBLISH_CRON_SECRET' LIMIT 1)
     ),
     body := '{}'::jsonb

@@ -6,14 +6,14 @@ Supabase. A Vercel não participa do agendamento nem da execução automática.
 ## Estado anterior
 
 - O job legado chama uma rota Vercel por `GET` e precisa ser removido no rollout.
-- O Vault precisa de `project_url`, `publishable_key` e `PUBLISH_CRON_SECRET`.
+- O Vault precisa de `project_url`, `secret_key` e `PUBLISH_CRON_SECRET`.
 - A Edge Function usa secrets globais do WordPress como fallback; credenciais
   específicas continuam vindo do cadastro de cada blog.
 
 ## Sequência de rollout
 
 1. Gere `PUBLISH_CRON_SECRET` aleatório com no mínimo 32 caracteres.
-2. Cadastre `project_url`, `publishable_key` e `PUBLISH_CRON_SECRET` no Vault.
+2. Cadastre `project_url`, `secret_key` e `PUBLISH_CRON_SECRET` no Vault.
 3. Cadastre o mesmo `PUBLISH_CRON_SECRET` nos secrets da Edge Function.
 4. Cadastre `WORDPRESS_SITE_URL`, `WORDPRESS_USERNAME` e
    `WORDPRESS_APPLICATION_PASSWORD` nos secrets da Edge Function.

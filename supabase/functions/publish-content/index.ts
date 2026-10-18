@@ -124,7 +124,7 @@ async function uploadFeaturedMedia(article: JsonRecord, siteUrl: string, auth: s
 }
 
 export default {
-  fetch: withSupabase({ auth: ["publishable", "secret"] }, async (req, ctx) => {
+  fetch: withSupabase({ auth: "secret" }, async (req, ctx) => {
     if (req.method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405 });
     const expectedSecret = Deno.env.get("PUBLISH_CRON_SECRET") ?? "";
     if (!expectedSecret || req.headers.get("x-cron-secret") !== expectedSecret) {
