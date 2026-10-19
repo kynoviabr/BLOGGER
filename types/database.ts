@@ -566,6 +566,7 @@ export type Database = {
       system_logs: {
         Row: {
           id: string;
+          organization_id: string | null;
           level: LogLevel;
           service: string;
           message: string;
@@ -574,6 +575,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          organization_id?: string | null;
           level: LogLevel;
           service: string;
           message: string;
@@ -582,13 +584,22 @@ export type Database = {
         };
         Update: {
           id?: string;
+          organization_id?: string | null;
           level?: LogLevel;
           service?: string;
           message?: string;
           metadata?: Json;
           created_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "system_logs_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       monetization_offers: {
         Row: {
