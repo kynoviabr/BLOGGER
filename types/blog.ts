@@ -25,6 +25,9 @@ export interface WordPressConfig {
   wp_site_url?: string;
   wp_username?: string;
   wp_application_password?: string;
+  connection_status?: 'untested' | 'connected' | 'failed';
+  connection_checked_at?: string;
+  connection_error_code?: string;
 }
 
 export interface EditorialConfig {

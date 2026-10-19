@@ -49,6 +49,7 @@ export default async function ContentListPage({
     { label: "Em Revisão", value: "reviewing" },
     { label: "Prontos", value: "ready" },
     { label: "Agendados", value: "scheduled" },
+    { label: "Falha de publicação", value: "publish_failed" },
     { label: "Publicados", value: "published" },
   ];
 
@@ -167,7 +168,7 @@ export default async function ContentListPage({
                     {item.language}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={item.status} errorMessage={item.last_publish_error} />
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {item.published_at ? (

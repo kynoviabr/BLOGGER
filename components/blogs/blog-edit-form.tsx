@@ -13,11 +13,12 @@ import { SUPPORTED_LANGUAGES } from "@/config/languages";
 
 interface BlogEditFormProps {
   blog: BlogWithRelations;
+  wordpressPasswordConfigured: boolean;
 }
 
 const initialState: ActionResult = {};
 
-export function BlogEditForm({ blog }: BlogEditFormProps) {
+export function BlogEditForm({ blog, wordpressPasswordConfigured }: BlogEditFormProps) {
   const updateWithId = updateBlogAction.bind(null, blog.id);
   const [state, formAction, isPending] = useActionState(updateWithId, initialState);
 
@@ -131,7 +132,7 @@ export function BlogEditForm({ blog }: BlogEditFormProps) {
               <Input
                 name="wp_application_password"
                 type="password"
-                placeholder={wpConfig.wp_application_password ? "•••••••••••• (deixe em branco p/ manter)" : "Ex: abcd efgh ijkl mnop"}
+                placeholder={wordpressPasswordConfigured ? "•••••••••••• (deixe em branco p/ manter)" : "Ex: abcd efgh ijkl mnop"}
                 disabled={isPending}
                 autoComplete="new-password"
               />

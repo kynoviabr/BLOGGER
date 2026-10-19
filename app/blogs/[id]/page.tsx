@@ -9,6 +9,7 @@ import { BlogEditForm } from "@/components/blogs/blog-edit-form";
 import { AutopilotSettingsCard } from "@/components/blogs/autopilot-settings-card";
 import { CategoryManager } from "@/components/blogs/category-manager";
 import { getLanguageConfig } from "@/config/languages";
+import { BlogWithRelations, WordPressConfig } from "@/types/blog";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,19 @@ export default async function BlogDetailsPage({
   if (!blog) {
     notFound();
   }
+
+  // Never serialize the application password into Client Component props/RSC payloads.
+  const editorialConfig = (blog.editorial_config as Record<string, unknown>) || {};
+  const wordpressConfig = (editorialConfig.wordpress as WordPressConfig) || {};
+  const wordpressPasswordConfigured = Boolean(wordpressConfig.wp_application_password);
+  const { wp_application_password: _password, ...safeWordpressConfig } = wordpressConfig;
+  const safeBlog: BlogWithRelations = {
+    ...blog,
+    editorial_config: {
+      ...editorialConfig,
+      wordpress: safeWordpressConfig,
+    },
+  };
 
   return (
     <div className="space-y-8 max-w-4xl">
@@ -50,12 +64,12 @@ export default async function BlogDetailsPage({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <BlogEditForm blog={blog} />
+              <BlogEditForm blog={safeBlog} wordpressPasswordConfigured={wordpressPasswordConfigured} />
             </CardContent>
           </Card>
 
           {/* Painel Autopilot Settings */}
-          <AutopilotSettingsCard blog={blog} />
+          <AutopilotSettingsCard blog={safeBlog} />
         </div>
 
         {/* Informações Laterais: Categorias e Idiomas (1 coluna) */}

@@ -21,6 +21,8 @@ export type ContentStatus =
   | 'reviewing'
   | 'ready'
   | 'scheduled'
+  | 'publishing'
+  | 'publish_failed'
   | 'published'
   | 'archived';
 export type MediaType = 'image' | 'video' | 'infographic';
@@ -249,6 +251,14 @@ export type Database = {
           tags: string[];
           featured_image_id: string | null;
           published_at: string | null;
+          publish_attempts: number;
+          publish_claimed_at: string | null;
+          publish_original_status: string | null;
+          last_publish_error: string | null;
+          publish_failure_code: string | null;
+          next_publish_attempt_at: string | null;
+          external_post_id: string | null;
+          external_post_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -268,6 +278,14 @@ export type Database = {
           tags?: string[];
           featured_image_id?: string | null;
           published_at?: string | null;
+          publish_attempts?: number;
+          publish_claimed_at?: string | null;
+          publish_original_status?: string | null;
+          last_publish_error?: string | null;
+          publish_failure_code?: string | null;
+          next_publish_attempt_at?: string | null;
+          external_post_id?: string | null;
+          external_post_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -287,6 +305,14 @@ export type Database = {
           tags?: string[];
           featured_image_id?: string | null;
           published_at?: string | null;
+          publish_attempts?: number;
+          publish_claimed_at?: string | null;
+          publish_original_status?: string | null;
+          last_publish_error?: string | null;
+          publish_failure_code?: string | null;
+          next_publish_attempt_at?: string | null;
+          external_post_id?: string | null;
+          external_post_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
