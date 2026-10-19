@@ -11,6 +11,7 @@ import { SystemLog } from '@/services/log.service';
 export const fixtureBlogs: BlogWithRelations[] = [
   {
     id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    organization_id: 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a01',
     name: 'Tech & AI Insights',
     slug: 'tech-ai-insights',
     domain: 'tech-ai-insights.com',
