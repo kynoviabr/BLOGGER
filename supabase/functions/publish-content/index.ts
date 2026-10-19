@@ -345,10 +345,27 @@ export default {
       }
     }
 
-    await db.from("system_logs").insert({
-      level: "info", service: SERVICE, message: "Execução do publicador Supabase concluída.",
-      metadata: { durationMs: Date.now() - startedAt, eligible: eligible.length, results },
-    });
+    const organizationIds = new Set(
+      eligible
+        .map((article: JsonRecord) => (article.blog as JsonRecord | null)?.organization_id)
+        .filter((id): id is string => typeof id === "string"),
+    );
+    if (organizationIds.size > 0) {
+      await db.from("system_logs").insert([...organizationIds].map((organizationId) => ({
+        organization_id: organizationId,
+        level: "info",
+        service: SERVICE,
+        message: "Execução do publicador Supabase concluída.",
+        metadata: {
+          durationMs: Date.now() - startedAt,
+          eligible: eligible.length,
+          results: results.filter((result) => {
+            const article = eligible.find((item: JsonRecord) => item.id === result.articleId);
+            return (article?.blog as JsonRecord | null)?.organization_id === organizationId;
+          }),
+        },
+      })));
+    }
     return Response.json({ success: true, publishedCount: results.filter((r) => r.status === "PUBLISHED").length, results });
   }),
 };

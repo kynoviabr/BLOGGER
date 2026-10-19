@@ -1,18 +1,14 @@
 import { Database, LogLevel, Json } from '@/types/database';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
-import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 
 export type SystemLog = Database['public']['Tables']['system_logs']['Row'];
 
 export class LogService {
   static async listLogs(filters?: { level?: LogLevel; service?: string }): Promise<SystemLog[]> {
-    let supabase;
-    try {
-      supabase = await getSupabaseServerClient();
-    } catch {
-      supabase = getSupabaseAdminClient();
-    }
+    // Never fall back to service_role for reads: RLS must remain the tenant
+    // boundary even when this service is rendered on the server.
+    const supabase = await getSupabaseServerClient();
     let query = supabase
       .from('system_logs')
       .select('*')
@@ -43,12 +39,7 @@ export class LogService {
     metadata: Record<string, unknown> = {}
   ): Promise<void> {
     try {
-      let supabase;
-      try {
-        supabase = await getSupabaseServerClient();
-      } catch {
-        supabase = getSupabaseAdminClient();
-      }
+      const supabase = await getSupabaseServerClient();
       const { error } = await supabase
         .from('system_logs')
         .insert({
