@@ -21,6 +21,7 @@ export function StatusBadge({ status, errorMessage }: StatusBadgeProps) {
     case "IN_PROGRESS":
     case "SCHEDULED":
     case "RUNNING":
+    case "PUBLISHING":
       badgeElement = <Badge variant="info">{status}</Badge>;
       break;
     case "IDEA":
@@ -31,6 +32,7 @@ export function StatusBadge({ status, errorMessage }: StatusBadgeProps) {
       badgeElement = <Badge variant="warning">{status}</Badge>;
       break;
     case "FAILED":
+    case "PUBLISH_FAILED":
     case "ERROR":
       badgeElement = (
         <Badge variant="error" className="cursor-help inline-flex items-center gap-1">
@@ -46,7 +48,7 @@ export function StatusBadge({ status, errorMessage }: StatusBadgeProps) {
       break;
   }
 
-  if ((normalized === "FAILED" || normalized === "ERROR") && errorMessage) {
+  if ((normalized === "FAILED" || normalized === "PUBLISH_FAILED" || normalized === "ERROR") && errorMessage) {
     return (
       <Tooltip
         side="top"

@@ -4,21 +4,36 @@ import { marked } from "npm:marked@18.0.14";
 
 const SERVICE = "EdgePublisher.publishContent";
 const BATCH_SIZE = 5;
+const MAX_PUBLISH_ATTEMPTS = 5;
 type JsonRecord = Record<string, unknown>;
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 const basicAuth = (username: string, password: string) => `Basic ${btoa(`${username}:${password}`)}`;
+
+class PublishFailure extends Error {
+  constructor(message: string, readonly code: string, readonly retryable: boolean) {
+    super(message);
+    this.name = "PublishFailure";
+  }
+}
+
+function contextualFailure(prefix: string, error: unknown): PublishFailure {
+  if (error instanceof PublishFailure) {
+    return new PublishFailure(`${prefix}: ${error.message}`, error.code, error.retryable);
+  }
+  return new PublishFailure(`${prefix}: ${errorMessage(error)}`, "UNEXPECTED_ERROR", true);
+}
 
 function wordpressConfig(blog: JsonRecord) {
   const editorial = (blog.editorial_config ?? {}) as JsonRecord;
   const wordpress = (editorial.wordpress ?? {}) as JsonRecord;
   const configuredUrl = String(wordpress.wp_site_url ?? "").trim();
   const domain = String(blog.domain ?? "").trim();
-  const siteUrl = configuredUrl || domain || Deno.env.get("WORDPRESS_SITE_URL") || "";
+  const siteUrl = configuredUrl || domain;
   return {
     siteUrl: siteUrl.trim().replace(/\/+$/, "").replace(/^(?!https?:\/\/)/, "https://"),
-    username: String(wordpress.wp_username ?? Deno.env.get("WORDPRESS_USERNAME") ?? "").trim(),
-    password: String(wordpress.wp_application_password ?? Deno.env.get("WORDPRESS_APPLICATION_PASSWORD") ?? "").trim(),
+    username: String(wordpress.wp_username ?? "").trim(),
+    password: String(wordpress.wp_application_password ?? "").trim(),
   };
 }
 
@@ -71,8 +86,38 @@ async function wordpressJson(url: string, auth: string, init: RequestInit = {}):
     signal: AbortSignal.timeout(45_000),
   });
   const payload = await response.json().catch(() => ({})) as JsonRecord;
-  if (!response.ok) throw new Error(`WordPress ${response.status}: ${String(payload.message ?? response.statusText)}`);
+  if (!response.ok) {
+    const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+    throw new PublishFailure(
+      `WordPress ${response.status}: ${String(payload.message ?? response.statusText)}`,
+      `WORDPRESS_HTTP_${response.status}`,
+      retryable,
+    );
+  }
   return payload;
+}
+
+async function validateWordpressConnection(siteUrl: string, auth: string): Promise<void> {
+  const response = await fetch(`${siteUrl}/wp-json/wp/v2/users/me?context=edit`, {
+    headers: { Authorization: auth, Accept: "application/json" },
+    signal: AbortSignal.timeout(20_000),
+  });
+  const payload = await response.json().catch(() => ({})) as JsonRecord;
+  if (!response.ok) {
+    throw new PublishFailure(
+      `Integração WordPress não autenticada (${response.status}): ${String(payload.message ?? response.statusText)}`,
+      response.status === 401 ? "WORDPRESS_AUTH_REQUIRED" : `WORDPRESS_PREFLIGHT_${response.status}`,
+      response.status === 408 || response.status === 429 || response.status >= 500,
+    );
+  }
+  const capabilities = (payload.capabilities ?? {}) as JsonRecord;
+  if (capabilities.publish_posts !== true || capabilities.upload_files !== true) {
+    throw new PublishFailure(
+      "Usuário WordPress sem permissão para publicar posts e enviar arquivos.",
+      "WORDPRESS_INSUFFICIENT_CAPABILITIES",
+      false,
+    );
+  }
 }
 
 function normalizedCategoryName(value: string): string {
@@ -90,7 +135,7 @@ async function categoryId(siteUrl: string, auth: string, slug: string, name: str
     headers: { Authorization: auth, Accept: "application/json" }, signal: AbortSignal.timeout(20_000),
   });
   const categories = await response.json().catch(() => []) as Array<JsonRecord>;
-  if (!response.ok) throw new Error(`WordPress ${response.status}: falha ao consultar categoria ${slug}`);
+  if (!response.ok) throw new PublishFailure(`WordPress ${response.status}: falha ao consultar categoria ${slug}`, `WORDPRESS_HTTP_${response.status}`, response.status >= 500);
   const exactId = Number(categories[0]?.id ?? 0);
   if (exactId > 1) return exactId;
 
@@ -99,11 +144,11 @@ async function categoryId(siteUrl: string, auth: string, slug: string, name: str
     { headers: { Authorization: auth, Accept: "application/json" }, signal: AbortSignal.timeout(20_000) },
   );
   const matches = await fallback.json().catch(() => []) as Array<JsonRecord>;
-  if (!fallback.ok) throw new Error(`WordPress ${fallback.status}: falha ao consultar categoria ${name}`);
+  if (!fallback.ok) throw new PublishFailure(`WordPress ${fallback.status}: falha ao consultar categoria ${name}`, `WORDPRESS_HTTP_${fallback.status}`, fallback.status >= 500);
   const normalizedName = normalizedCategoryName(name);
   const match = matches.find((candidate) => normalizedCategoryName(String(candidate.name ?? "")) === normalizedName);
   const fallbackId = Number(match?.id ?? 0);
-  if (fallbackId <= 1) throw new Error(`Categoria WordPress não encontrada: ${slug} (${name})`);
+  if (fallbackId <= 1) throw new PublishFailure(`Categoria WordPress não encontrada: ${slug} (${name})`, "WORDPRESS_CATEGORY_NOT_FOUND", false);
   return fallbackId;
 }
 
@@ -168,8 +213,12 @@ export default {
     }
 
     const { data: candidates, error } = await db.from("content_items")
-      .select("*, blog:blogs(*), editorial_calendar:editorial_calendar(id, scheduled_at, status, category:categories(id, name, slug)), featured_image:media_assets!content_items_featured_image_id_fkey(*)")
-      .in("status", ["ready", "scheduled"]).order("created_at", { ascending: true }).limit(10);
+      .select("*, blog:blogs!inner(*), editorial_calendar:editorial_calendar(id, scheduled_at, status, category:categories(id, name, slug)), featured_image:media_assets!content_items_featured_image_id_fkey(*)")
+      .in("status", ["ready", "scheduled"])
+      .eq("blog.status", "active")
+      .lt("publish_attempts", MAX_PUBLISH_ATTEMPTS)
+      .or(`next_publish_attempt_at.is.null,next_publish_attempt_at.lte.${now}`)
+      .order("created_at", { ascending: true }).limit(10);
     if (error) return Response.json({ error: error.message }, { status: 500 });
 
     const eligible = (candidates ?? []).filter((item: JsonRecord) => {
@@ -179,6 +228,7 @@ export default {
     }).slice(0, BATCH_SIZE);
 
     const results: JsonRecord[] = [];
+    const connectionChecks = new Map<string, Promise<void>>();
     for (const article of eligible) {
       const originalStatus = String(article.status);
       const claim = await db.from("content_items")
@@ -196,9 +246,20 @@ export default {
         const blog = article.blog as JsonRecord;
         const config = wordpressConfig(blog);
         if (!config.siteUrl || !config.username || !config.password) {
-          throw new Error(`Credenciais WordPress incompletas para o blog ${String(blog.slug ?? blog.id)}`);
+          throw new PublishFailure(
+            `Credenciais WordPress incompletas para o blog ${String(blog.slug ?? blog.id)}`,
+            "WORDPRESS_CONFIG_INCOMPLETE",
+            false,
+          );
         }
         const auth = basicAuth(config.username, config.password);
+        const blogId = String(blog.id ?? article.blog_id);
+        let connectionCheck = connectionChecks.get(blogId);
+        if (!connectionCheck) {
+          connectionCheck = validateWordpressConnection(config.siteUrl, auth);
+          connectionChecks.set(blogId, connectionCheck);
+        }
+        await connectionCheck;
         const calendar = article.editorial_calendar as JsonRecord | null;
         const category = calendar?.category as JsonRecord | null;
         const categorySlug = String(category?.slug ?? "");
@@ -213,7 +274,7 @@ export default {
         try {
           featuredMediaId = await uploadFeaturedMedia(article, config.siteUrl, auth);
         } catch (mediaError) {
-          throw new Error(`Upload da imagem destacada: ${errorMessage(mediaError)}`);
+          throw contextualFailure("Upload da imagem destacada", mediaError);
         }
         if (featuredMediaId) payload.featured_media = featuredMediaId;
         payload.meta = {
@@ -238,13 +299,14 @@ export default {
               method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
             });
           } catch (postError) {
-            throw new Error(`Criação do post: ${errorMessage(postError)}`);
+            throw contextualFailure("Criação do post", postError);
           }
         }
         const publishedAt = String(published.date_gmt ?? published.date ?? new Date().toISOString());
         await db.from("content_items").update({
           status: "published", published_at: publishedAt, publish_claimed_at: null,
-          publish_original_status: null, last_publish_error: null,
+          publish_original_status: null, last_publish_error: null, publish_failure_code: null,
+          next_publish_attempt_at: null,
           external_post_id: String(published.id), external_post_url: String(published.link ?? ""),
         }).eq("id", article.id).eq("status", "publishing");
         if (article.editorial_calendar_id) {
@@ -254,11 +316,32 @@ export default {
         results.push({ articleId: article.id, status: "PUBLISHED", postId: published.id, url: published.link });
       } catch (publishError) {
         const message = errorMessage(publishError).slice(0, 1000);
+        const attempts = Number(article.publish_attempts ?? 0) + 1;
+        const failure = publishError instanceof PublishFailure
+          ? publishError
+          : new PublishFailure(message, "UNEXPECTED_ERROR", true);
+        const exhausted = attempts >= MAX_PUBLISH_ATTEMPTS;
+        const terminal = !failure.retryable || exhausted;
+        const retryDelayMinutes = Math.min(360, 5 * (2 ** Math.max(0, attempts - 1)));
+        const nextAttemptAt = terminal
+          ? null
+          : new Date(Date.now() + retryDelayMinutes * 60_000).toISOString();
         await db.from("content_items").update({
-          status: originalStatus, publish_claimed_at: null, publish_original_status: null, last_publish_error: message,
+          status: terminal ? "publish_failed" : originalStatus,
+          publish_claimed_at: null,
+          publish_original_status: null,
+          last_publish_error: message,
+          publish_failure_code: exhausted ? "MAX_ATTEMPTS_EXCEEDED" : failure.code,
+          next_publish_attempt_at: nextAttemptAt,
         })
           .eq("id", article.id).eq("status", "publishing");
-        results.push({ articleId: article.id, status: "FAILED_RETRY_SCHEDULED", error: message });
+        results.push({
+          articleId: article.id,
+          blogId: article.blog_id,
+          status: terminal ? "FAILED_TERMINAL" : "FAILED_RETRY_SCHEDULED",
+          errorCode: exhausted ? "MAX_ATTEMPTS_EXCEEDED" : failure.code,
+          nextAttemptAt,
+        });
       }
     }
 
