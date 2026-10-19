@@ -28,13 +28,88 @@ export type ContentStatus =
 export type MediaType = 'image' | 'video' | 'infographic';
 export type AIRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+export type OrganizationStatus = 'active' | 'suspended' | 'archived';
+export type OrganizationRole = 'owner' | 'admin' | 'editor' | 'viewer';
+export type OrganizationMemberStatus = 'invited' | 'active' | 'suspended';
 
 export type Database = {
   public: {
     Tables: {
+      organizations: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          status: OrganizationStatus;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          status?: OrganizationStatus;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          slug?: string;
+          status?: OrganizationStatus;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      organization_members: {
+        Row: {
+          organization_id: string;
+          user_id: string;
+          role: OrganizationRole;
+          status: OrganizationMemberStatus;
+          invited_by: string | null;
+          joined_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          user_id: string;
+          role: OrganizationRole;
+          status?: OrganizationMemberStatus;
+          invited_by?: string | null;
+          joined_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          organization_id?: string;
+          user_id?: string;
+          role?: OrganizationRole;
+          status?: OrganizationMemberStatus;
+          invited_by?: string | null;
+          joined_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       blogs: {
         Row: {
           id: string;
+          organization_id: string;
           name: string;
           slug: string;
           domain: string;
@@ -56,6 +131,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          organization_id: string;
           name: string;
           slug: string;
           domain: string;
@@ -77,6 +153,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          organization_id?: string;
           name?: string;
           slug?: string;
           domain?: string;
@@ -96,7 +173,15 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "blogs_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       blog_languages: {
         Row: {

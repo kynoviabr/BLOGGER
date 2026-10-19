@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { BlogService } from "@/services/blog.service";
 import { BlogInsert, BlogUpdate, WordPressConfig } from "@/types/blog";
-import { requireAuth } from "@/lib/supabase/auth";
+import { requireAuth, requireOrganizationMembership } from "@/lib/supabase/auth";
 import { createBlogSchema, updateBlogSchema } from "@/lib/validations/blog.schema";
 import { slugify } from "@/lib/utils";
 import { logger } from "@/lib/logger";
@@ -20,7 +20,7 @@ export async function createBlogAction(
 ): Promise<ActionResult> {
   try {
     // 1. Autorização estrita
-    const user = await requireAuth();
+    const { organizationId } = await requireOrganizationMembership();
 
     // 2. Validação com Zod
     const rawInput = {
@@ -50,6 +50,7 @@ export async function createBlogAction(
     if (wp_application_password && wp_application_password.trim()) wordpressConfig.wp_application_password = wp_application_password.trim();
 
     const input: BlogInsert = {
+      organization_id: organizationId,
       name,
       slug: finalSlug,
       domain,
@@ -233,4 +234,3 @@ export async function updateAutopilotConfigAction(
     return { error: message };
   }
 }
-
