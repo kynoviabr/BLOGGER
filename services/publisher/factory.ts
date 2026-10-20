@@ -61,6 +61,31 @@ export function getWordPressConfigForBlog(blog?: {
   };
 }
 
+export async function getWordPressConfigForBlogAsync(
+  blog?: { id?: string; domain?: string | null; editorial_config?: unknown } | null
+): Promise<PublisherFactoryOptions> {
+  const fallback = getWordPressConfigForBlog(blog);
+  if (!blog?.id) return fallback;
+  try {
+    const { getSupabaseServerClient } = await import('@/lib/supabase/server');
+    const supabase = await getSupabaseServerClient();
+    const { data } = await supabase.rpc('get_blog_wordpress_runtime_config' as never, { p_blog_id: blog.id } as never);
+    const cfg = data as { siteUrl?: string; username?: string; applicationPassword?: string } | null;
+    if (cfg?.siteUrl && cfg?.username && cfg?.applicationPassword) {
+      return { siteUrl: cfg.siteUrl, username: cfg.username, applicationPassword: cfg.applicationPassword };
+    }
+  } catch {}
+  return fallback;
+}
+
+export async function createPublisherProviderForBlogAsync(
+  blog?: { id?: string; domain?: string | null; editorial_config?: unknown } | null,
+  options?: Partial<PublisherFactoryOptions>
+): Promise<ReturnType<typeof createPublisherProvider>> {
+  const blogOptions = await getWordPressConfigForBlogAsync(blog);
+  return createPublisherProvider({ ...blogOptions, ...options });
+}
+
 /**
  * Cria uma instância do PublisherProvider com credenciais específicas do Blog.
  */

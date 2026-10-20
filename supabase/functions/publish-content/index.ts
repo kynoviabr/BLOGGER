@@ -24,7 +24,18 @@ function contextualFailure(prefix: string, error: unknown): PublishFailure {
   return new PublishFailure(`${prefix}: ${errorMessage(error)}`, "UNEXPECTED_ERROR", true);
 }
 
-function wordpressConfig(blog: JsonRecord) {
+async function wordpressConfig(blog: JsonRecord, db: ReturnType<typeof createClient>): Promise<{ siteUrl: string; username: string; password: string }> {
+  const blogId = String(blog.id ?? "");
+  // Prefer Vault per blog; fallback to editorial_config JSON then env is handled by caller
+  if (blogId) {
+    try {
+      const { data } = await db.rpc("get_blog_wordpress_runtime_config", { p_blog_id: blogId });
+      const cfg = data as { siteUrl?: string; username?: string; applicationPassword?: string } | null;
+      if (cfg?.siteUrl && cfg?.username && cfg?.applicationPassword) {
+        return { siteUrl: String(cfg.siteUrl).trim().replace(/\/+$/, ""), username: String(cfg.username).trim(), password: String(cfg.applicationPassword).trim() };
+      }
+    } catch {}
+  }
   const editorial = (blog.editorial_config ?? {}) as JsonRecord;
   const wordpress = (editorial.wordpress ?? {}) as JsonRecord;
   const configuredUrl = String(wordpress.wp_site_url ?? "").trim();
@@ -263,7 +274,7 @@ export default {
       try {
         if (!String(article.body ?? "").trim()) throw new Error("Artigo sem corpo de texto");
         const blog = article.blog as JsonRecord;
-        const config = wordpressConfig(blog);
+        const config = await wordpressConfig(blog, db);
         if (!config.siteUrl || !config.username || !config.password) {
           throw new PublishFailure(
             `Credenciais WordPress incompletas para o blog ${String(blog.slug ?? blog.id)}`,

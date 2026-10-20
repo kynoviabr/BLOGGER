@@ -47,7 +47,7 @@ export async function createBlogAction(
     const wordpressConfig: WordPressConfig = {};
     if (wp_site_url && wp_site_url.trim()) wordpressConfig.wp_site_url = wp_site_url.trim();
     if (wp_username && wp_username.trim()) wordpressConfig.wp_username = wp_username.trim();
-    if (wp_application_password && wp_application_password.trim()) wordpressConfig.wp_application_password = wp_application_password.trim();
+    // Never store wp_application_password in editorial_config — Vault only
 
     const input: BlogInsert = {
       organization_id: organizationId,
@@ -133,13 +133,28 @@ export async function updateBlogAction(
       updatedWp.wp_username = wpUserVal ? wpUserVal : undefined;
     }
 
-    // Se uma nova senha de aplicação foi digitada, atualiza. Se deixada em branco, mantém a existente.
+    // WordPress password: migrate to Vault via RPC. Never persist in editorial_config JSON.
     const wpPassVal = validation.data.wp_application_password?.trim();
+    const wpSiteUrlForVault = (validation.data.wp_site_url?.trim() || (updatedWp.wp_site_url as string | undefined) || "").trim();
+    const wpUserForVault = (validation.data.wp_username?.trim() || (updatedWp.wp_username as string | undefined) || "").trim();
     if (wpPassVal && wpPassVal.length > 0) {
-      updatedWp.wp_application_password = wpPassVal;
+      if (!wpSiteUrlForVault || !wpSiteUrlForVault.startsWith("https://") || !wpUserForVault) {
+        return { error: "Para salvar a senha WordPress, informe siteUrl (https) e usuário." };
+      }
+      const { getSupabaseServerClient } = await import("@/lib/supabase/server");
+      const supabase = await getSupabaseServerClient();
+      const { error: vaultError } = await supabase.rpc("upsert_blog_wordpress_credentials" as never, {
+        p_blog_id: id, p_site_url: wpSiteUrlForVault, p_wp_username: wpUserForVault, p_wp_application_password: wpPassVal, p_enabled: true,
+      } as never);
+      if (vaultError) return { error: vaultError.message };
+      // Ensure plaintext never lands in JSON
+      delete (updatedWp as Record<string, unknown>).wp_application_password;
+    } else {
+      // No password supplied: strip any legacy plaintext that might still be in current JSON
+      delete (updatedWp as Record<string, unknown>).wp_application_password;
     }
 
-    const { wp_site_url, wp_username, wp_application_password, ...baseUpdates } = validation.data;
+    const { wp_site_url, wp_username, wp_application_password: _omitPass, ...baseUpdates } = validation.data;
 
     const updates: BlogUpdate = {
       ...baseUpdates,
@@ -151,6 +166,14 @@ export async function updateBlogAction(
 
     // 3. Persistência real
     await BlogService.updateBlog(id, updates);
+    // Audit: WordPress credential rotation (no secret logged)
+    if (wpPassVal && wpPassVal.length > 0) {
+      try {
+        const { getSupabaseServerClient: getServer } = await import("@/lib/supabase/server");
+        const s = await getServer();
+        await s.from("system_logs").insert({ level: "info", service: "BlogAction.update", message: `WordPress credential updated for blog ${id} (Vault)`, metadata: { blogId: id } });
+      } catch {}
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível atualizar o blog. Verifique a conexão com o banco e tente novamente.";
     logger.error("BlogAction.update", `Erro ao atualizar blog ${id}`, { err });

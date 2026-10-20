@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase/auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 
 const SUPPORTED_PROVIDERS = new Set(["deepseek", "gemini", "openai", "together"]);
 
@@ -18,8 +19,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const rl = checkRateLimit(rateLimitKey(request, "provider-credentials"), 10, 60_000);
+  if (!rl.allowed) return NextResponse.json({ success: false, error: "Muitas tentativas. Tente novamente em instantes." }, { status: 429, headers: { "Retry-After": String(Math.ceil(rl.retryAfterMs / 1000)) } });
   try {
-    await requireAuth();
+    const auth = await requireAuth();
     const body = await request.json();
     const provider = typeof body.provider === "string" ? body.provider.toLowerCase().trim() : "";
     const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
@@ -38,6 +41,10 @@ export async function POST(request: NextRequest) {
       p_enabled: true,
     } as never);
     if (error) throw error;
+    try {
+      const supabase2 = await getSupabaseServerClient();
+      await supabase2.from("system_logs").insert({ level: "info", service: "Settings.providerCredentials", message: `Provider credential upsert: ${provider}`, metadata: { provider, actorId: (auth as { id?: string } | null)?.id ?? null } });
+    } catch {}
     return NextResponse.json({ success: true, credential: Array.isArray(data) ? data[0] : data });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Não foi possível salvar a credencial.";
