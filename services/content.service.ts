@@ -1,13 +1,16 @@
 import { ContentItem, ContentItemInsert, ContentItemUpdate, ContentItemWithRelations, ContentStatus, ContentSource, AIRun } from '@/types/content';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
+import { getActiveOrganizationId } from '@/lib/supabase/auth';
 
 export class ContentService {
   static async listContent(filters?: { blogId?: string; status?: ContentStatus }): Promise<ContentItemWithRelations[]> {
     const supabase = await getSupabaseServerClient();
+    const organizationId = await getActiveOrganizationId();
     let query = supabase
       .from('content_items')
-      .select('*, blog:blogs(id, name, slug), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
+      .select('*, blog:blogs!inner(id, name, slug, organization_id), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
+      .eq('blog.organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (filters?.blogId) {
@@ -29,10 +32,12 @@ export class ContentService {
 
   static async getContentById(id: string): Promise<ContentItemWithRelations | null> {
     const supabase = await getSupabaseServerClient();
+    const organizationId = await getActiveOrganizationId();
     const { data, error } = await supabase
       .from('content_items')
-      .select('*, blog:blogs(id, name, slug), featured_image:media_assets!content_items_featured_image_id_fkey(*), content_sources(*), ai_runs(*)')
+      .select('*, blog:blogs!inner(id, name, slug, organization_id), featured_image:media_assets!content_items_featured_image_id_fkey(*), content_sources(*), ai_runs(*)')
       .eq('id', id)
+      .eq('blog.organization_id', organizationId)
       .maybeSingle();
 
     if (error) {

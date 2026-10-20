@@ -1,4 +1,6 @@
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { getActiveOrganizationId } from '@/lib/supabase/auth';
 import { MonetizationOffer, CreateOfferInput, UpdateOfferInput } from '@/types/monetization';
 import { logger } from '@/lib/logger';
 
@@ -75,10 +77,12 @@ export class MonetizationService {
    * Lista todas as ofertas cadastradas (opcionalmente filtrando por blog).
    */
   static async listOffers(blogId?: string): Promise<MonetizationOffer[]> {
-    const supabase = getSupabaseAdminClient();
+    const supabase = await getSupabaseServerClient();
+    const organizationId = await getActiveOrganizationId();
     let query = supabase
       .from('monetization_offers')
-      .select('*, blog:blogs(id, name, slug, domain)')
+      .select('*, blog:blogs!inner(id, name, slug, domain, organization_id)')
+      .eq('blog.organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (blogId) {
@@ -98,11 +102,13 @@ export class MonetizationService {
    * Obtém uma oferta por ID.
    */
   static async getOfferById(id: string): Promise<MonetizationOffer | null> {
-    const supabase = getSupabaseAdminClient();
+    const supabase = await getSupabaseServerClient();
+    const organizationId = await getActiveOrganizationId();
     const { data, error } = await supabase
       .from('monetization_offers')
-      .select('*, blog:blogs(id, name, slug, domain)')
+      .select('*, blog:blogs!inner(id, name, slug, domain, organization_id)')
       .eq('id', id)
+      .eq('blog.organization_id', organizationId)
       .maybeSingle();
 
     if (error) {
@@ -117,7 +123,7 @@ export class MonetizationService {
    * Cria uma nova oferta de monetização.
    */
   static async createOffer(input: CreateOfferInput): Promise<MonetizationOffer> {
-    const supabase = getSupabaseAdminClient();
+    const supabase = await getSupabaseServerClient();
     const { data, error } = await supabase
       .from('monetization_offers')
       .insert({
@@ -148,7 +154,9 @@ export class MonetizationService {
    * Atualiza uma oferta existente.
    */
   static async updateOffer(id: string, updates: UpdateOfferInput): Promise<MonetizationOffer> {
-    const supabase = getSupabaseAdminClient();
+    const current = await this.getOfferById(id);
+    if (!current) throw new Error('Oferta não encontrada na empresa ativa');
+    const supabase = await getSupabaseServerClient();
     const { data, error } = await supabase
       .from('monetization_offers')
       .update({
@@ -185,7 +193,9 @@ export class MonetizationService {
    * Exclui uma oferta.
    */
   static async deleteOffer(id: string): Promise<void> {
-    const supabase = getSupabaseAdminClient();
+    const current = await this.getOfferById(id);
+    if (!current) throw new Error('Oferta não encontrada na empresa ativa');
+    const supabase = await getSupabaseServerClient();
     const { error } = await supabase
       .from('monetization_offers')
       .delete()

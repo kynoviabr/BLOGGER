@@ -1,6 +1,7 @@
 import { Database, LogLevel, Json } from '@/types/database';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
+import { getActiveOrganizationId } from '@/lib/supabase/auth';
 
 export type SystemLog = Database['public']['Tables']['system_logs']['Row'];
 
@@ -9,9 +10,11 @@ export class LogService {
     // Never fall back to service_role for reads: RLS must remain the tenant
     // boundary even when this service is rendered on the server.
     const supabase = await getSupabaseServerClient();
+    const organizationId = await getActiveOrganizationId();
     let query = supabase
       .from('system_logs')
       .select('*')
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
       .limit(100);
 
