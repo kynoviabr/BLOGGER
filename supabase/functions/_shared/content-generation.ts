@@ -53,11 +53,11 @@ Responda somente com JSON válido contendo: title, slug, metaDescription, primar
 O conteúdo deve ter de 1300 a 2200 palavras. O imagePrompt deve estar em inglês e não pode pedir telas, notebooks, smartphones ou mesas de escritório.`;
 }
 
-async function callDeepSeek(system: string, user: string): Promise<{ article: GeneratedArticle; provider: string; model: string; usage: JsonRecord }> {
-  const apiKey = Deno.env.get("DEEPSEEK_API_KEY") ?? "";
+async function callDeepSeek(system: string, user: string, config?: JsonRecord | null): Promise<{ article: GeneratedArticle; provider: string; model: string; usage: JsonRecord }> {
+  const apiKey = String(config?.apiKey ?? Deno.env.get("DEEPSEEK_API_KEY") ?? "");
   if (!apiKey) throw new ContentGenerationError("DEEPSEEK_API_KEY não configurada no Supabase", false);
-  const model = Deno.env.get("DEEPSEEK_MODEL") || "deepseek-chat";
-  const baseUrl = (Deno.env.get("DEEPSEEK_BASE_URL") || "https://api.deepseek.com").replace(/\/+$/, "");
+  const model = String(config?.model ?? Deno.env.get("DEEPSEEK_MODEL") ?? "deepseek-chat");
+  const baseUrl = String(config?.baseUrl ?? Deno.env.get("DEEPSEEK_BASE_URL") ?? "https://api.deepseek.com").replace(/\/+$/, "");
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -78,10 +78,10 @@ async function callDeepSeek(system: string, user: string): Promise<{ article: Ge
   return { article: parseJson(choices?.[0]?.message?.content ?? ""), provider: "DeepSeek", model, usage: (body.usage ?? {}) as JsonRecord };
 }
 
-async function callGemini(system: string, user: string): Promise<{ article: GeneratedArticle; provider: string; model: string; usage: JsonRecord }> {
-  const apiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
+async function callGemini(system: string, user: string, config?: JsonRecord | null): Promise<{ article: GeneratedArticle; provider: string; model: string; usage: JsonRecord }> {
+  const apiKey = String(config?.apiKey ?? Deno.env.get("GEMINI_API_KEY") ?? "");
   if (!apiKey) throw new ContentGenerationError("GEMINI_API_KEY não configurada no Supabase", false);
-  const model = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+  const model = String(config?.model ?? Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash");
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -133,10 +133,23 @@ Público: ${String(blog.audience ?? "leitores interessados no tema")}
 Notas editoriais: ${String(calendar?.notes ?? "")}
 Fontes verificadas disponíveis (use somente estas URLs):\n${research || "Nenhuma fonte verificada foi anexada; evite afirmações atuais específicas."}`;
 
-  const preferred = String(Deno.env.get("AI_PROVIDER") || Deno.env.get("TEXT_PROVIDER") || "deepseek").toLowerCase();
+  const globallyPreferred = String(Deno.env.get("AI_PROVIDER") || Deno.env.get("TEXT_PROVIDER") || "deepseek").toLowerCase();
+  const organizationId = String(blog.organization_id ?? "");
+  const { data: availableCredentials } = await client.from("organization_provider_credentials")
+    .select("provider").eq("organization_id", organizationId).eq("enabled", true)
+    .in("provider", ["deepseek", "gemini"]);
+  const configuredProviders = (availableCredentials ?? []).map((row) => String(row.provider));
+  const preferred = configuredProviders.includes(globallyPreferred)
+    ? globallyPreferred
+    : configuredProviders[0] || globallyPreferred;
+  const { data: tenantConfig, error: configError } = await client.rpc("get_provider_runtime_config", {
+    p_organization_id: organizationId,
+    p_provider: preferred,
+  });
+  if (configError) throw new ContentGenerationError(`Falha ao carregar credencial da organização: ${configError.message}`, false);
   const completion = preferred === "gemini"
-    ? await callGemini(systemPrompt(language, String(blog.name ?? "Portal"), String(blog.niche ?? "conteúdo informativo")), user)
-    : await callDeepSeek(systemPrompt(language, String(blog.name ?? "Portal"), String(blog.niche ?? "conteúdo informativo")), user);
+    ? await callGemini(systemPrompt(language, String(blog.name ?? "Portal"), String(blog.niche ?? "conteúdo informativo")), user, tenantConfig as JsonRecord | null)
+    : await callDeepSeek(systemPrompt(language, String(blog.name ?? "Portal"), String(blog.niche ?? "conteúdo informativo")), user, tenantConfig as JsonRecord | null);
 
   const article = completion.article;
   const actualWords = wordCount(article.content);

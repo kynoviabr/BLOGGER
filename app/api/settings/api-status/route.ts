@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase/auth";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export interface ProviderStatus {
   id: string;
@@ -31,14 +32,21 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams;
   const specificProvider = searchParams.get("provider");
+  const supabase = await getSupabaseServerClient();
+  const { data: storedCredentials } = await supabase.rpc("list_provider_credentials" as never, {} as never);
+  const credentials = Array.isArray(storedCredentials) ? storedCredentials as Array<{
+    organization_id: string; provider: string; model?: string; base_url?: string; configured: boolean;
+  }> : [];
+  const storedProviders = new Set(credentials.map((credential) => credential.provider));
+  const organizationId = credentials[0]?.organization_id;
 
   const providers: ProviderStatus[] = [
     {
       id: "gemini",
       name: "Google Gemini",
       category: "text",
-      isConfigured: !!process.env.GEMINI_API_KEY,
-      status: !process.env.GEMINI_API_KEY ? "unconfigured" : "testing",
+      isConfigured: storedProviders.has("gemini") || !!process.env.GEMINI_API_KEY,
+      status: storedProviders.has("gemini") || process.env.GEMINI_API_KEY ? "testing" : "unconfigured",
       links: {
         consoleUrl: "https://aistudio.google.com/app/apikey",
         billingUrl: "https://console.cloud.google.com/billing",
@@ -49,8 +57,8 @@ export async function GET(request: NextRequest) {
       id: "together",
       name: "Together AI (FLUX.1.1-pro)",
       category: "image",
-      isConfigured: !!process.env.TOGETHER_API_KEY,
-      status: !process.env.TOGETHER_API_KEY ? "unconfigured" : "testing",
+      isConfigured: storedProviders.has("together") || !!process.env.TOGETHER_API_KEY,
+      status: storedProviders.has("together") || process.env.TOGETHER_API_KEY ? "testing" : "unconfigured",
       links: {
         consoleUrl: "https://api.together.ai/settings/api-keys",
         billingUrl: "https://api.together.ai/settings/billing",
@@ -62,8 +70,8 @@ export async function GET(request: NextRequest) {
       id: "deepseek",
       name: "DeepSeek",
       category: "text",
-      isConfigured: !!process.env.DEEPSEEK_API_KEY,
-      status: !process.env.DEEPSEEK_API_KEY ? "unconfigured" : "testing",
+      isConfigured: storedProviders.has("deepseek") || !!process.env.DEEPSEEK_API_KEY,
+      status: storedProviders.has("deepseek") || process.env.DEEPSEEK_API_KEY ? "testing" : "unconfigured",
       links: {
         consoleUrl: "https://platform.deepseek.com/api_keys",
         billingUrl: "https://platform.deepseek.com/top_up",
@@ -74,8 +82,8 @@ export async function GET(request: NextRequest) {
       id: "openai",
       name: "OpenAI",
       category: "image",
-      isConfigured: !!process.env.OPENAI_API_KEY,
-      status: !process.env.OPENAI_API_KEY ? "unconfigured" : "testing",
+      isConfigured: storedProviders.has("openai") || !!process.env.OPENAI_API_KEY,
+      status: storedProviders.has("openai") || process.env.OPENAI_API_KEY ? "testing" : "unconfigured",
       links: {
         consoleUrl: "https://platform.openai.com/api-keys",
         billingUrl: "https://platform.openai.com/settings/organization/billing/overview",
@@ -108,8 +116,18 @@ export async function GET(request: NextRequest) {
       const start = Date.now();
 
       try {
+        let tenantKey: string | undefined;
+        if (organizationId && storedProviders.has(provider.id)) {
+          const admin = getSupabaseAdminClient();
+          const { data: runtimeConfig, error: runtimeError } = await admin.rpc(
+            "get_provider_runtime_config" as never,
+            { p_organization_id: organizationId, p_provider: provider.id } as never
+          );
+          if (runtimeError) throw runtimeError;
+          tenantKey = (runtimeConfig as { apiKey?: string } | null)?.apiKey;
+        }
         if (provider.id === "gemini") {
-          const key = process.env.GEMINI_API_KEY!;
+          const key = tenantKey || process.env.GEMINI_API_KEY!;
           const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`, {
             method: "GET",
             headers: { "Content-Type": "application/json" },
@@ -136,7 +154,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (provider.id === "together") {
-          const key = process.env.TOGETHER_API_KEY!;
+          const key = tenantKey || process.env.TOGETHER_API_KEY!;
           const res = await fetch("https://api.together.xyz/v1/models", {
             method: "GET",
             headers: {
@@ -165,7 +183,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (provider.id === "deepseek") {
-          const key = process.env.DEEPSEEK_API_KEY!;
+          const key = tenantKey || process.env.DEEPSEEK_API_KEY!;
           const res = await fetch("https://api.deepseek.com/user/balance", {
             method: "GET",
             headers: {
@@ -197,7 +215,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (provider.id === "openai") {
-          const key = process.env.OPENAI_API_KEY!;
+          const key = tenantKey || process.env.OPENAI_API_KEY!;
           const res = await fetch("https://api.openai.com/v1/models", {
             method: "GET",
             headers: {
