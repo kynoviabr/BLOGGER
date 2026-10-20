@@ -1,14 +1,18 @@
 import { Blog, BlogInsert, BlogUpdate, BlogWithRelations, Category } from '@/types/blog';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
+import { getActiveOrganizationId } from '@/lib/supabase/auth';
 
 export class BlogService {
-  static async listBlogs(): Promise<BlogWithRelations[]> {
+  static async listBlogs(organizationId?: string): Promise<BlogWithRelations[]> {
     const supabase = await getSupabaseServerClient();
-    const { data, error } = await supabase
+    const activeOrganizationId = organizationId || await getActiveOrganizationId();
+    let query = supabase
       .from('blogs')
       .select('*, blog_languages(*), categories(*)')
       .order('created_at', { ascending: false });
+    query = query.eq('organization_id', activeOrganizationId);
+    const { data, error } = await query;
 
     if (error) {
       logger.error('BlogService.listBlogs', 'Erro ao consultar blogs no Supabase', { error });
@@ -30,10 +34,12 @@ export class BlogService {
 
   static async getBlogById(id: string): Promise<BlogWithRelations | null> {
     const supabase = await getSupabaseServerClient();
+    const organizationId = await getActiveOrganizationId();
     const { data, error } = await supabase
       .from('blogs')
       .select('*, blog_languages(*), categories(*)')
       .eq('id', id)
+      .eq('organization_id', organizationId)
       .maybeSingle();
 
     if (error) {

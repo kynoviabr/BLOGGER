@@ -1,13 +1,16 @@
 import { MediaAsset, MediaAssetInsert } from '@/types/media';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
+import { getActiveOrganizationId } from '@/lib/supabase/auth';
 
 export class MediaService {
   static async listMedia(blogId?: string): Promise<MediaAsset[]> {
     const supabase = await getSupabaseServerClient();
+    const organizationId = await getActiveOrganizationId();
     let query = supabase
       .from('media_assets')
-      .select('*')
+      .select('*, blog:blogs!inner(organization_id)')
+      .eq('blog.organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (blogId) {

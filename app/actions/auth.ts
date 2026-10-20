@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { loginSchema } from "@/lib/validations/auth.schema";
 import { logger } from "@/lib/logger";
+import { cookies } from "next/headers";
+import { ACTIVE_ORGANIZATION_COOKIE } from "@/lib/supabase/auth";
 
 export interface AuthState {
   error?: string;
@@ -26,7 +28,7 @@ export async function loginAction(
 
   try {
     const supabase = await getSupabaseServerClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: validation.data.email,
       password: validation.data.password,
     });
@@ -37,6 +39,25 @@ export async function loginAction(
         error: error.message,
       });
       return { error: "Credenciais inválidas. Verifique seu e-mail e senha." };
+    }
+
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", data.user.id)
+      .eq("status", "active")
+      .order("joined_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (membership) {
+      const cookieStore = await cookies();
+      cookieStore.set(ACTIVE_ORGANIZATION_COOKIE, membership.organization_id, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
     }
 
     logger.info("AuthAction", "Login realizado com sucesso", { email: validation.data.email });
@@ -57,6 +78,10 @@ export async function logoutAction(): Promise<void> {
   } catch (err) {
     logger.warn("AuthAction", "Erro ao executar signOut", { err });
   }
+
+  const cookieStore = await cookies();
+  cookieStore.delete(ACTIVE_ORGANIZATION_COOKIE);
+  cookieStore.delete("selected_blog_id");
 
   redirect("/login");
 }

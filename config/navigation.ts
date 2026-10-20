@@ -47,6 +47,11 @@ export const navigationItems: NavItem[] = [
     icon: "ScrollText",
   },
   {
+    title: "Team",
+    href: "/team",
+    icon: "Users",
+  },
+  {
     title: "Settings",
     href: "/settings",
     icon: "Settings",

@@ -1,13 +1,16 @@
 import { CalendarItem, CalendarItemInsert, CalendarItemUpdate, CalendarItemWithRelations, CalendarStatus } from '@/types/calendar';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
+import { getActiveOrganizationId } from '@/lib/supabase/auth';
 
 export class CalendarService {
   static async listCalendarItems(filters?: { blogId?: string; status?: CalendarStatus }): Promise<CalendarItemWithRelations[]> {
     const supabase = await getSupabaseServerClient();
+    const organizationId = await getActiveOrganizationId();
     let query = supabase
       .from('editorial_calendar')
-      .select('*, blog:blogs(id, name, slug), category:categories(id, name, slug), content_items:content_items(id, status, title, featured_image:media_assets!content_items_featured_image_id_fkey(public_url, alt_text))')
+      .select('*, blog:blogs!inner(id, name, slug, organization_id), category:categories(id, name, slug), content_items:content_items(id, status, title, featured_image:media_assets!content_items_featured_image_id_fkey(public_url, alt_text))')
+      .eq('blog.organization_id', organizationId)
       .order('scheduled_at', { ascending: true, nullsFirst: false });
 
     if (filters?.blogId) {
@@ -69,10 +72,12 @@ export class CalendarService {
 
   static async getCalendarItemById(id: string): Promise<CalendarItemWithRelations | null> {
     const supabase = await getSupabaseServerClient();
+    const organizationId = await getActiveOrganizationId();
     const { data, error } = await supabase
       .from('editorial_calendar')
-      .select('*, blog:blogs(id, name, slug), category:categories(id, name, slug)')
+      .select('*, blog:blogs!inner(id, name, slug, organization_id), category:categories(id, name, slug)')
       .eq('id', id)
+      .eq('blog.organization_id', organizationId)
       .maybeSingle();
 
     if (error) {

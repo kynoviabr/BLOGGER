@@ -1,6 +1,9 @@
 import { getSupabaseServerClient } from './server';
 import { User } from '@supabase/supabase-js';
 import { OrganizationRole } from '@/types/database';
+import { cookies } from 'next/headers';
+
+export const ACTIVE_ORGANIZATION_COOKIE = 'selected_organization_id';
 
 export class AuthenticationError extends Error {
   constructor(message = 'Acesso não autorizado. Faça login para continuar.') {
@@ -58,6 +61,8 @@ export async function requireOrganizationMembership(
 ): Promise<OrganizationMembershipContext> {
   const user = await requireAuth();
   const supabase = await getSupabaseServerClient();
+  const cookieStore = await cookies();
+  const organizationId = preferredOrganizationId || cookieStore.get(ACTIVE_ORGANIZATION_COOKIE)?.value;
   let query = supabase
     .from('organization_members')
     .select('organization_id, role')
@@ -66,8 +71,8 @@ export async function requireOrganizationMembership(
     .order('joined_at', { ascending: true })
     .limit(1);
 
-  if (preferredOrganizationId) {
-    query = query.eq('organization_id', preferredOrganizationId);
+  if (organizationId) {
+    query = query.eq('organization_id', organizationId);
   }
 
   const { data, error } = await query.maybeSingle();
@@ -80,4 +85,8 @@ export async function requireOrganizationMembership(
     organizationId: data.organization_id,
     role: data.role,
   };
+}
+
+export async function getActiveOrganizationId(): Promise<string> {
+  return (await requireOrganizationMembership()).organizationId;
 }

@@ -3,12 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Globe, Calendar, FileText, Image as ImageIcon, ScrollText, Settings, Sparkles, ChevronRight, Layers, LogOut, BadgeDollarSign } from "lucide-react";
+import { LayoutDashboard, Globe, Calendar, FileText, Image as ImageIcon, ScrollText, Settings, Sparkles, ChevronRight, Layers, LogOut, BadgeDollarSign, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navigationItems } from "@/config/navigation";
 import { logoutAction } from "@/app/actions/auth";
 
-const iconMap: Record<string, React.ElementType> = { LayoutDashboard, Globe, Calendar, Sparkles, FileText, Image: ImageIcon, BadgeDollarSign, ScrollText, Settings };
+const iconMap: Record<string, React.ElementType> = { LayoutDashboard, Globe, Calendar, Sparkles, FileText, Image: ImageIcon, BadgeDollarSign, ScrollText, Users, Settings };
 interface SidebarProps {
   isOpen: boolean;
   onClose?: () => void;
