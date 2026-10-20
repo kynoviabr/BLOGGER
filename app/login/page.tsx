@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useActionState } from "react";
+import { Suspense, useActionState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Sparkles, Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
 import { loginAction, AuthState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -10,8 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 
 const initialState: AuthState = {};
 
-export default function LoginPage() {
+function LoginForm() {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
+  const searchParams = useSearchParams();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-6 lg:px-8">
@@ -45,6 +47,7 @@ export default function LoginPage() {
             )}
 
             <form action={formAction} className="space-y-4">
+              <input type="hidden" name="next" value={searchParams.get("next") || "/"} />
               <div className="space-y-1.5">
                 <label
                   htmlFor="email"
@@ -107,4 +110,8 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+export default function LoginPage() {
+  return <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-950" />}><LoginForm /></Suspense>;
 }

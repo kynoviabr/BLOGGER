@@ -8,6 +8,8 @@ import { requireOrganizationMembership } from "@/lib/supabase/auth";
 import { MemberRoleSelect } from "@/components/team/member-role-select";
 import { formatDate } from "@/lib/utils";
 import { OrganizationRole } from "@/types/database";
+import { InvitationService } from "@/services/invitation.service";
+import { InvitationManager } from "@/components/team/invitation-manager";
 
 const roleLabels: Record<OrganizationRole, string> = {
   owner: "Proprietário",
@@ -22,6 +24,7 @@ export default async function TeamPage() {
     requireOrganizationMembership(),
   ]);
   const canManage = context.role === "owner" || context.role === "admin";
+  const invitations = canManage ? await InvitationService.listInvitations() : [];
 
   return (
     <div className="space-y-6">
@@ -30,6 +33,7 @@ export default async function TeamPage() {
         <Card><CardContent className="flex items-center gap-3 p-5"><Users className="h-5 w-5 text-primary" /><div><div className="text-2xl font-semibold">{members.length}</div><div className="text-xs text-muted-foreground">membros</div></div></CardContent></Card>
         <Card><CardContent className="flex items-center gap-3 p-5"><ShieldCheck className="h-5 w-5 text-primary" /><div><div className="text-sm font-semibold">{roleLabels[context.role]}</div><div className="text-xs text-muted-foreground">seu nível de acesso</div></div></CardContent></Card>
       </div>
+      {canManage && <InvitationManager invitations={invitations} canInviteAdmin={context.role === "owner"} />}
       <Card>
         <Table>
           <TableHeader><TableRow><TableHead>Membro</TableHead><TableHead>Status</TableHead><TableHead>Desde</TableHead><TableHead className="text-right">Papel</TableHead></TableRow></TableHeader>
