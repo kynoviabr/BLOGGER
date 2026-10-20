@@ -1,5 +1,5 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
-import { withSupabase } from "@supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import { marked } from "npm:marked@18.0.14";
 
 const SERVICE = "EdgePublisher.publishContent";
@@ -191,7 +191,7 @@ async function uploadFeaturedMedia(article: JsonRecord, siteUrl: string, auth: s
 }
 
 export default {
-  fetch: withSupabase({ auth: "secret" }, async (req, ctx) => {
+  fetch: async (req: Request) => {
     if (req.method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405 });
     const expectedSecret = Deno.env.get("PUBLISH_CRON_SECRET") ?? "";
     if (!expectedSecret || req.headers.get("x-cron-secret") !== expectedSecret) {
@@ -199,8 +199,22 @@ export default {
     }
 
     const startedAt = Date.now();
-    const db = ctx.supabaseAdmin;
+    const projectUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    if (!projectUrl || !serviceRoleKey) {
+      return Response.json({ error: "Supabase service credentials are not configured" }, { status: 500 });
+    }
+    const db = createClient(projectUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
     const now = new Date().toISOString();
+    const requestBody = await req.json().catch(() => ({})) as JsonRecord;
+    const requestedContentId = typeof requestBody.contentId === "string"
+      ? requestBody.contentId.trim()
+      : "";
+    if (requestedContentId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedContentId)) {
+      return Response.json({ error: "Invalid contentId" }, { status: 400 });
+    }
     const stale = new Date(Date.now() - 15 * 60_000).toISOString();
     const { data: staleClaims } = await db.from("content_items")
       .select("id, publish_original_status").eq("status", "publishing").lt("publish_claimed_at", stale);
@@ -212,20 +226,23 @@ export default {
       }).eq("id", staleClaim.id).eq("status", "publishing");
     }
 
-    const { data: candidates, error } = await db.from("content_items")
+    let candidateQuery = db.from("content_items")
       .select("*, blog:blogs!inner(*), editorial_calendar:editorial_calendar(id, scheduled_at, status, category:categories(id, name, slug)), featured_image:media_assets!content_items_featured_image_id_fkey(*)")
       .in("status", ["ready", "scheduled"])
       .eq("blog.status", "active")
       .lt("publish_attempts", MAX_PUBLISH_ATTEMPTS)
-      .or(`next_publish_attempt_at.is.null,next_publish_attempt_at.lte.${now}`)
-      .order("created_at", { ascending: true }).limit(10);
+      .or(`next_publish_attempt_at.is.null,next_publish_attempt_at.lte.${now}`);
+    if (requestedContentId) candidateQuery = candidateQuery.eq("id", requestedContentId);
+    const { data: candidates, error } = await candidateQuery
+      .order("created_at", { ascending: true })
+      .limit(requestedContentId ? 1 : 10);
     if (error) return Response.json({ error: error.message }, { status: 500 });
 
     const eligible = (candidates ?? []).filter((item: JsonRecord) => {
       const calendar = item.editorial_calendar as JsonRecord | null;
       const scheduledAt = calendar?.scheduled_at ? new Date(String(calendar.scheduled_at)).getTime() : null;
       return scheduledAt ? scheduledAt <= Date.now() : item.status === "ready";
-    }).slice(0, BATCH_SIZE);
+    }).slice(0, requestedContentId ? 1 : BATCH_SIZE);
 
     const results: JsonRecord[] = [];
     const connectionChecks = new Map<string, Promise<void>>();
@@ -366,6 +383,11 @@ export default {
         },
       })));
     }
-    return Response.json({ success: true, publishedCount: results.filter((r) => r.status === "PUBLISHED").length, results });
-  }),
+    return Response.json({
+      success: true,
+      requestedContentId: requestedContentId || null,
+      publishedCount: results.filter((r) => r.status === "PUBLISHED").length,
+      results,
+    });
+  },
 };
