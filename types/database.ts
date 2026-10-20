@@ -31,6 +31,18 @@ export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 export type OrganizationStatus = 'active' | 'suspended' | 'archived';
 export type OrganizationRole = 'owner' | 'admin' | 'editor' | 'viewer';
 export type OrganizationMemberStatus = 'invited' | 'active' | 'suspended';
+export type BackgroundJobType =
+  | 'content_pipeline'
+  | 'image_generation'
+  | 'publish_content'
+  | 'autopilot_tick';
+export type BackgroundJobStatus =
+  | 'queued'
+  | 'running'
+  | 'retrying'
+  | 'completed'
+  | 'dead_letter'
+  | 'cancelled';
 
 export type Database = {
   public: {
@@ -650,6 +662,147 @@ export type Database = {
           }
         ];
       };
+      background_jobs: {
+        Row: {
+          id: string;
+          organization_id: string;
+          blog_id: string | null;
+          job_type: BackgroundJobType;
+          status: BackgroundJobStatus;
+          payload: Json;
+          result: Json | null;
+          priority: number;
+          attempts: number;
+          max_attempts: number;
+          idempotency_key: string | null;
+          scheduled_at: string;
+          claimed_at: string | null;
+          claimed_by: string | null;
+          lease_expires_at: string | null;
+          completed_at: string | null;
+          failed_at: string | null;
+          last_error: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          blog_id?: string | null;
+          job_type: BackgroundJobType;
+          status?: BackgroundJobStatus;
+          payload?: Json;
+          result?: Json | null;
+          priority?: number;
+          attempts?: number;
+          max_attempts?: number;
+          idempotency_key?: string | null;
+          scheduled_at?: string;
+          claimed_at?: string | null;
+          claimed_by?: string | null;
+          lease_expires_at?: string | null;
+          completed_at?: string | null;
+          failed_at?: string | null;
+          last_error?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          blog_id?: string | null;
+          job_type?: BackgroundJobType;
+          status?: BackgroundJobStatus;
+          payload?: Json;
+          result?: Json | null;
+          priority?: number;
+          attempts?: number;
+          max_attempts?: number;
+          idempotency_key?: string | null;
+          scheduled_at?: string;
+          claimed_at?: string | null;
+          claimed_by?: string | null;
+          lease_expires_at?: string | null;
+          completed_at?: string | null;
+          failed_at?: string | null;
+          last_error?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "background_jobs_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "background_jobs_blog_id_fkey";
+            columns: ["blog_id"];
+            isOneToOne: false;
+            referencedRelation: "blogs";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      background_job_events: {
+        Row: {
+          id: number;
+          job_id: string;
+          organization_id: string;
+          from_status: string | null;
+          to_status: string;
+          attempt: number;
+          worker_id: string | null;
+          message: string | null;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          job_id: string;
+          organization_id: string;
+          from_status?: string | null;
+          to_status: string;
+          attempt: number;
+          worker_id?: string | null;
+          message?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          job_id?: string;
+          organization_id?: string;
+          from_status?: string | null;
+          to_status?: string;
+          attempt?: number;
+          worker_id?: string | null;
+          message?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "background_job_events_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "background_jobs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "background_job_events_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       monetization_offers: {
         Row: {
           id: string;
@@ -717,6 +870,39 @@ export type Database = {
       accept_organization_invitation: {
         Args: { raw_token: string };
         Returns: string;
+      };
+      enqueue_background_job: {
+        Args: {
+          p_job_type: string;
+          p_payload?: Json;
+          p_organization_id?: string | null;
+          p_blog_id?: string | null;
+          p_idempotency_key?: string | null;
+          p_scheduled_at?: string;
+          p_priority?: number;
+          p_max_attempts?: number;
+        };
+        Returns: Database['public']['Tables']['background_jobs']['Row'];
+      };
+      cancel_background_job: {
+        Args: { p_job_id: string };
+        Returns: boolean;
+      };
+      claim_background_jobs: {
+        Args: { p_worker_id: string; p_limit?: number; p_lease_seconds?: number };
+        Returns: Database['public']['Tables']['background_jobs']['Row'][];
+      };
+      heartbeat_background_job: {
+        Args: { p_job_id: string; p_worker_id: string; p_lease_seconds?: number };
+        Returns: boolean;
+      };
+      complete_background_job: {
+        Args: { p_job_id: string; p_worker_id: string; p_result?: Json };
+        Returns: boolean;
+      };
+      fail_background_job: {
+        Args: { p_job_id: string; p_worker_id: string; p_error: string; p_retryable?: boolean };
+        Returns: Database['public']['Tables']['background_jobs']['Row'];
       };
     };
     Enums: {

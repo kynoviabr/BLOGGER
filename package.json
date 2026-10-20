@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
+    "test:jobs:e2e": "tsx scripts/test-background-jobs-e2e.ts",
     "typecheck": "tsc --noEmit",
     "worker": "npx tsx scripts/autopilot-worker.ts"
   },
