@@ -230,8 +230,10 @@ export default {
       .select("*, blog:blogs!inner(*), editorial_calendar:editorial_calendar(id, scheduled_at, status, category:categories(id, name, slug)), featured_image:media_assets!content_items_featured_image_id_fkey(*)")
       .in("status", ["ready", "scheduled"])
       .eq("blog.status", "active")
-      .lt("publish_attempts", MAX_PUBLISH_ATTEMPTS)
-      .or(`next_publish_attempt_at.is.null,next_publish_attempt_at.lte.${now}`);
+      .lt("publish_attempts", MAX_PUBLISH_ATTEMPTS);
+    if (!requestedContentId) {
+      candidateQuery = candidateQuery.or(`next_publish_attempt_at.is.null,next_publish_attempt_at.lte.${now}`);
+    }
     if (requestedContentId) candidateQuery = candidateQuery.eq("id", requestedContentId);
     const { data: candidates, error } = await candidateQuery
       .order("created_at", { ascending: true })

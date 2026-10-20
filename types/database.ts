@@ -904,6 +904,10 @@ export type Database = {
         Args: { p_job_id: string; p_worker_id: string; p_error: string; p_retryable?: boolean };
         Returns: Database['public']['Tables']['background_jobs']['Row'];
       };
+      get_background_job_health: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
     };
     Enums: {
       [_ in never]: never;

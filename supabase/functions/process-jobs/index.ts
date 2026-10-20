@@ -73,10 +73,11 @@ async function executeJob(job: JsonRecord): Promise<JsonRecord> {
 export default {
   fetch: async (req: Request) => {
     if (req.method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405 });
-    const expectedSecret = Deno.env.get("JOB_WORKER_CRON_SECRET")
-      ?? Deno.env.get("PUBLISH_CRON_SECRET")
-      ?? "";
-    if (!expectedSecret || req.headers.get("x-cron-secret") !== expectedSecret) {
+    const acceptedSecrets = [
+      Deno.env.get("JOB_WORKER_CRON_SECRET"),
+      Deno.env.get("PUBLISH_CRON_SECRET"),
+    ].filter((secret): secret is string => Boolean(secret));
+    if (acceptedSecrets.length === 0 || !acceptedSecrets.includes(req.headers.get("x-cron-secret") ?? "")) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -86,7 +87,7 @@ export default {
         ok: true,
         service: SERVICE,
         handlers: ["publish_content"],
-        cronActive: false,
+        scheduler: "supabase_pg_cron",
       });
     }
 
