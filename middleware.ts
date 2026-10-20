@@ -11,9 +11,10 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isLoginPage = pathname === '/login';
   const isCronRoute = pathname.startsWith('/api/cron');
+  const isAuthCallback = pathname === '/auth/callback';
 
   // Rotas de Cron validam a autenticação via Bearer CRON_SECRET no próprio endpoint
-  if (isCronRoute) {
+  if (isCronRoute || isAuthCallback) {
     return response;
   }
 
@@ -60,6 +61,7 @@ export async function middleware(request: NextRequest) {
       );
     }
     const redirectUrl = new URL('/login', request.url);
+    redirectUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(redirectUrl);
   }
 

@@ -106,6 +106,55 @@ export type Database = {
           }
         ];
       };
+      organization_invitations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          email: string;
+          role: Exclude<OrganizationRole, 'owner'>;
+          token_hash: string;
+          status: 'pending' | 'accepted' | 'revoked' | 'expired';
+          invited_by: string;
+          expires_at: string;
+          accepted_by: string | null;
+          accepted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          email: string;
+          role: Exclude<OrganizationRole, 'owner'>;
+          token_hash: string;
+          status?: 'pending' | 'accepted' | 'revoked' | 'expired';
+          invited_by: string;
+          expires_at: string;
+          accepted_by?: string | null;
+          accepted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          email?: string;
+          role?: Exclude<OrganizationRole, 'owner'>;
+          token_hash?: string;
+          status?: 'pending' | 'accepted' | 'revoked' | 'expired';
+          expires_at?: string;
+          accepted_by?: string | null;
+          accepted_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "organization_invitations_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       blogs: {
         Row: {
           id: string;
@@ -665,7 +714,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      accept_organization_invitation: {
+        Args: { raw_token: string };
+        Returns: string;
+      };
     };
     Enums: {
       [_ in never]: never;

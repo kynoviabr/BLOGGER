@@ -18,6 +18,8 @@ export async function loginAction(
 ): Promise<AuthState> {
   const email = formData.get("email");
   const password = formData.get("password");
+  const requestedNext = String(formData.get("next") || "/");
+  const safeNext = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/";
 
   const validation = loginSchema.safeParse({ email, password });
 
@@ -67,7 +69,7 @@ export async function loginAction(
     return { error: message };
   }
 
-  redirect("/");
+  redirect(safeNext);
 }
 
 export async function logoutAction(): Promise<void> {
