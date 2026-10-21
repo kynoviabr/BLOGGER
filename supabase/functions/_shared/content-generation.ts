@@ -125,6 +125,36 @@ export async function generateContentJob(payload: JsonRecord, db?: SupabaseClien
 
   const { data: sources } = await client.from("content_sources")
     .select("title,url,notes").eq("content_id", contentId).limit(20);
+  // 4F: sem fontes → enfileira research e reagenda este pipeline (idempotente, sem duplicar research)
+  if (!sources || sources.length === 0) {
+    const { data: existingResearch } = await client.from("background_jobs")
+      .select("id,status").eq("payload->>contentId", contentId).eq("job_type", "research")
+      .in("status", ["queued", "running", "retrying"]).maybeSingle();
+    if (!existingResearch) {
+      await client.rpc("enqueue_background_job", {
+        p_job_type: "research",
+        p_payload: { contentId },
+        p_organization_id: String(blog.organization_id ?? ""),
+        p_blog_id: item.blog_id,
+        p_idempotency_key: `research:${contentId}`.slice(0, 200),
+        p_priority: 40,
+        p_max_attempts: 3,
+      });
+      await client.from("content_items").update({ status: "researching" }).eq("id", contentId);
+      await client.rpc("enqueue_background_job", {
+        p_job_type: "content_pipeline",
+        p_payload: payload,
+        p_organization_id: String(blog.organization_id ?? ""),
+        p_blog_id: item.blog_id,
+        p_idempotency_key: `content_pipeline:${contentId}:after-research`.slice(0, 200),
+        p_priority: 50,
+        p_max_attempts: 3,
+        p_scheduled_at: new Date(Date.now() + 90_000).toISOString(),
+      });
+      return { contentId, status: "chained_research", message: "Research enfileirado; pipeline reagendado em 90s" } as unknown as JsonRecord;
+    }
+    throw new ContentGenerationError("Research em andamento; tente novamente em 90s", true);
+  }
   const research = (sources ?? []).map((source) => `- ${source.title}: ${source.url}${source.notes ? ` — ${source.notes}` : ""}`).join("\n");
   const user = `Data de referência: ${new Date().toISOString().slice(0, 10)}
 Tema: ${topic}

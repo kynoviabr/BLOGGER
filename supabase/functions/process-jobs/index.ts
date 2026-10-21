@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ContentGenerationError, generateContentJob } from "../_shared/content-generation.ts";
 import { ImageGenerationError, generateImageJob } from "../_shared/image-generation.ts";
 import { AutopilotError, autopilotTickJob } from "../_shared/autopilot.ts";
+import { ResearchError, researchJob } from "../_shared/research-job.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -77,6 +78,8 @@ async function executeJob(job: JsonRecord, db: ReturnType<typeof createClient>):
       return generateImageJob(payload, db);
     case "autopilot_tick":
       return autopilotTickJob(payload, db);
+    case "research":
+      return researchJob(payload, db);
     default:
       throw new JobFailure(`Handler not enabled for job type: ${type}`, false);
   }
@@ -98,7 +101,7 @@ export default {
       return Response.json({
         ok: true,
         service: SERVICE,
-        handlers: ["publish_content", "content_pipeline", "image_generation", "autopilot_tick"],
+        handlers: ["publish_content", "content_pipeline", "image_generation", "autopilot_tick", "research"],
         scheduler: "supabase_pg_cron",
       });
     }
@@ -134,7 +137,7 @@ export default {
       } catch (error) {
         const failure = error instanceof JobFailure
           ? error
-          : error instanceof ContentGenerationError || error instanceof ImageGenerationError || error instanceof AutopilotError
+          : error instanceof ContentGenerationError || error instanceof ImageGenerationError || error instanceof AutopilotError || error instanceof ResearchError
           ? new JobFailure(error.message, error.retryable)
           : new JobFailure(messageOf(error), true);
         const { data: failedJob, error: failError } = await db.rpc("fail_background_job", {
