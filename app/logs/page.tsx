@@ -8,6 +8,7 @@ import { LogService, SystemLog } from "@/services/log.service";
 import { formatDate } from "@/lib/utils";
 import { LogLevel } from "@/types/database";
 import { EmptyState } from "@/components/shared/empty-state";
+import { OpsMetricsCards } from "@/components/ops/ops-metrics-cards";
 
 export default async function LogsPage({
   searchParams,
@@ -32,6 +33,7 @@ export default async function LogsPage({
         title="Logs do Sistema"
         description="Auditoria de eventos, disparos de automação, chamadas de IA e sincronização do banco de dados."
       />
+      <OpsMetricsCards />
 
       {loadError && (
         <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
