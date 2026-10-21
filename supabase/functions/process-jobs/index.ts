@@ -1,10 +1,16 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
+import { ContentGenerationError, generateContentJob } from "../_shared/content-generation.ts";
+import { ImageGenerationError, generateImageJob } from "../_shared/image-generation.ts";
+import { AutopilotError, autopilotTickJob } from "../_shared/autopilot.ts";
 
 type JsonRecord = Record<string, unknown>;
 
 const SERVICE = "EdgeWorker.processJobs";
-const BATCH_SIZE = 3;
+// A generation can spend most of the Edge Function wall-clock budget waiting
+// for the LLM. One claim per invocation prevents a slow article from starving
+// the remaining jobs; pg_cron invokes the worker again every minute.
+const BATCH_SIZE = 1;
 const LEASE_SECONDS = 600;
 
 class JobFailure extends Error {
@@ -56,7 +62,7 @@ async function publishContent(contentId: string): Promise<JsonRecord> {
   return payload;
 }
 
-async function executeJob(job: JsonRecord): Promise<JsonRecord> {
+async function executeJob(job: JsonRecord, db: ReturnType<typeof createClient>): Promise<JsonRecord> {
   const type = String(job.job_type ?? "");
   const payload = (job.payload ?? {}) as JsonRecord;
   switch (type) {
@@ -65,6 +71,12 @@ async function executeJob(job: JsonRecord): Promise<JsonRecord> {
       if (!contentId) throw new JobFailure("publish_content requires payload.contentId", false);
       return publishContent(contentId);
     }
+    case "content_pipeline":
+      return generateContentJob(payload, db);
+    case "image_generation":
+      return generateImageJob(payload, db);
+    case "autopilot_tick":
+      return autopilotTickJob(payload, db);
     default:
       throw new JobFailure(`Handler not enabled for job type: ${type}`, false);
   }
@@ -86,7 +98,7 @@ export default {
       return Response.json({
         ok: true,
         service: SERVICE,
-        handlers: ["publish_content"],
+        handlers: ["publish_content", "content_pipeline", "image_generation", "autopilot_tick"],
         scheduler: "supabase_pg_cron",
       });
     }
@@ -111,7 +123,7 @@ export default {
     for (const job of (jobs ?? []) as JsonRecord[]) {
       const jobId = String(job.id);
       try {
-        const result = await executeJob(job);
+        const result = await executeJob(job, db);
         const { data: completed, error } = await db.rpc("complete_background_job", {
           p_job_id: jobId,
           p_worker_id: workerId,
@@ -122,6 +134,8 @@ export default {
       } catch (error) {
         const failure = error instanceof JobFailure
           ? error
+          : error instanceof ContentGenerationError || error instanceof ImageGenerationError || error instanceof AutopilotError
+          ? new JobFailure(error.message, error.retryable)
           : new JobFailure(messageOf(error), true);
         const { data: failedJob, error: failError } = await db.rpc("fail_background_job", {
           p_job_id: jobId,

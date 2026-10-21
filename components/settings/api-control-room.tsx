@@ -16,10 +16,12 @@ import {
   Sparkles,
   Zap,
   Shield,
+  Save,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 export interface ProviderInfo {
   id: string;
@@ -105,6 +107,10 @@ export function ApiControlRoom() {
 
   const [isLoadingAll, setIsLoadingAll] = React.useState(false);
   const [testingProviderId, setTestingProviderId] = React.useState<string | null>(null);
+  const [editingProviderId, setEditingProviderId] = React.useState<string | null>(null);
+  const [isSavingCredential, setIsSavingCredential] = React.useState(false);
+  const [credentialForm, setCredentialForm] = React.useState({ apiKey: "", model: "", baseUrl: "" });
+  const [credentialNotice, setCredentialNotice] = React.useState<string | null>(null);
 
   const fetchStatus = React.useCallback(async (providerId?: string) => {
     if (providerId) {
@@ -140,6 +146,31 @@ export function ApiControlRoom() {
   React.useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  const saveCredential = async (providerId: string) => {
+    setIsSavingCredential(true);
+    setCredentialNotice(null);
+    try {
+      const response = await fetch("/api/settings/provider-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: providerId, ...credentialForm }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Falha ao salvar credencial.");
+      setCredentialForm({ apiKey: "", model: "", baseUrl: "" });
+      setCredentialNotice("Credencial criptografada e salva no Supabase para esta empresa.");
+      setEditingProviderId(null);
+      setProviders((current) => current.map((provider) =>
+        provider.id === providerId ? { ...provider, isConfigured: true, status: "testing" } : provider
+      ));
+      await fetchStatus(providerId);
+    } catch (error) {
+      setCredentialNotice(error instanceof Error ? error.message : "Falha ao salvar credencial.");
+    } finally {
+      setIsSavingCredential(false);
+    }
+  };
 
   const getCategoryBadge = (category: string) => {
     switch (category) {
@@ -240,6 +271,46 @@ export function ApiControlRoom() {
                 </CardHeader>
 
                 <CardContent className="space-y-4 pt-1">
+                  {editingProviderId === provider.id && provider.id !== "wordpress" && (
+                    <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Nova chave da API</label>
+                        <Input
+                          type="password"
+                          autoComplete="new-password"
+                          value={credentialForm.apiKey}
+                          onChange={(event) => setCredentialForm((current) => ({ ...current, apiKey: event.target.value }))}
+                          placeholder="A chave atual nunca será exibida"
+                        />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Modelo opcional</label>
+                          <Input
+                            value={credentialForm.model}
+                            onChange={(event) => setCredentialForm((current) => ({ ...current, model: event.target.value }))}
+                            placeholder={provider.id === "gemini" ? "gemini-2.5-flash" : "Modelo do provedor"}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Base URL opcional</label>
+                          <Input
+                            type="url"
+                            value={credentialForm.baseUrl}
+                            onChange={(event) => setCredentialForm((current) => ({ ...current, baseUrl: event.target.value }))}
+                            placeholder="https://..."
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => setEditingProviderId(null)}>Cancelar</Button>
+                        <Button size="sm" disabled={isSavingCredential || credentialForm.apiKey.trim().length < 8} onClick={() => saveCredential(provider.id)} className="gap-1.5">
+                          <Save className="h-3.5 w-3.5" />
+                          {isSavingCredential ? "Salvando..." : "Salvar com criptografia"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {/* Informações de Saldo e Latência */}
                   <div className="grid grid-cols-2 gap-3 rounded-lg border border-border/60 bg-muted/30 p-3 text-xs">
                     <div>
@@ -323,23 +394,44 @@ export function ApiControlRoom() {
 
               <div className="border-t border-border p-4 bg-muted/10 flex items-center justify-between">
                 <span className="text-[11px] text-muted-foreground font-mono">
-                  {provider.isConfigured ? "Chave detectada no ambiente" : "Chave ausente no ambiente"}
+                  {provider.isConfigured ? "Chave configurada (valor protegido)" : "Chave ainda não configurada"}
                 </span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => fetchStatus(provider.id)}
-                  disabled={isTesting || !provider.isConfigured}
-                  className="h-7 text-xs gap-1.5"
-                >
-                  <RefreshCw className={`h-3 w-3 ${isTesting ? "animate-spin" : ""}`} />
-                  {isTesting ? "Testando..." : "Testar Conexão"}
-                </Button>
+                <div className="flex gap-2">
+                  {provider.id !== "wordpress" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCredentialNotice(null);
+                        setCredentialForm({ apiKey: "", model: "", baseUrl: "" });
+                        setEditingProviderId(provider.id);
+                      }}
+                      className="h-7 text-xs gap-1.5"
+                    >
+                      <Key className="h-3 w-3" /> {provider.isConfigured ? "Atualizar" : "Configurar"}
+                    </Button>
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => fetchStatus(provider.id)}
+                    disabled={isTesting || !provider.isConfigured}
+                    className="h-7 text-xs gap-1.5"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isTesting ? "animate-spin" : ""}`} />
+                    {isTesting ? "Testando..." : "Testar Conexão"}
+                  </Button>
+                </div>
               </div>
             </Card>
           );
         })}
       </div>
+      {credentialNotice && (
+        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-foreground">
+          {credentialNotice}
+        </div>
+      )}
     </div>
   );
 }

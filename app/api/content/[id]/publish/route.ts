@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/auth';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
-import { createPublisherProvider, createPublisherProviderForBlog } from '@/services/publisher';
+import { createPublisherProviderForBlogAsync } from '@/services/publisher/factory';
 import { PublishingError } from '@/lib/errors/publisher.errors';
 import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
@@ -65,8 +65,8 @@ export async function POST(
     // Resolução dinâmica do categorySlug do blog
     let categorySlug: string = calendarCategory?.slug || scopeCheck.matchedCategorySlug || 'geral';
 
-    // 3. Instanciar WordPressProvider via Factory com credenciais específicas do blog
-    const publisher = createPublisherProviderForBlog(blog);
+    // 3. Instanciar WordPressProvider via Factory com credenciais específicas do blog (prefere Vault)
+    const publisher = await createPublisherProviderForBlogAsync(blog as { id?: string; domain?: string | null; editorial_config?: unknown } | null);
 
     logger.info('API.publish', `Iniciando publicação com ${publisher.name} para o artigo ${id}`, {
       categorySlug,

@@ -113,8 +113,29 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
         throw new Error(data.error || "Falha ao gerar artigo com IA.");
       }
 
-      // Atualiza estado local imediatamente na UI
-      const updated = data.data;
+      showNotification("success", "Geração iniciada no Supabase. Você pode continuar usando o painel.");
+
+      let updated: ContentItemWithRelations | null = null;
+      for (let attempt = 0; attempt < 90; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const statusResponse = await fetch(`/api/jobs/${data.jobId}`, { cache: "no-store" });
+        const statusData = await statusResponse.json();
+        if (!statusResponse.ok || !statusData.success) {
+          throw new Error(statusData.error || "Falha ao acompanhar a geração.");
+        }
+        const job = statusData.job;
+        if (job.status === "completed") {
+          updated = job.result?.content as ContentItemWithRelations | null;
+          break;
+        }
+        if (job.status === "dead_letter" || job.status === "cancelled") {
+          throw new Error(job.last_error || "A geração não pôde ser concluída.");
+        }
+      }
+      if (!updated) {
+        throw new Error("A geração continua em processamento. Atualize a página em alguns instantes.");
+      }
+
       setContent((prev) => ({
         ...prev,
         title: updated.title,
@@ -140,7 +161,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
       const langInfo = getLanguageConfig(lang);
       showNotification(
         "success",
-        `Artigo gerado com sucesso em ${langInfo.name} (${langInfo.flag})! Status atualizado para READY.`
+        `Artigo gerado no Supabase em ${langInfo.name} (${langInfo.flag}) e enviado para revisão.`
       );
       router.refresh();
     } catch (err) {
