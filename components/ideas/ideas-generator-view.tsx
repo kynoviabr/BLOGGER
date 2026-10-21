@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, CheckCircle2, AlertCircle, Tag, Bookmark, PenLine } from "lucide-react";
 import { startArticleGeneration } from "@/lib/ideas/start-generation";
+import { saveIdeasBatch } from "@/lib/ideas/save-ideas";
 import { BlogWithRelations } from "@/types/blog";
 import { ContentIdea } from "@/types/ideas";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,19 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
+
+interface DuplicateCheck {
+  riskLevel: "HIGH" | "MEDIUM" | "NONE";
+  score: number;
+  conflict: { title: string; source: string } | null;
+}
+
+const DUPLICATE_SOURCE_LABELS: Record<string, string> = {
+  WORDPRESS: "post publicado",
+  CALENDAR: "pauta",
+  CONTENT: "artigo",
+  BATCH: "outra ideia desta lista",
+};
 
 interface IdeasGeneratorViewProps {
   blogs: BlogWithRelations[];
@@ -50,6 +64,34 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
 
   const [generatedIdeas, setGeneratedIdeas] = useState<ContentIdea[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [duplicateChecks, setDuplicateChecks] = useState<Record<string, DuplicateCheck>>({});
+
+  // Depois que a fila termina, compara cada ideia com o que já existe NESTE blog e entre si.
+  React.useEffect(() => {
+    if (isLoading || generatedIdeas.length === 0 || !selectedBlogId) return;
+    let cancelled = false;
+    fetch("/api/content/ideas/check-duplicates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        blogId: selectedBlogId,
+        ideas: generatedIdeas.map((idea) => ({ title: idea.title, keywords: idea.keywords })),
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data.success) return;
+        const byTitle: Record<string, DuplicateCheck> = {};
+        generatedIdeas.forEach((idea, idx) => {
+          if (data.results[idx]) byTitle[idea.title] = data.results[idx];
+        });
+        setDuplicateChecks(byTitle);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, generatedIdeas, selectedBlogId]);
 
   // Estado da Fila Unitária
   const [queueProgress, setQueueProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
@@ -269,31 +311,13 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
     const ideasToSave = generatedIdeas.filter((_, idx) => selectedIndices.has(idx));
 
     try {
-      const response = await fetch("/api/content/ideas/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          blogId: selectedBlogId,
-          category: selectedCategory || undefined,
-          ideas: ideasToSave,
-          mode,
-        }),
+      const data = await saveIdeasBatch({
+        blogId: selectedBlogId,
+        category: selectedCategory || undefined,
+        ideas: ideasToSave,
+        mode,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMsg = `Erro ao salvar as ideias (HTTP ${response.status}).`;
-        try {
-          const errJson = JSON.parse(errorText);
-          if (errJson.error) errorMsg = errJson.error;
-        } catch {}
-        throw new Error(errorMsg);
-      }
-
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || "Falha ao salvar as ideias.");
-      }
+      if (!data) return;
 
       if (mode === "generate") {
         const ids = (data.data as Array<{ id: string }>).map((row) => row.id);
@@ -568,6 +592,24 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
                       <p className="text-sm text-muted-foreground leading-relaxed">
                         {idea.description}
                       </p>
+
+                      {duplicateChecks[idea.title] && duplicateChecks[idea.title].riskLevel !== "NONE" && (
+                        <div
+                          className={`flex items-start gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${
+                            duplicateChecks[idea.title].riskLevel === "HIGH"
+                              ? "border-destructive/30 bg-destructive/5 text-destructive"
+                              : "border-warning/30 bg-warning/5 text-warning"
+                          }`}
+                        >
+                          <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <span>
+                            {duplicateChecks[idea.title].riskLevel === "HIGH" ? "Provável duplicada" : "Parecida"} (
+                            {Math.round(duplicateChecks[idea.title].score * 100)}%)
+                            {duplicateChecks[idea.title].conflict &&
+                              ` com ${DUPLICATE_SOURCE_LABELS[duplicateChecks[idea.title].conflict!.source] ?? "conteúdo"} "${duplicateChecks[idea.title].conflict!.title}"`}
+                          </span>
+                        </div>
+                      )}
 
                       <div className="flex items-center gap-2 pt-1">
                         <Tag className="h-3.5 w-3.5 text-[hsl(var(--text-muted))] shrink-0" />

@@ -1,8 +1,14 @@
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 
+/** Acima deste valor a pauta é tratada como duplicada e o salvamento pede confirmação. */
+export const HIGH_RISK_THRESHOLD = 0.75;
+
+/** Até 1000 posts publicados (10 páginas de 100) entram na comparação. */
+const WORDPRESS_MAX_PAGES = 10;
+
 export interface ConflictingItem {
-  source: 'WORDPRESS' | 'CALENDAR';
+  source: 'WORDPRESS' | 'CALENDAR' | 'CONTENT' | 'BATCH';
   title: string;
   url?: string;
   status?: string;
@@ -16,6 +22,23 @@ export interface CannibalizationCheckResult {
   score: number;
   reasons: string[];
   conflictingItems: ConflictingItem[];
+}
+
+/** Converte uma ideia (palavras-chave separadas por vírgula) no formato do guardião. */
+export function toGuardInput(idea: { title: string; keywords?: string }) {
+  const keywords = (idea.keywords ?? '').split(',').map((k) => k.trim()).filter(Boolean);
+  return { title: idea.title, focusKeyword: keywords[0], keywords };
+}
+
+export interface CorpusEntry {
+  source: ConflictingItem['source'];
+  calendarId?: string;
+  title: string;
+  status?: string;
+  url?: string;
+  focusKeyword?: string;
+  normTitle: string;
+  tokens: Set<string>;
 }
 
 export class CannibalizationGuardService {
@@ -62,117 +85,147 @@ export class CannibalizationGuardService {
     return (2 * intersection) / (tokensA.size + tokensB.size);
   }
 
+  private static normalize(text: string): string {
+    return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  }
+
+  /** Monta uma entrada de comparação a partir de um título e texto extra (palavras-chave). */
+  static buildEntry(
+    source: ConflictingItem['source'],
+    title: string,
+    extraText = '',
+    meta: Pick<CorpusEntry, 'calendarId' | 'status' | 'url' | 'focusKeyword'> = {}
+  ): CorpusEntry {
+    return { source, title, ...meta, normTitle: this.normalize(title), tokens: this.extractTokens(`${title} ${extraText}`) };
+  }
+
   /**
-   * Executa a auditoria completa de canibalização contra o WordPress publicado e o Calendário Editorial
+   * Carrega tudo o que já existe NO MESMO BLOG para comparação: pautas (inclusive
+   * ideias salvas), artigos (em revisão, agendados, publicados) e posts do WordPress do blog.
    */
-  static async checkCannibalization(params: {
-    title: string;
-    focusKeyword?: string;
-    keywords?: string[];
-    currentCalendarId?: string;
-  }): Promise<CannibalizationCheckResult> {
-    const { title, focusKeyword, keywords = [], currentCalendarId } = params;
+  static async loadBlogCorpus(blogId: string): Promise<CorpusEntry[]> {
+    const corpus: CorpusEntry[] = [];
+    const supabase = await getSupabaseServerClient();
+
+    // Erros de banco interrompem a checagem (fail-closed): um corpus vazio por
+    // falha deixaria passar duplicatas sem a confirmação do usuário.
+    const { data: calendarItems, error: calendarError } = await supabase
+      .from('editorial_calendar')
+      .select('id, proposed_title, topic, keywords, status')
+      .eq('blog_id', blogId)
+      .neq('status', 'FAILED')
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (calendarError) throw new Error(`Falha ao consultar pautas do blog: ${calendarError.message}`);
+
+    for (const item of calendarItems ?? []) {
+      const title = item.proposed_title || item.topic || '';
+      const keywords = Array.isArray(item.keywords) ? item.keywords.join(' ') : '';
+      corpus.push(this.buildEntry('CALENDAR', title, keywords, { calendarId: item.id, status: item.status }));
+    }
+
+    const { data: contentItems, error: contentError } = await supabase
+      .from('content_items')
+      .select('id, title, focus_keyword, status, editorial_calendar_id, external_post_url')
+      .eq('blog_id', blogId)
+      .neq('status', 'archived')
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (contentError) throw new Error(`Falha ao consultar artigos do blog: ${contentError.message}`);
+
+    for (const item of contentItems ?? []) {
+      if (!item.title || item.title === 'Gerando...') continue;
+      corpus.push(
+        this.buildEntry('CONTENT', item.title, item.focus_keyword ?? '', {
+          calendarId: item.editorial_calendar_id ?? undefined,
+          status: item.status,
+          url: item.external_post_url ?? undefined,
+          focusKeyword: item.focus_keyword ?? undefined,
+        })
+      );
+    }
+
+    const { data: blog, error: blogError } = await supabase
+      .from('blogs')
+      .select('domain, editorial_config')
+      .eq('id', blogId)
+      .maybeSingle();
+    if (blogError) throw new Error(`Falha ao consultar o blog: ${blogError.message}`);
+
+    // Posts publicados no WordPress DESTE blog (API pública, sem credenciais),
+    // página por página. Falhas do site externo não bloqueiam a checagem.
+    const editorial = (blog?.editorial_config ?? {}) as { wordpress?: { wp_site_url?: string } };
+    const rawUrl = (editorial.wordpress?.wp_site_url || blog?.domain || '').trim();
+    if (rawUrl) {
+      const siteUrl = rawUrl.replace(/\/+$/, '').replace(/^(?!https?:\/\/)/, 'https://');
+      try {
+        for (let page = 1; page <= WORDPRESS_MAX_PAGES; page++) {
+          const response = await fetch(
+            `${siteUrl}/wp-json/wp/v2/posts?per_page=100&page=${page}&_fields=id,title,link`,
+            { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) }
+          );
+          if (!response.ok) break;
+          const posts = await response.json();
+          for (const post of Array.isArray(posts) ? posts : []) {
+            const title = String(post?.title?.rendered ?? '');
+            if (!title) continue;
+            corpus.push(this.buildEntry('WORDPRESS', title, '', { status: 'PUBLISHED', url: post.link || undefined }));
+          }
+          const totalPages = Number(response.headers.get('X-WP-TotalPages') ?? '1');
+          if (!Array.isArray(posts) || page >= totalPages) break;
+        }
+      } catch (wpErr) {
+        logger.warn('CannibalizationGuardService', `Aviso ao consultar WordPress do blog: ${String(wpErr)}`);
+      }
+    }
+
+    return corpus;
+  }
+
+  /** Compara uma pauta com um corpus já carregado. */
+  static scoreAgainst(
+    corpus: CorpusEntry[],
+    idea: { title: string; focusKeyword?: string; keywords?: string[] },
+    options: { excludeCalendarId?: string } = {}
+  ): CannibalizationCheckResult {
+    const { title, focusKeyword, keywords = [] } = idea;
+    const queryTokens = this.extractTokens(`${title} ${focusKeyword || ''} ${keywords.join(' ')}`);
+    const targetFocusKwNorm = focusKeyword ? this.normalize(focusKeyword) : '';
+    const targetTitleNorm = this.normalize(title);
     const conflictingItems: ConflictingItem[] = [];
     const reasons: string[] = [];
 
-    const queryTokens = this.extractTokens(`${title} ${focusKeyword || ''} ${keywords.join(' ')}`);
-    const targetFocusKwNorm = focusKeyword
-      ? focusKeyword.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-      : '';
+    for (const entry of corpus) {
+      if (options.excludeCalendarId && entry.calendarId === options.excludeCalendarId) continue;
 
-    // 1. Checagem no WordPress via REST API oficial
-    const wpSiteUrl = process.env.WORDPRESS_SITE_URL?.replace(/\/+$/, '');
-    if (wpSiteUrl) {
-      try {
-        const searchTerm = focusKeyword || title.split(/\s+/).slice(0, 4).join(' ');
-        const endpoint = `${wpSiteUrl}/wp-json/wp/v2/posts?search=${encodeURIComponent(searchTerm)}&per_page=8`;
-        
-        const response = await fetch(endpoint, {
-          headers: {
-            Accept: 'application/json',
-          },
+      const similarity = this.computeTokenSimilarity(queryTokens, entry.tokens);
+      const sameTitle = targetTitleNorm.length > 0 && entry.normTitle === targetTitleNorm;
+      const directKwMatch = targetFocusKwNorm.length > 5 && entry.normTitle.includes(targetFocusKwNorm);
+      const finalScore = sameTitle ? 1 : directKwMatch ? Math.max(similarity, 0.85) : similarity;
+
+      if (finalScore >= 0.5) {
+        conflictingItems.push({
+          source: entry.source,
+          title: entry.title,
+          url: entry.url,
+          status: entry.status,
+          focusKeyword: entry.focusKeyword,
+          similarityScore: Number(finalScore.toFixed(2)),
         });
-
-        if (response.ok) {
-          const posts = await response.json();
-          if (Array.isArray(posts)) {
-            for (const post of posts) {
-              const postTitle = post.title?.rendered || '';
-              const postUrl = post.link || '';
-              const postTokens = this.extractTokens(postTitle);
-              const similarity = this.computeTokenSimilarity(queryTokens, postTokens);
-
-              // Verifica se a palavra-chave foco aparece diretamente no título do post
-              const postTitleNorm = postTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-              const directKwMatch = targetFocusKwNorm.length > 5 && postTitleNorm.includes(targetFocusKwNorm);
-
-              const finalScore = directKwMatch ? Math.max(similarity, 0.85) : similarity;
-
-              if (finalScore >= 0.5) {
-                conflictingItems.push({
-                  source: 'WORDPRESS',
-                  title: postTitle,
-                  url: postUrl,
-                  status: 'PUBLISHED',
-                  similarityScore: Number(finalScore.toFixed(2)),
-                });
-              }
-            }
-          }
-        }
-      } catch (wpErr) {
-        logger.warn('CannibalizationGuardService', `Aviso ao consultar WordPress: ${String(wpErr)}`);
       }
     }
 
-    // 2. Checagem no Supabase (editorial_calendar)
-    try {
-      const supabase = await getSupabaseServerClient();
-      const { data: calendarItems } = await supabase
-        .from('editorial_calendar')
-        .select('id, proposed_title, topic, keywords, status')
-        .not('status', 'in', '("FAILED","IDEA")')
-        .limit(50);
-
-      if (calendarItems && calendarItems.length > 0) {
-        for (const item of calendarItems) {
-          if (currentCalendarId && item.id === currentCalendarId) continue;
-
-          const itemTitle = item.proposed_title || item.topic || '';
-          const itemKeywords = Array.isArray(item.keywords) ? item.keywords.join(' ') : '';
-          const itemTokens = this.extractTokens(`${itemTitle} ${itemKeywords}`);
-          const similarity = this.computeTokenSimilarity(queryTokens, itemTokens);
-
-          const itemTitleNorm = itemTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          const directKwMatch = targetFocusKwNorm.length > 5 && itemTitleNorm.includes(targetFocusKwNorm);
-          const finalScore = directKwMatch ? Math.max(similarity, 0.88) : similarity;
-
-          if (finalScore >= 0.5) {
-            conflictingItems.push({
-              source: 'CALENDAR',
-              title: itemTitle,
-              status: item.status,
-              similarityScore: Number(finalScore.toFixed(2)),
-            });
-          }
-        }
-      }
-    } catch (dbErr) {
-      logger.warn('CannibalizationGuardService', `Aviso ao consultar Supabase: ${String(dbErr)}`);
-    }
-
-    // Ordena do maior para o menor risco
     conflictingItems.sort((a, b) => b.similarityScore - a.similarityScore);
 
     const maxScore = conflictingItems.length > 0 ? conflictingItems[0].similarityScore : 0;
     let riskLevel: 'HIGH' | 'MEDIUM' | 'NONE' = 'NONE';
     let isCannibalizing = false;
 
-    if (maxScore >= 0.75) {
+    if (maxScore >= HIGH_RISK_THRESHOLD) {
       riskLevel = 'HIGH';
       isCannibalizing = true;
       reasons.push(
-        `Alto risco de canibalização detectado (${Math.round(maxScore * 100)}% de similaridade). Já existe conteúdo ativo competindo pela mesma intenção de busca.`
+        `Alto risco de canibalização detectado (${Math.round(maxScore * 100)}% de similaridade). Já existe conteúdo neste blog competindo pela mesma intenção de busca.`
       );
     } else if (maxScore >= 0.5) {
       riskLevel = 'MEDIUM';
@@ -182,12 +235,39 @@ export class CannibalizationGuardService {
       );
     }
 
-    return {
-      isCannibalizing,
-      riskLevel,
-      score: maxScore,
-      reasons,
-      conflictingItems,
-    };
+    return { isCannibalizing, riskLevel, score: maxScore, reasons, conflictingItems };
+  }
+
+  /**
+   * Verifica várias pautas de uma vez contra o blog e também entre si (duas
+   * ideias quase iguais no mesmo lote contam como duplicadas).
+   */
+  static async checkMany(
+    blogId: string,
+    ideas: Array<{ title: string; focusKeyword?: string; keywords?: string[] }>
+  ): Promise<CannibalizationCheckResult[]> {
+    const corpus = await this.loadBlogCorpus(blogId);
+    const results: CannibalizationCheckResult[] = [];
+
+    for (const idea of ideas) {
+      results.push(this.scoreAgainst(corpus, idea));
+      corpus.push(
+        this.buildEntry('BATCH', idea.title, `${idea.focusKeyword || ''} ${(idea.keywords ?? []).join(' ')}`, { status: 'NEW' })
+      );
+    }
+
+    return results;
+  }
+
+  /** Auditoria de uma única pauta contra o mesmo blog. */
+  static async checkCannibalization(params: {
+    blogId: string;
+    title: string;
+    focusKeyword?: string;
+    keywords?: string[];
+    currentCalendarId?: string;
+  }): Promise<CannibalizationCheckResult> {
+    const corpus = await this.loadBlogCorpus(params.blogId);
+    return this.scoreAgainst(corpus, params, { excludeCalendarId: params.currentCalendarId });
   }
 }

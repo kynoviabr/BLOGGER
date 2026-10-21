@@ -6,13 +6,14 @@ import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
 import { SUPPORTED_LANGUAGES } from '@/config/languages';
+import { CannibalizationGuardService, toGuardInput } from '@/services/editorial/cannibalization-guard.service';
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
 
     const body = await request.json();
-    const { blogId, category, ideas, mode, language: requestedLanguage }: { blogId: string; category?: string; ideas: ContentIdea[]; mode?: 'idea' | 'generate'; language?: string } = body;
+    const { blogId, category, ideas, mode, language: requestedLanguage, allowDuplicates }: { blogId: string; category?: string; ideas: ContentIdea[]; mode?: 'idea' | 'generate'; language?: string; allowDuplicates?: boolean } = body;
     // Fluxo: Ideation -> Content (revisão) -> Calendário (só ao agendar).
     // 'idea' guarda a pauta no banco de ideias; 'generate' prepara a pauta para
     // o cliente disparar a geração do artigo. Nenhuma recebe data aqui.
@@ -30,6 +31,32 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Nenhuma ideia selecionada para adicionar ao calendário.' },
         { status: 400 }
       );
+    }
+
+    // Barra pautas muito parecidas com o que já existe NESTE blog (ou entre si),
+    // a menos que o usuário confirme que quer salvar mesmo assim.
+    if (allowDuplicates !== true) {
+      const checks = await CannibalizationGuardService.checkMany(blogId, ideas.map(toGuardInput));
+      const duplicates = checks
+        .map((check, index) => ({ check, index }))
+        .filter(({ check }) => check.riskLevel === 'HIGH')
+        .map(({ check, index }) => ({
+          index,
+          title: ideas[index].title,
+          score: check.score,
+          conflict: check.conflictingItems[0],
+        }));
+
+      if (duplicates.length > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `${duplicates.length} pauta(s) muito parecida(s) com conteúdo que já existe neste blog.`,
+            duplicates,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const adminSupabase = getSupabaseAdminClient();
