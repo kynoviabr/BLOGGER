@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import { useState } from "react";
-import { Sparkles, Edit3, ClipboardCheck } from "lucide-react";
+import { Sparkles, Edit3, Bookmark } from "lucide-react";
 import { BlogWithRelations } from "@/types/blog";
 import { IdeasGeneratorView } from "@/components/ideas/ideas-generator-view";
 import { ManualPautaIngest } from "@/components/ideas/manual-pauta-ingest";
-import { IdeasApprovalQueue } from "@/components/ideas/ideas-approval-queue";
+import { SavedIdeasList } from "@/components/ideas/saved-ideas-list";
 import { cn } from "@/lib/utils";
 
 interface IdeasTabsContainerProps {
@@ -15,7 +15,7 @@ interface IdeasTabsContainerProps {
   initialTab?: IdeasTab;
 }
 
-export type IdeasTab = "auto" | "manual" | "approval";
+export type IdeasTab = "auto" | "manual" | "saved";
 
 export function IdeasTabsContainer({ blogs, initialBlogId, initialTab = "manual" }: IdeasTabsContainerProps) {
   const [activeTab, setActiveTab] = useState<IdeasTab>(initialTab);
@@ -53,26 +53,26 @@ export function IdeasTabsContainer({ blogs, initialBlogId, initialTab = "manual"
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("approval")}
+          onClick={() => setActiveTab("saved")}
           className={cn(
             "flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors",
-            activeTab === "approval"
+            activeTab === "saved"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
-          <ClipboardCheck className="h-4 w-4" />
-          Para aprovar{pendingCount ? ` (${pendingCount})` : ""}
+          <Bookmark className="h-4 w-4" />
+          Ideias salvas{pendingCount ? ` (${pendingCount})` : ""}
         </button>
       </div>
 
       {/* Conteúdo da Aba */}
       {activeTab === "manual" && (
-        <ManualPautaIngest blogs={blogs} initialBlogId={initialBlogId} onSaved={() => setActiveTab("approval")} />
+        <ManualPautaIngest blogs={blogs} initialBlogId={initialBlogId} />
       )}
       {activeTab === "auto" && <IdeasGeneratorView blogs={blogs} initialBlogId={initialBlogId} />}
-      {activeTab === "approval" && (
-        <IdeasApprovalQueue blogs={blogs} initialBlogId={initialBlogId} onCountChange={setPendingCount} />
+      {activeTab === "saved" && (
+        <SavedIdeasList blogs={blogs} initialBlogId={initialBlogId} onCountChange={setPendingCount} />
       )}
     </div>
   );

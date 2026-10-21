@@ -11,10 +11,11 @@ export async function POST(request: NextRequest) {
     const user = await requireAuth();
 
     const body = await request.json();
-    const { blogId, category, ideas, approve }: { blogId: string; category?: string; ideas: ContentIdea[]; approve?: boolean } = body;
-    // Por padrão as pautas entram no banco de ideias (IDEA, sem data) e só vão
-    // para o calendário depois de aprovadas. approve=true pula a revisão.
-    const targetStatus = approve === true ? 'PLANNED' as const : 'IDEA' as const;
+    const { blogId, category, ideas, mode }: { blogId: string; category?: string; ideas: ContentIdea[]; mode?: 'idea' | 'generate' } = body;
+    // Fluxo: Ideation -> Content (revisão) -> Calendário (só ao agendar).
+    // 'idea' guarda a pauta no banco de ideias; 'generate' prepara a pauta para
+    // o cliente disparar a geração do artigo. Nenhuma recebe data aqui.
+    const targetStatus = mode === 'generate' ? 'IN_PROGRESS' as const : 'IDEA' as const;
 
     if (!blogId) {
       return NextResponse.json(
@@ -83,10 +84,7 @@ export async function POST(request: NextRequest) {
     const language = blog?.default_language || 'pt-BR';
 
     // 3. Montar inserts para a tabela editorial_calendar
-    const recordsToInsert = ideas.map((idea, index) => {
-      // Agenda para dias subsequentes a partir de hoje
-      const scheduledDate = new Date();
-      scheduledDate.setDate(scheduledDate.getDate() + index + 1);
+    const recordsToInsert = ideas.map((idea) => {
 
       const parsedKeywords = idea.keywords
         ? idea.keywords.split(',').map((k) => k.trim()).filter(Boolean)
@@ -102,7 +100,7 @@ export async function POST(request: NextRequest) {
         proposed_title: idea.title,
         keywords: parsedKeywords,
         article_type: idea.type || 'Artigo Padrão',
-        scheduled_at: targetStatus === 'PLANNED' ? scheduledDate.toISOString() : null,
+        scheduled_at: null,
         priority: 'medium' as const,
         status: targetStatus,
         notes: idea.description || null,
@@ -123,8 +121,8 @@ export async function POST(request: NextRequest) {
       'info',
       'API.ideas.batch',
       targetStatus === 'IDEA'
-        ? `Inseridas ${inserted.length} pautas no banco de ideias para aprovação`
-        : `Inseridas ${inserted.length} pautas com sucesso no Calendário Editorial`,
+        ? `Inseridas ${inserted.length} pautas no banco de ideias`
+        : `Inseridas ${inserted.length} pautas para geração de artigos`,
       { blogId, count: inserted.length, status: targetStatus, userId: user.id }
     );
 

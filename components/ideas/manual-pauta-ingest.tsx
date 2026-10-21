@@ -23,11 +23,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { SUPPORTED_LANGUAGES } from "@/config/languages";
+import { startArticleGeneration } from "@/lib/ideas/start-generation";
 
 interface ManualPautaIngestProps {
   blogs: BlogWithRelations[];
   initialBlogId?: string;
-  onSaved?: () => void;
 }
 
 interface EnhancedPauta {
@@ -55,7 +55,7 @@ interface CannibalizationInfo {
   }>;
 }
 
-export function ManualPautaIngest({ blogs, initialBlogId, onSaved }: ManualPautaIngestProps) {
+export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestProps) {
   const router = useRouter();
 
   const activeInitialBlog = initialBlogId ? blogs.find((b) => b.id === initialBlogId) : null;
@@ -145,8 +145,7 @@ export function ManualPautaIngest({ blogs, initialBlogId, onSaved }: ManualPauta
         body: JSON.stringify({
           blogId: selectedBlogId,
           language: selectedLanguage,
-          // "Aprovar e escrever agora" já é a aprovação; "Salvar" vai para o banco de ideias.
-          approve: executeNow,
+          mode: executeNow ? "generate" : "idea",
           ideas: [
             {
               title: enhancedPauta.title,
@@ -160,27 +159,25 @@ export function ManualPautaIngest({ blogs, initialBlogId, onSaved }: ManualPauta
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Falha ao salvar pauta no calendário.");
+        throw new Error(data.error || "Falha ao salvar a pauta.");
       }
 
       const createdItem = data.data?.[0];
 
       if (executeNow && createdItem?.id) {
-        const execRes = await fetch(`/api/calendar/${createdItem.id}/execute`, { method: "POST" });
-        const execData = await execRes.json();
-        if (!execRes.ok || !execData.success) {
-          throw new Error(execData.error || "Pauta aprovada, mas não foi possível iniciar a escrita do artigo.");
+        const { started } = await startArticleGeneration([createdItem.id]);
+        if (started.length === 0) {
+          throw new Error('A pauta foi salva, mas não foi possível iniciar a escrita do artigo. Tente de novo pela aba "Ideias salvas".');
         }
-        router.push(execData.contentId ? `/content/${execData.contentId}` : "/calendar");
+        router.push(`/content/${started[0].contentId}`);
       } else {
-        setSuccessMsg('Pauta salva para aprovação. Revise na aba "Para aprovar".');
+        setSuccessMsg('Ideia salva. Ela fica na aba "Ideias salvas" até você gerar o artigo.');
         setRawText("");
         setEnhancedPauta(null);
-        onSaved?.();
         router.refresh();
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao salvar no calendário.");
+      setError(err instanceof Error ? err.message : "Erro ao salvar a pauta.");
     } finally {
       setIsSaving(false);
     }
@@ -441,7 +438,7 @@ export function ManualPautaIngest({ blogs, initialBlogId, onSaved }: ManualPauta
                   className="gap-1.5 text-xs"
                 >
                   <CalendarPlus className="h-3.5 w-3.5 text-primary" />
-                  Salvar para aprovação
+                  Salvar para depois
                 </Button>
                 <Button
                   size="sm"
@@ -450,7 +447,7 @@ export function ManualPautaIngest({ blogs, initialBlogId, onSaved }: ManualPauta
                   className="gap-1.5 text-xs bg-success text-white hover:brightness-95 font-semibold"
                 >
                   <Play className="h-3.5 w-3.5 fill-current" />
-                  Aprovar e escrever agora
+                  Gerar artigo agora
                 </Button>
               </div>
             </div>

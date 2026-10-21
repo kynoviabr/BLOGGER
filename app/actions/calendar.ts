@@ -129,7 +129,7 @@ export async function updateCalendarItemAction(
   revalidatePath("/ideas");
   revalidatePath("/");
   // Pautas ainda não aprovadas voltam para a aba de aprovação, não para o calendário.
-  redirect(savedAsIdea ? "/ideas?tab=approval" : "/calendar");
+  redirect(savedAsIdea ? "/ideas?tab=saved" : "/calendar");
 }
 
 export async function updateCalendarStatusAction(id: string, status: CalendarStatus) {
@@ -171,13 +171,11 @@ export async function listPendingIdeasAction(blogId?: string) {
   return CalendarService.listCalendarItems({ blogId, status: 'IDEA' });
 }
 
-export async function approveIdeasAction(ids: string[], startDate?: string) {
+export async function prepareIdeasForGenerationAction(ids: string[]) {
   await requireAuth();
-  const result = await CalendarService.approveIdeas(ids, startDate);
-  revalidatePath("/calendar");
+  const prepared = await CalendarService.prepareIdeasForGeneration(ids);
   revalidatePath("/ideas");
-  revalidatePath("/");
-  return result;
+  return prepared;
 }
 
 export async function discardIdeasAction(ids: string[]) {

@@ -15,6 +15,8 @@ import {
   Zap,
   Tag as TagIcon,
   Search,
+  CalendarClock,
+  X,
 } from "lucide-react";
 import { ContentItemWithRelations } from "@/types/content";
 import { Button } from "@/components/ui/button";
@@ -27,7 +29,7 @@ import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
-import { updateContentAction } from "@/app/actions/content";
+import { scheduleContentAction, unscheduleContentAction, updateContentAction } from "@/app/actions/content";
 import { backfillMonetizationAction } from "@/app/actions/monetization";
 
 interface ContentEditFormProps {
@@ -55,6 +57,9 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isBackfilling, setIsBackfilling] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState<string | null>(initialContent.editorial_calendar?.scheduled_at ?? null);
+  const [scheduleInput, setScheduleInput] = useState<string>("");
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [selectedGenerationLanguage, setSelectedGenerationLanguage] = useState<string>(
     initialContent.language || "pt-BR"
@@ -210,6 +215,8 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
       return;
     }
 
+    if (!window.confirm("Publicar este artigo no WordPress agora?")) return;
+
     setNotification(null);
     setIsPublishing(true);
 
@@ -242,6 +249,48 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
       showNotification("error", err instanceof Error ? err.message : "Erro ao publicar no WordPress.");
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  // 4.1 Agendar publicação: o artigo entra no Calendário Editorial na data escolhida
+  const handleSchedule = async () => {
+    if (!scheduleInput) {
+      showNotification("error", "Escolha a data e a hora da publicação.");
+      return;
+    }
+    setNotification(null);
+    setIsScheduling(true);
+    try {
+      const result = await scheduleContentAction(content.id, new Date(scheduleInput).toISOString());
+      if (!result.success || !result.scheduledAt) throw new Error(result.error || "Falha ao agendar o artigo.");
+      setScheduledAt(result.scheduledAt);
+      setContent((prev) => ({ ...prev, status: "scheduled" }));
+      setFormData((prev) => ({ ...prev, status: "scheduled" }));
+      setScheduleInput("");
+      showNotification("success", `Artigo agendado para ${new Date(result.scheduledAt).toLocaleString("pt-BR")}. Ele já aparece no Calendário Editorial.`);
+      router.refresh();
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Erro ao agendar o artigo.");
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
+  const handleUnschedule = async () => {
+    setNotification(null);
+    setIsScheduling(true);
+    try {
+      const result = await unscheduleContentAction(content.id);
+      if (!result.success) throw new Error(result.error || "Falha ao cancelar o agendamento.");
+      setScheduledAt(null);
+      setContent((prev) => ({ ...prev, status: "reviewing" }));
+      setFormData((prev) => ({ ...prev, status: "reviewing" }));
+      showNotification("success", "Agendamento cancelado. O artigo voltou para revisão e saiu do calendário.");
+      router.refresh();
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Erro ao cancelar o agendamento.");
+    } finally {
+      setIsScheduling(false);
     }
   };
 
@@ -290,7 +339,8 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     }
   };
 
-  const isAnyActionRunning = isSaving || isGeneratingText || isGeneratingImage || isPublishing || isBackfilling;
+  const isAnyActionRunning = isSaving || isGeneratingText || isGeneratingImage || isPublishing || isBackfilling || isScheduling;
+  const isPublished = content.status === "published";
 
   return (
     <div className="space-y-6">
@@ -412,11 +462,64 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
               ) : (
                 <>
                   <Send className="mr-1.5 h-3.5 w-3.5" />
-                  Publicar no WordPress
+                  Publicar agora
                 </>
               )}
             </Button>
           </div>
+
+          {/* 5. Agendar publicação (entra no Calendário Editorial) */}
+          {!isPublished && (
+            <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center">
+              {scheduledAt && content.status === "scheduled" ? (
+                <>
+                  <span className="flex items-center gap-1.5 text-sm text-foreground">
+                    <CalendarClock className="h-4 w-4 text-primary" />
+                    Agendado para <strong>{new Date(scheduledAt).toLocaleString("pt-BR")}</strong>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUnschedule}
+                    disabled={isAnyActionRunning}
+                    className="sm:ml-auto"
+                  >
+                    <X className="mr-1.5 h-3.5 w-3.5" />
+                    Cancelar agendamento
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="schedule-at" className="text-sm font-medium text-foreground">
+                    Agendar publicação
+                  </label>
+                  <Input
+                    id="schedule-at"
+                    type="datetime-local"
+                    value={scheduleInput}
+                    onChange={(e) => setScheduleInput(e.target.value)}
+                    disabled={isAnyActionRunning}
+                    className="sm:w-56"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSchedule}
+                    disabled={isAnyActionRunning || !formData.body || !scheduleInput}
+                  >
+                    {isScheduling ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    Agendar
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

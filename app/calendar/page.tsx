@@ -29,8 +29,13 @@ export default async function CalendarPage({
       CalendarService.listCalendarItems({ blogId, status }),
       blogId ? CategoryService.listCategoriesByBlog(blogId).catch(() => []) : Promise.resolve([]),
     ]);
-    // Pautas ainda não aprovadas (IDEA) ficam no Ideation Engine, fora do calendário.
-    items = status ? fetchedItems : fetchedItems.filter((item) => item.status !== "IDEA");
+    // O calendário mostra o que foi agendado. Ideias salvas (IDEA) e artigos
+    // ainda em revisão sem data (IN_PROGRESS) ficam no Ideation Engine e no Content.
+    items = status
+      ? fetchedItems
+      : fetchedItems.filter(
+          (item) => item.status !== "IDEA" && !(item.status === "IN_PROGRESS" && !item.scheduled_at)
+        );
     categories = fetchedCategories;
   } catch (err) {
     loadError = err instanceof Error ? err.message : "Não foi possível carregar o calendário.";

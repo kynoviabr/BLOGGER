@@ -14,7 +14,7 @@ export default async function IdeasPage({
   searchParams: Promise<{ blogId?: string; tab?: string }>;
 }) {
   const { blogId: queryBlogId, tab } = await searchParams;
-  const initialTab: IdeasTab = tab === "approval" || tab === "auto" ? tab : "manual";
+  const initialTab: IdeasTab = tab === "saved" || tab === "auto" ? tab : "manual";
   const cookieStore = await cookies();
   const cookieBlogId = cookieStore.get("selected_blog_id")?.value;
 

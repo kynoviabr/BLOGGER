@@ -159,41 +159,27 @@ export class CalendarService {
   }
 
   /**
-   * Aprova pautas do banco de ideias: passam de IDEA para PLANNED e recebem
-   * uma data por dia a partir de startDate (padrão: amanhã).
+   * Tira pautas do banco de ideias (IDEA) para que o artigo seja gerado. Elas
+   * continuam sem data: só entram no calendário quando o artigo for agendado.
    */
-  static async approveIdeas(ids: string[], startDate?: string): Promise<{ success: boolean; count: number }> {
-    if (ids.length === 0) return { success: true, count: 0 };
+  static async prepareIdeasForGeneration(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
     const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('editorial_calendar')
+      .update({ status: 'IN_PROGRESS', updated_at: new Date().toISOString() })
+      .in('id', ids)
+      .eq('status', 'IDEA')
+      .select('id');
 
-    const base = startDate ? new Date(startDate) : new Date();
-    if (!startDate) base.setDate(base.getDate() + 1);
-    if (Number.isNaN(base.getTime())) throw new Error('Data de início inválida.');
-
-    let count = 0;
-    for (const [index, id] of ids.entries()) {
-      const scheduledAt = new Date(base);
-      scheduledAt.setDate(base.getDate() + index);
-      const { data, error } = await supabase
-        .from('editorial_calendar')
-        .update({
-          status: 'PLANNED',
-          scheduled_at: scheduledAt.toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .eq('status', 'IDEA')
-        .select('id');
-
-      if (error) {
-        logger.error('CalendarService.approveIdeas', `Falha ao aprovar pauta ${id}`, { error });
-        throw new Error(`Falha ao aprovar pautas: ${error.message}`);
-      }
-      count += data?.length ?? 0;
+    if (error) {
+      logger.error('CalendarService.prepareIdeasForGeneration', 'Falha ao preparar pautas', { error, ids });
+      throw new Error(`Falha ao preparar pautas para geração: ${error.message}`);
     }
 
-    logger.info('CalendarService.approveIdeas', `${count} pautas aprovadas e enviadas ao calendário.`);
-    return { success: true, count };
+    // Preserva a ordem escolhida pelo usuário.
+    const updated = new Set((data ?? []).map((row) => row.id));
+    return ids.filter((id) => updated.has(id));
   }
 
   /** Descarta pautas que ainda estão no banco de ideias (nunca apaga pautas aprovadas). */

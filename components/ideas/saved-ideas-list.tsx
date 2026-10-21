@@ -4,34 +4,27 @@ import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, Pencil, Tag, Trash2, AlertCircle, Inbox } from "lucide-react";
+import { CheckCircle2, Loader2, Pencil, Tag, Trash2, AlertCircle, Inbox, PenLine } from "lucide-react";
 import { BlogWithRelations } from "@/types/blog";
 import { CalendarItemWithRelations } from "@/types/calendar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { approveIdeasAction, discardIdeasAction, listPendingIdeasAction } from "@/app/actions/calendar";
+import { discardIdeasAction, listPendingIdeasAction, prepareIdeasForGenerationAction } from "@/app/actions/calendar";
+import { startArticleGeneration } from "@/lib/ideas/start-generation";
 
-interface IdeasApprovalQueueProps {
+interface SavedIdeasListProps {
   blogs: BlogWithRelations[];
   initialBlogId?: string;
   onCountChange?: (count: number) => void;
 }
 
-function tomorrowAsInputValue(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
-export function IdeasApprovalQueue({ blogs, initialBlogId, onCountChange }: IdeasApprovalQueueProps) {
+export function SavedIdeasList({ blogs, initialBlogId, onCountChange }: SavedIdeasListProps) {
   const router = useRouter();
   const [selectedBlogId, setSelectedBlogId] = useState<string>(initialBlogId || blogs[0]?.id || "");
   const [ideas, setIdeas] = useState<CalendarItemWithRelations[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [startDate, setStartDate] = useState<string>(tomorrowAsInputValue());
   const [isLoading, setIsLoading] = useState(true);
   const [isWorking, setIsWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +39,7 @@ export function IdeasApprovalQueue({ blogs, initialBlogId, onCountChange }: Idea
       setSelectedIds(new Set());
       onCountChange?.(items.length);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Não foi possível carregar as pautas para aprovação.");
+      setError(err instanceof Error ? err.message : "Não foi possível carregar as ideias salvas.");
     } finally {
       setIsLoading(false);
     }
@@ -69,22 +62,24 @@ export function IdeasApprovalQueue({ blogs, initialBlogId, onCountChange }: Idea
     setSelectedIds(selectedIds.size === ideas.length ? new Set() : new Set(ideas.map((i) => i.id)));
   };
 
-  // Mantém a ordem da lista ao distribuir as datas (uma pauta por dia).
   const selectedInOrder = () => ideas.filter((i) => selectedIds.has(i.id)).map((i) => i.id);
 
-  const handleApprove = async () => {
+  const handleGenerate = async () => {
     if (selectedIds.size === 0) return;
     setIsWorking(true);
     setError(null);
     setSuccessMessage(null);
     try {
-      const start = new Date(`${startDate}T09:00:00`);
-      const result = await approveIdeasAction(selectedInOrder(), start.toISOString());
-      setSuccessMessage(`${result.count} pauta(s) aprovada(s) e enviada(s) ao Calendário, uma por dia a partir de ${start.toLocaleDateString("pt-BR")}.`);
+      const prepared = await prepareIdeasForGenerationAction(selectedInOrder());
+      const { started, failed } = await startArticleGeneration(prepared);
+      setSuccessMessage(
+        `${started.length} artigo(s) sendo escritos. Eles aparecem em Content como "Em revisão" quando ficarem prontos.` +
+          (failed.length ? ` ${failed.length} não puderam ser iniciados; tente de novo pelo Content.` : "")
+      );
       await loadIdeas();
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao aprovar pautas.");
+      setError(err instanceof Error ? err.message : "Erro ao gerar os artigos.");
     } finally {
       setIsWorking(false);
     }
@@ -92,16 +87,16 @@ export function IdeasApprovalQueue({ blogs, initialBlogId, onCountChange }: Idea
 
   const handleDiscard = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Descartar ${selectedIds.size} pauta(s)? Essa ação não pode ser desfeita.`)) return;
+    if (!window.confirm(`Descartar ${selectedIds.size} ideia(s)? Essa ação não pode ser desfeita.`)) return;
     setIsWorking(true);
     setError(null);
     setSuccessMessage(null);
     try {
       const result = await discardIdeasAction(selectedInOrder());
-      setSuccessMessage(`${result.count} pauta(s) descartada(s).`);
+      setSuccessMessage(`${result.count} ideia(s) descartada(s).`);
       await loadIdeas();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao descartar pautas.");
+      setError(err instanceof Error ? err.message : "Erro ao descartar as ideias.");
     } finally {
       setIsWorking(false);
     }
@@ -125,19 +120,9 @@ export function IdeasApprovalQueue({ blogs, initialBlogId, onCountChange }: Idea
               ))}
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Publicar a partir de</label>
-            <Input
-              type="date"
-              value={startDate}
-              min={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => setStartDate(e.target.value)}
-              disabled={isWorking}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground self-end">
-            Ao aprovar, cada pauta recebe uma data, uma por dia a partir da data escolhida. Depois você pode
-            ajustar no Calendário.
+          <p className="text-xs text-muted-foreground self-end sm:col-span-2">
+            Ideias que você guardou para depois. Ao gerar, o artigo vai para Content para revisão. Nada entra no
+            Calendário até você agendar o artigo.
           </p>
         </div>
       </Card>
@@ -158,14 +143,14 @@ export function IdeasApprovalQueue({ blogs, initialBlogId, onCountChange }: Idea
       {isLoading ? (
         <Card className="p-8 flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Carregando pautas...
+          Carregando ideias...
         </Card>
       ) : ideas.length === 0 ? (
         <Card className="p-8 text-center space-y-2">
           <Inbox className="h-8 w-8 mx-auto text-muted-foreground" />
-          <p className="text-sm font-medium text-foreground">Nenhuma pauta esperando aprovação.</p>
+          <p className="text-sm font-medium text-foreground">Nenhuma ideia salva.</p>
           <p className="text-xs text-muted-foreground">
-            As pautas que você salvar nas outras abas aparecem aqui para revisão antes de irem ao Calendário.
+            Use &ldquo;Salvar para depois&rdquo; nas outras abas para guardar ideias aqui.
           </p>
         </Card>
       ) : (
@@ -174,12 +159,12 @@ export function IdeasApprovalQueue({ blogs, initialBlogId, onCountChange }: Idea
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
-                id="approval-select-all"
+                id="saved-select-all"
                 checked={selectedIds.size === ideas.length}
                 onChange={toggleSelectAll}
                 className="h-4 w-4 rounded border-input text-primary focus:ring-ring cursor-pointer"
               />
-              <label htmlFor="approval-select-all" className="text-sm font-semibold text-foreground cursor-pointer">
+              <label htmlFor="saved-select-all" className="text-sm font-semibold text-foreground cursor-pointer">
                 Selecionar todas ({selectedIds.size} de {ideas.length})
               </label>
             </div>
@@ -194,12 +179,12 @@ export function IdeasApprovalQueue({ blogs, initialBlogId, onCountChange }: Idea
                 Descartar
               </Button>
               <Button
-                onClick={handleApprove}
+                onClick={handleGenerate}
                 disabled={isWorking || selectedIds.size === 0}
                 className="gap-2 bg-success hover:brightness-95 text-white flex-1 sm:flex-none"
               >
-                {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Aprovar e enviar ao Calendário ({selectedIds.size})
+                {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+                Gerar artigos ({selectedIds.size})
               </Button>
             </div>
           </div>
