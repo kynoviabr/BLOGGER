@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ApiControlRoom } from "@/components/settings/api-control-room";
 import { ApiQuickLinks } from "@/components/settings/api-quick-links";
+import { QuotasEditor } from "@/components/settings/quotas-editor";
+import { WebhooksManager } from "@/components/settings/webhooks-manager";
 
 export default function SettingsPage() {
   const envCheck = [
@@ -106,6 +108,12 @@ export default function SettingsPage() {
 
       {/* Central de Acesso Rápido a todos os Portais de APIs */}
       <ApiQuickLinks />
+
+      {/* Quotas e Webhooks por organização */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <QuotasEditor />
+        <WebhooksManager />
+      </div>
 
       {/* Sala de Controle das APIs com Latência e Testes em Tempo Real */}
       <ApiControlRoom />

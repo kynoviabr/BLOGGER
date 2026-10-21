@@ -32,6 +32,7 @@ export type OrganizationStatus = 'active' | 'suspended' | 'archived';
 export type OrganizationRole = 'owner' | 'admin' | 'editor' | 'viewer';
 export type OrganizationMemberStatus = 'invited' | 'active' | 'suspended';
 export type BackgroundJobType =
+  | 'research'
   | 'content_pipeline'
   | 'image_generation'
   | 'publish_content'
@@ -802,6 +803,18 @@ export type Database = {
             referencedColumns: ["id"];
           }
         ];
+      };
+      organization_webhooks: {
+        Row: { id: string; organization_id: string; url: string; events: string[]; enabled: boolean; created_by: string | null; created_at: string };
+        Insert: { id?: string; organization_id?: string; url: string; events?: string[]; enabled?: boolean; created_by?: string | null; created_at?: string };
+        Update: { id?: string; organization_id?: string; url?: string; events?: string[]; enabled?: boolean; created_by?: string | null; created_at?: string };
+        Relationships: [{ foreignKeyName: "organization_webhooks_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] }];
+      };
+      organization_quotas: {
+        Row: { organization_id: string; monthly_article_limit: number; monthly_image_limit: number; monthly_token_limit: number | null; enabled: boolean; max_concurrent_jobs: number | null; updated_by: string | null; created_at: string; updated_at: string };
+        Insert: { organization_id: string; monthly_article_limit?: number; monthly_image_limit?: number; monthly_token_limit?: number | null; enabled?: boolean; max_concurrent_jobs?: number | null; updated_by?: string | null; created_at?: string; updated_at?: string };
+        Update: { organization_id?: string; monthly_article_limit?: number; monthly_image_limit?: number; monthly_token_limit?: number | null; enabled?: boolean; max_concurrent_jobs?: number | null; updated_by?: string | null; created_at?: string; updated_at?: string };
+        Relationships: [{ foreignKeyName: "organization_quotas_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] }];
       };
       monetization_offers: {
         Row: {

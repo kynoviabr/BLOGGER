@@ -125,6 +125,11 @@ export async function generateContentJob(payload: JsonRecord, db?: SupabaseClien
 
   const { data: sources } = await client.from("content_sources")
     .select("title,url,notes").eq("content_id", contentId).limit(20);
+  // Fail-closed: se research marcou review_required, não gera
+  const researchStatus = String((item as Record<string, unknown>).research_status ?? "");
+  if (researchStatus === "review_required") {
+    throw new ContentGenerationError("Research em REVIEW_REQUIRED (YMYL sem fonte oficial) — geração bloqueada até aprovação humana", false);
+  }
   // 4F: sem fontes → enfileira research e reagenda este pipeline (idempotente, sem duplicar research)
   if (!sources || sources.length === 0) {
     const { data: existingResearch } = await client.from("background_jobs")
