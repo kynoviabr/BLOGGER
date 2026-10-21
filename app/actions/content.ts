@@ -120,7 +120,7 @@ export async function scheduleContentAction(
     const supabase = await getSupabaseServerClient();
     const { data: item, error: itemError } = await supabase
       .from("content_items")
-      .select("id, blog_id, title, body, language, status, editorial_calendar_id")
+      .select("id, blog_id, title, body, language, status, editorial_calendar_id, publish_attempts")
       .eq("id", id)
       .maybeSingle();
     if (itemError || !item) return { success: false, error: "Artigo não encontrado." };
@@ -159,6 +159,20 @@ export async function scheduleContentAction(
       .update({ status: "scheduled", editorial_calendar_id: calendarId, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (contentError) throw new Error(`Falha ao atualizar o artigo: ${contentError.message}`);
+
+    // O gatilho do banco só cria o job de publicação quando o status muda e
+    // reaproveita a mesma chave; ao reagendar, o job antigo manteria a data
+    // antiga. Um job com chave própria para esta data garante a publicação.
+    const { error: jobError } = await supabase.rpc("enqueue_background_job", {
+      p_job_type: "publish_content",
+      p_payload: { contentId: id },
+      p_blog_id: item.blog_id,
+      p_idempotency_key: `publish:${id}:${item.publish_attempts ?? 0}:${iso}`,
+      p_scheduled_at: iso,
+      p_priority: 100,
+      p_max_attempts: 5,
+    } as never);
+    if (jobError) throw new Error(`Artigo agendado, mas a publicação não foi enfileirada: ${jobError.message}`);
 
     revalidatePath("/content");
     revalidatePath(`/content/${id}`);

@@ -74,7 +74,7 @@ export function SavedIdeasList({ blogs, initialBlogId, onCountChange }: SavedIde
       const { started, failed } = await startArticleGeneration(prepared);
       setSuccessMessage(
         `${started.length} artigo(s) sendo escritos. Eles aparecem em Content como "Em revisão" quando ficarem prontos.` +
-          (failed.length ? ` ${failed.length} não puderam ser iniciados; tente de novo pelo Content.` : "")
+          (failed.length ? ` ${failed.length} não puderam ser iniciados e continuam nesta lista para tentar de novo.` : "")
       );
       await loadIdeas();
       router.refresh();

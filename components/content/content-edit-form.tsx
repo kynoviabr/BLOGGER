@@ -221,6 +221,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     setIsPublishing(true);
 
     try {
+      await persistEditorChanges();
       const res = await fetch(`/api/content/${content.id}/publish`, {
         method: "POST",
       });
@@ -252,6 +253,16 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     }
   };
 
+  // Salva o que está no editor antes de agendar ou publicar, para não publicar uma versão antiga.
+  const persistEditorChanges = async () => {
+    const result = await updateContentAction(content.id, null, {
+      ...formData,
+      status: content.status,
+      tags: formData.tags ? formData.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+    });
+    if (!result.success) throw new Error(result.error || "Falha ao salvar o artigo antes de continuar.");
+  };
+
   // 4.1 Agendar publicação: o artigo entra no Calendário Editorial na data escolhida
   const handleSchedule = async () => {
     if (!scheduleInput) {
@@ -261,6 +272,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     setNotification(null);
     setIsScheduling(true);
     try {
+      await persistEditorChanges();
       const result = await scheduleContentAction(content.id, new Date(scheduleInput).toISOString());
       if (!result.success || !result.scheduledAt) throw new Error(result.error || "Falha ao agendar o artigo.");
       setScheduledAt(result.scheduledAt);

@@ -5,13 +5,14 @@ import { ContentIdea } from '@/types/ideas';
 import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
+import { SUPPORTED_LANGUAGES } from '@/config/languages';
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
 
     const body = await request.json();
-    const { blogId, category, ideas, mode }: { blogId: string; category?: string; ideas: ContentIdea[]; mode?: 'idea' | 'generate' } = body;
+    const { blogId, category, ideas, mode, language: requestedLanguage }: { blogId: string; category?: string; ideas: ContentIdea[]; mode?: 'idea' | 'generate'; language?: string } = body;
     // Fluxo: Ideation -> Content (revisão) -> Calendário (só ao agendar).
     // 'idea' guarda a pauta no banco de ideias; 'generate' prepara a pauta para
     // o cliente disparar a geração do artigo. Nenhuma recebe data aqui.
@@ -81,7 +82,8 @@ export async function POST(request: NextRequest) {
       .eq('id', blogId)
       .maybeSingle();
 
-    const language = blog?.default_language || 'pt-BR';
+    const isSupportedLanguage = typeof requestedLanguage === 'string' && SUPPORTED_LANGUAGES.some((l) => l.code === requestedLanguage);
+    const language = isSupportedLanguage ? requestedLanguage : (blog?.default_language || 'pt-BR');
 
     // 3. Montar inserts para a tabela editorial_calendar
     const recordsToInsert = ideas.map((idea) => {

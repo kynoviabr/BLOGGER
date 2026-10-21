@@ -1,3 +1,5 @@
+import { revertIdeasToSavedAction } from "@/app/actions/calendar";
+
 /**
  * Dispara, a partir do navegador, a geração do artigo de cada pauta. O artigo
  * aparece em Content como "Em revisão" quando o worker do Supabase terminar.
@@ -17,6 +19,11 @@ export async function startArticleGeneration(
     } catch {
       failed.push(calendarId);
     }
+  }
+
+  // Sem isso a pauta ficaria IN_PROGRESS sem artigo, invisível em todas as telas.
+  if (failed.length > 0) {
+    await revertIdeasToSavedAction(failed).catch(() => undefined);
   }
 
   return { started, failed };

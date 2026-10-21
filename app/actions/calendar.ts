@@ -185,3 +185,11 @@ export async function discardIdeasAction(ids: string[]) {
   revalidatePath("/");
   return result;
 }
+
+/** Devolve ao banco de ideias as pautas cuja geração não chegou a começar. */
+export async function revertIdeasToSavedAction(ids: string[]) {
+  await requireAuth();
+  const reverted = await CalendarService.revertIdeasToSaved(ids);
+  revalidatePath("/ideas");
+  return reverted;
+}
