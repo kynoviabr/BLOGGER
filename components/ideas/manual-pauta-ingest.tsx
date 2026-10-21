@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { SUPPORTED_LANGUAGES } from "@/config/languages";
+import { startArticleGeneration } from "@/lib/ideas/start-generation";
 
 interface ManualPautaIngestProps {
   blogs: BlogWithRelations[];
@@ -144,6 +145,7 @@ export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestPro
         body: JSON.stringify({
           blogId: selectedBlogId,
           language: selectedLanguage,
+          mode: executeNow ? "generate" : "idea",
           ideas: [
             {
               title: enhancedPauta.title,
@@ -157,21 +159,25 @@ export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestPro
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Falha ao salvar pauta no calendário.");
+        throw new Error(data.error || "Falha ao salvar a pauta.");
       }
 
-      const createdItem = data.results?.[0];
+      const createdItem = data.data?.[0];
 
       if (executeNow && createdItem?.id) {
-        router.push(`/calendar?execute=${createdItem.id}`);
+        const { started } = await startArticleGeneration([createdItem.id]);
+        if (started.length === 0) {
+          throw new Error('A pauta foi salva, mas não foi possível iniciar a escrita do artigo. Tente de novo pela aba "Ideias salvas".');
+        }
+        router.push(`/content/${started[0].contentId}`);
       } else {
-        setSuccessMsg("Pauta salva com sucesso no Calendário Editorial!");
+        setSuccessMsg('Ideia salva. Ela fica na aba "Ideias salvas" até você gerar o artigo.');
         setRawText("");
         setEnhancedPauta(null);
         router.refresh();
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao salvar no calendário.");
+      setError(err instanceof Error ? err.message : "Erro ao salvar a pauta.");
     } finally {
       setIsSaving(false);
     }
@@ -432,7 +438,7 @@ export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestPro
                   className="gap-1.5 text-xs"
                 >
                   <CalendarPlus className="h-3.5 w-3.5 text-primary" />
-                  Salvar no Calendário Editorial
+                  Salvar para depois
                 </Button>
                 <Button
                   size="sm"
@@ -441,7 +447,7 @@ export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestPro
                   className="gap-1.5 text-xs bg-success text-white hover:brightness-95 font-semibold"
                 >
                   <Play className="h-3.5 w-3.5 fill-current" />
-                  Salvar e Executar Agora
+                  Gerar artigo agora
                 </Button>
               </div>
             </div>

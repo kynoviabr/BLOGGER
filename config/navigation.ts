@@ -12,16 +12,6 @@ export const navigationItems: NavItem[] = [
     icon: "LayoutDashboard",
   },
   {
-    title: "Blogs",
-    href: "/blogs",
-    icon: "Globe",
-  },
-  {
-    title: "Editorial Calendar",
-    href: "/calendar",
-    icon: "Calendar",
-  },
-  {
     title: "Ideation Engine",
     href: "/ideas",
     icon: "Sparkles",
@@ -32,9 +22,9 @@ export const navigationItems: NavItem[] = [
     icon: "FileText",
   },
   {
-    title: "Media",
-    href: "/media",
-    icon: "Image",
+    title: "Editorial Calendar",
+    href: "/calendar",
+    icon: "Calendar",
   },
   {
     title: "Monetization",
@@ -42,14 +32,24 @@ export const navigationItems: NavItem[] = [
     icon: "BadgeDollarSign",
   },
   {
-    title: "Logs",
-    href: "/logs",
-    icon: "ScrollText",
+    title: "Media",
+    href: "/media",
+    icon: "Image",
+  },
+  {
+    title: "Blogs",
+    href: "/blogs",
+    icon: "Globe",
   },
   {
     title: "Team",
     href: "/team",
     icon: "Users",
+  },
+  {
+    title: "Logs",
+    href: "/logs",
+    icon: "ScrollText",
   },
   {
     title: "Settings",

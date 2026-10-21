@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Loader2, CheckCircle2, CalendarPlus, AlertCircle, Tag } from "lucide-react";
+import { Sparkles, Loader2, CheckCircle2, AlertCircle, Tag, Bookmark, PenLine } from "lucide-react";
+import { startArticleGeneration } from "@/lib/ideas/start-generation";
 import { BlogWithRelations } from "@/types/blog";
 import { ContentIdea } from "@/types/ideas";
 import { Button } from "@/components/ui/button";
@@ -255,14 +256,15 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
     }
   };
 
-  const handleSaveToCalendar = async () => {
+  const handleSaveIdeas = async (mode: "idea" | "generate") => {
     if (selectedIndices.size === 0) {
-      setError("Selecione pelo menos uma ideia para adicionar ao calendário.");
+      setError("Selecione pelo menos uma ideia.");
       return;
     }
 
     setIsSaving(true);
     setError(null);
+    setSuccessMessage(null);
 
     const ideasToSave = generatedIdeas.filter((_, idx) => selectedIndices.has(idx));
 
@@ -274,12 +276,13 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
           blogId: selectedBlogId,
           category: selectedCategory || undefined,
           ideas: ideasToSave,
+          mode,
         }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        let errorMsg = `Erro ao salvar no calendário (HTTP ${response.status}).`;
+        let errorMsg = `Erro ao salvar as ideias (HTTP ${response.status}).`;
         try {
           const errJson = JSON.parse(errorText);
           if (errJson.error) errorMsg = errJson.error;
@@ -289,17 +292,27 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
 
       const data = await response.json();
       if (!data.success) {
-        throw new Error(data.error || "Falha ao adicionar pautas ao calendário.");
+        throw new Error(data.error || "Falha ao salvar as ideias.");
       }
 
-      setSuccessMessage(`${data.count} pautas adicionadas com sucesso com status PLANNED! Redirecionando...`);
-      setTimeout(() => {
-        router.push("/calendar");
-        router.refresh();
-      }, 1200);
+      if (mode === "generate") {
+        const ids = (data.data as Array<{ id: string }>).map((row) => row.id);
+        const { started, failed } = await startArticleGeneration(ids);
+        setSuccessMessage(
+          `${started.length} artigo(s) sendo escritos. Eles aparecem em Content como "Em revisão" quando ficarem prontos.` +
+            (failed.length ? ` ${failed.length} não puderam ser iniciados e ficaram em "Ideias salvas".` : "")
+        );
+      } else {
+        setSuccessMessage(`${data.count} ideia(s) salvas. Elas ficam na aba "Ideias salvas" até você gerar os artigos.`);
+      }
+
+      setGeneratedIdeas((prev) => prev.filter((_, idx) => !selectedIndices.has(idx)));
+      setSelectedIndices(new Set());
+      router.refresh();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao salvar pautas no calendário.";
+      const msg = err instanceof Error ? err.message : "Erro ao salvar as ideias.";
       setError(msg);
+    } finally {
       setIsSaving(false);
     }
   };
@@ -491,23 +504,25 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
               </label>
             </div>
 
-            <Button
-              onClick={handleSaveToCalendar}
-              disabled={isSaving || selectedIndices.size === 0}
-              className="gap-2 bg-success hover:brightness-95 text-white w-full sm:w-auto"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Adicionando ao Calendário...
-                </>
-              ) : (
-                <>
-                  <CalendarPlus className="h-4 w-4" />
-                  Adicionar Selecionados ao Calendário ({selectedIndices.size})
-                </>
-              )}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={() => handleSaveIdeas("idea")}
+                disabled={isSaving || selectedIndices.size === 0}
+                className="gap-2"
+              >
+                <Bookmark className="h-4 w-4" />
+                Salvar para depois
+              </Button>
+              <Button
+                onClick={() => handleSaveIdeas("generate")}
+                disabled={isSaving || selectedIndices.size === 0}
+                className="gap-2 bg-success hover:brightness-95 text-white w-full sm:w-auto"
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+                Gerar artigos ({selectedIndices.size})
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
@@ -580,23 +595,25 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
           </div>
 
           <div className="flex justify-end pt-2">
-            <Button
-              onClick={handleSaveToCalendar}
-              disabled={isSaving || selectedIndices.size === 0}
-              className="gap-2 bg-success hover:brightness-95 text-white"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Adicionando ao Calendário...
-                </>
-              ) : (
-                <>
-                  <CalendarPlus className="h-4 w-4" />
-                  Adicionar Selecionados ao Calendário ({selectedIndices.size})
-                </>
-              )}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={() => handleSaveIdeas("idea")}
+                disabled={isSaving || selectedIndices.size === 0}
+                className="gap-2"
+              >
+                <Bookmark className="h-4 w-4" />
+                Salvar para depois
+              </Button>
+              <Button
+                onClick={() => handleSaveIdeas("generate")}
+                disabled={isSaving || selectedIndices.size === 0}
+                className="gap-2 bg-success hover:brightness-95 text-white"
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+                Gerar artigos ({selectedIndices.size})
+              </Button>
+            </div>
           </div>
         </div>
       )}

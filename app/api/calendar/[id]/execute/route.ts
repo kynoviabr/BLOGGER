@@ -14,7 +14,7 @@ export async function POST(
     const user = await requireAuth();
     const supabase = await getSupabaseServerClient();
 
-    const { data: cal, error } = await supabase.from('editorial_calendar').select('id, blog_id, blogs!inner(organization_id)').eq('id', calendarId).maybeSingle();
+    const { data: cal, error } = await supabase.from('editorial_calendar').select('id, blog_id, language, blogs!inner(organization_id)').eq('id', calendarId).maybeSingle();
     if (error || !cal) return NextResponse.json({ success: false, error: 'Pauta não encontrada.' }, { status: 404 });
     const blog = (cal as unknown as { blogs: { organization_id: string } }).blogs;
     const organizationId = blog.organization_id;
@@ -31,14 +31,15 @@ export async function POST(
         slug: `generating-${Date.now()}`,
         body: '',
         status: 'draft',
-        language: 'pt-BR',
+        language: (cal as unknown as { language?: string | null }).language || 'pt-BR',
       }).select('id').single();
       if (insErr || !inserted) throw new Error(insErr?.message || 'Falha ao criar content_item para enqueue.');
       contentId = (inserted as { id: string }).id;
     }
 
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-    const language = typeof body.language === 'string' ? body.language : 'pt-BR';
+    const calLanguage = (cal as unknown as { language?: string | null }).language;
+    const language = typeof body.language === 'string' ? body.language : (calLanguage || 'pt-BR');
 
     const { data: job, error: enqueueError } = await supabase.rpc('enqueue_background_job', {
       p_job_type: 'content_pipeline',

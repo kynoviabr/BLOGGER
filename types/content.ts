@@ -14,6 +14,7 @@ export interface ContentItemWithRelations extends ContentItem {
   featured_image?: MediaAsset | null;
   sources?: ContentSource[];
   ai_runs?: AIRun[];
+  editorial_calendar?: { id: string; scheduled_at: string | null; status: string } | null;
 }
 
 export type { ContentStatus };

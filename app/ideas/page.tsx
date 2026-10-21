@@ -4,16 +4,17 @@ import { ArrowLeft, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { BlogService } from "@/services/blog.service";
-import { IdeasTabsContainer } from "@/components/ideas/ideas-tabs-container";
+import { IdeasTabsContainer, IdeasTab } from "@/components/ideas/ideas-tabs-container";
 
 export const dynamic = "force-dynamic";
 
 export default async function IdeasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ blogId?: string }>;
+  searchParams: Promise<{ blogId?: string; tab?: string }>;
 }) {
-  const { blogId: queryBlogId } = await searchParams;
+  const { blogId: queryBlogId, tab } = await searchParams;
+  const initialTab: IdeasTab = tab === "saved" || tab === "auto" ? tab : "manual";
   const cookieStore = await cookies();
   const cookieBlogId = cookieStore.get("selected_blog_id")?.value;
 
@@ -38,7 +39,7 @@ export default async function IdeasPage({
         }
       />
 
-      <IdeasTabsContainer blogs={blogs} initialBlogId={activeBlogId} />
+      <IdeasTabsContainer blogs={blogs} initialBlogId={activeBlogId} initialTab={initialTab} />
     </div>
   );
 }

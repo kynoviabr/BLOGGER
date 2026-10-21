@@ -75,7 +75,6 @@ export function CalendarViewContainer({
     "PUBLISHED",
     "PLANNED",
     "IN_PROGRESS",
-    "IDEA",
     "FAILED",
   ];
 

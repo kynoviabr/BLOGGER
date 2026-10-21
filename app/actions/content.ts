@@ -100,3 +100,127 @@ export async function updateContentAction(
     return { success: false, error: message };
   }
 }
+
+/**
+ * Agenda um artigo revisado: ele entra no Calendário Editorial na data escolhida
+ * e o publicador do Supabase o envia ao WordPress quando a data chegar.
+ */
+export async function scheduleContentAction(
+  id: string,
+  scheduledAt: string
+): Promise<ActionResult & { scheduledAt?: string }> {
+  try {
+    await requireAuth();
+    const when = new Date(scheduledAt);
+    if (Number.isNaN(when.getTime())) return { success: false, error: "Data de agendamento inválida." };
+    if (when.getTime() <= Date.now()) {
+      return { success: false, error: "Escolha uma data futura, ou use \"Publicar agora\"." };
+    }
+
+    const supabase = await getSupabaseServerClient();
+    const { data: item, error: itemError } = await supabase
+      .from("content_items")
+      .select("id, blog_id, title, body, language, status, editorial_calendar_id, publish_attempts")
+      .eq("id", id)
+      .maybeSingle();
+    if (itemError || !item) return { success: false, error: "Artigo não encontrado." };
+    if (item.status === "published") return { success: false, error: "Este artigo já foi publicado." };
+    if (!item.body || item.body.trim().length === 0) {
+      return { success: false, error: "O artigo precisa ter texto antes de ser agendado." };
+    }
+
+    const iso = when.toISOString();
+    let calendarId = item.editorial_calendar_id;
+    if (calendarId) {
+      const { error } = await supabase
+        .from("editorial_calendar")
+        .update({ scheduled_at: iso, status: "SCHEDULED", updated_at: new Date().toISOString() })
+        .eq("id", calendarId);
+      if (error) throw new Error(`Falha ao agendar no calendário: ${error.message}`);
+    } else {
+      const { data: created, error } = await supabase
+        .from("editorial_calendar")
+        .insert({
+          blog_id: item.blog_id,
+          topic: item.title,
+          proposed_title: item.title,
+          language: item.language || "pt-BR",
+          scheduled_at: iso,
+          status: "SCHEDULED",
+        })
+        .select("id")
+        .single();
+      if (error || !created) throw new Error(`Falha ao criar a entrada no calendário: ${error?.message}`);
+      calendarId = created.id;
+    }
+
+    const { error: contentError } = await supabase
+      .from("content_items")
+      .update({ status: "scheduled", editorial_calendar_id: calendarId, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (contentError) throw new Error(`Falha ao atualizar o artigo: ${contentError.message}`);
+
+    // O gatilho do banco só cria o job de publicação quando o status muda e
+    // reaproveita a mesma chave; ao reagendar, o job antigo manteria a data
+    // antiga. Um job com chave própria para esta data garante a publicação.
+    const { error: jobError } = await supabase.rpc("enqueue_background_job", {
+      p_job_type: "publish_content",
+      p_payload: { contentId: id },
+      p_blog_id: item.blog_id,
+      p_idempotency_key: `publish:${id}:${item.publish_attempts ?? 0}:${iso}`,
+      p_scheduled_at: iso,
+      p_priority: 100,
+      p_max_attempts: 5,
+    } as never);
+    if (jobError) throw new Error(`Artigo agendado, mas a publicação não foi enfileirada: ${jobError.message}`);
+
+    revalidatePath("/content");
+    revalidatePath(`/content/${id}`);
+    revalidatePath("/calendar");
+    return { success: true, scheduledAt: iso };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível agendar o artigo.";
+    logger.error("ContentAction.schedule", `Erro ao agendar artigo ${id}`, { err });
+    return { success: false, error: message };
+  }
+}
+
+/** Cancela o agendamento: o artigo volta para revisão e sai do calendário. */
+export async function unscheduleContentAction(id: string): Promise<ActionResult> {
+  try {
+    await requireAuth();
+    const supabase = await getSupabaseServerClient();
+    const { data: item } = await supabase
+      .from("content_items")
+      .select("id, status, editorial_calendar_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!item) return { success: false, error: "Artigo não encontrado." };
+    if (item.status === "published" || item.status === "publishing") {
+      return { success: false, error: "Este artigo já está sendo publicado ou foi publicado." };
+    }
+
+    if (item.editorial_calendar_id) {
+      // IN_PROGRESS (e não PLANNED) para o piloto automático não reescrever o artigo.
+      await supabase
+        .from("editorial_calendar")
+        .update({ scheduled_at: null, status: "IN_PROGRESS", updated_at: new Date().toISOString() })
+        .eq("id", item.editorial_calendar_id)
+        .neq("status", "PUBLISHED");
+    }
+    await supabase
+      .from("content_items")
+      .update({ status: "reviewing", updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .in("status", ["scheduled", "ready"]);
+
+    revalidatePath("/content");
+    revalidatePath(`/content/${id}`);
+    revalidatePath("/calendar");
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível cancelar o agendamento.";
+    logger.error("ContentAction.unschedule", `Erro ao cancelar agendamento ${id}`, { err });
+    return { success: false, error: message };
+  }
+}

@@ -158,6 +158,67 @@ export class CalendarService {
     return result;
   }
 
+  /**
+   * Tira pautas do banco de ideias (IDEA) para que o artigo seja gerado. Elas
+   * continuam sem data: só entram no calendário quando o artigo for agendado.
+   */
+  static async prepareIdeasForGeneration(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('editorial_calendar')
+      .update({ status: 'IN_PROGRESS', updated_at: new Date().toISOString() })
+      .in('id', ids)
+      .eq('status', 'IDEA')
+      .select('id');
+
+    if (error) {
+      logger.error('CalendarService.prepareIdeasForGeneration', 'Falha ao preparar pautas', { error, ids });
+      throw new Error(`Falha ao preparar pautas para geração: ${error.message}`);
+    }
+
+    // Preserva a ordem escolhida pelo usuário.
+    const updated = new Set((data ?? []).map((row) => row.id));
+    return ids.filter((id) => updated.has(id));
+  }
+
+  static async revertIdeasToSaved(ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('editorial_calendar')
+      .update({ status: 'IDEA', updated_at: new Date().toISOString() })
+      .in('id', ids)
+      .eq('status', 'IN_PROGRESS')
+      .is('scheduled_at', null)
+      .select('id');
+
+    if (error) {
+      logger.error('CalendarService.revertIdeasToSaved', 'Falha ao devolver pautas ao banco de ideias', { error, ids });
+      throw new Error(`Falha ao devolver pautas ao banco de ideias: ${error.message}`);
+    }
+    return data?.length ?? 0;
+  }
+
+  /** Descarta pautas que ainda estão no banco de ideias (nunca apaga pautas aprovadas). */
+  static async discardIdeas(ids: string[]): Promise<{ success: boolean; count: number }> {
+    if (ids.length === 0) return { success: true, count: 0 };
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('editorial_calendar')
+      .delete()
+      .in('id', ids)
+      .eq('status', 'IDEA')
+      .select('id');
+
+    if (error) {
+      logger.error('CalendarService.discardIdeas', 'Falha ao descartar pautas', { error, ids });
+      throw new Error(`Falha ao descartar pautas: ${error.message}`);
+    }
+
+    return { success: true, count: data?.length ?? 0 };
+  }
+
   static async bulkRevokeSchedules(ids: string[]): Promise<{ success: boolean; count: number }> {
     if (ids.length === 0) return { success: true, count: 0 };
     const supabase = await getSupabaseServerClient();

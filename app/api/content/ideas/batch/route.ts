@@ -5,13 +5,18 @@ import { ContentIdea } from '@/types/ideas';
 import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
+import { SUPPORTED_LANGUAGES } from '@/config/languages';
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
 
     const body = await request.json();
-    const { blogId, category, ideas }: { blogId: string; category?: string; ideas: ContentIdea[] } = body;
+    const { blogId, category, ideas, mode, language: requestedLanguage }: { blogId: string; category?: string; ideas: ContentIdea[]; mode?: 'idea' | 'generate'; language?: string } = body;
+    // Fluxo: Ideation -> Content (revisão) -> Calendário (só ao agendar).
+    // 'idea' guarda a pauta no banco de ideias; 'generate' prepara a pauta para
+    // o cliente disparar a geração do artigo. Nenhuma recebe data aqui.
+    const targetStatus = mode === 'generate' ? 'IN_PROGRESS' as const : 'IDEA' as const;
 
     if (!blogId) {
       return NextResponse.json(
@@ -77,13 +82,11 @@ export async function POST(request: NextRequest) {
       .eq('id', blogId)
       .maybeSingle();
 
-    const language = blog?.default_language || 'pt-BR';
+    const isSupportedLanguage = typeof requestedLanguage === 'string' && SUPPORTED_LANGUAGES.some((l) => l.code === requestedLanguage);
+    const language = isSupportedLanguage ? requestedLanguage : (blog?.default_language || 'pt-BR');
 
-    // 3. Montar inserts para a tabela editorial_calendar com status 'PLANNED'
-    const recordsToInsert = ideas.map((idea, index) => {
-      // Agenda para dias subsequentes a partir de hoje
-      const scheduledDate = new Date();
-      scheduledDate.setDate(scheduledDate.getDate() + index + 1);
+    // 3. Montar inserts para a tabela editorial_calendar
+    const recordsToInsert = ideas.map((idea) => {
 
       const parsedKeywords = idea.keywords
         ? idea.keywords.split(',').map((k) => k.trim()).filter(Boolean)
@@ -99,9 +102,9 @@ export async function POST(request: NextRequest) {
         proposed_title: idea.title,
         keywords: parsedKeywords,
         article_type: idea.type || 'Artigo Padrão',
-        scheduled_at: scheduledDate.toISOString(),
+        scheduled_at: null,
         priority: 'medium' as const,
-        status: 'PLANNED' as const,
+        status: targetStatus,
         notes: idea.description || null,
       };
     });
@@ -119,8 +122,10 @@ export async function POST(request: NextRequest) {
     await LogService.recordLog(
       'info',
       'API.ideas.batch',
-      `Inseridas ${inserted.length} pautas com sucesso no Calendário Editorial`,
-      { blogId, count: inserted.length, userId: user.id }
+      targetStatus === 'IDEA'
+        ? `Inseridas ${inserted.length} pautas no banco de ideias`
+        : `Inseridas ${inserted.length} pautas para geração de artigos`,
+      { blogId, count: inserted.length, status: targetStatus, userId: user.id }
     );
 
     return NextResponse.json({
