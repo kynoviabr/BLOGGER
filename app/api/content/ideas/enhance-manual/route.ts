@@ -143,17 +143,21 @@ Retorne EXATAMENTE um objeto JSON com as seguintes propriedades:
       .filter(Boolean);
     const primaryKeyword = keywordsArray[0] || enhancedResult.topic;
 
+    // O aviso aqui é informativo; se a checagem falhar, o salvamento (batch) volta a checar.
     const cannibalization = await CannibalizationGuardService.checkCannibalization({
       blogId,
       title: enhancedResult.title,
       focusKeyword: primaryKeyword,
       keywords: keywordsArray,
+    }).catch((guardErr) => {
+      logger.warn('API.ideas.enhance-manual', `Checagem de canibalização indisponível: ${String(guardErr)}`);
+      return null;
     });
 
     const durationMs = Date.now() - startTime;
     logger.info(
       "API.ideas.enhance-manual",
-      `Pauta aprimorada em ${durationMs}ms: "${enhancedResult.title}" | Canibalização: ${cannibalization.riskLevel}`
+      `Pauta aprimorada em ${durationMs}ms: "${enhancedResult.title}" | Canibalização: ${cannibalization?.riskLevel ?? "indisponível"}`
     );
 
     return NextResponse.json({

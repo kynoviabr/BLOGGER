@@ -4,6 +4,9 @@ import { logger } from '@/lib/logger';
 /** Acima deste valor a pauta é tratada como duplicada e o salvamento pede confirmação. */
 export const HIGH_RISK_THRESHOLD = 0.75;
 
+/** Até 1000 posts publicados (10 páginas de 100) entram na comparação. */
+const WORDPRESS_MAX_PAGES = 10;
+
 export interface ConflictingItem {
   source: 'WORDPRESS' | 'CALENDAR' | 'CONTENT' | 'BATCH';
   title: string;
@@ -104,90 +107,76 @@ export class CannibalizationGuardService {
     const corpus: CorpusEntry[] = [];
     const supabase = await getSupabaseServerClient();
 
-    try {
-      const { data: calendarItems } = await supabase
-        .from('editorial_calendar')
-        .select('id, proposed_title, topic, keywords, status')
-        .eq('blog_id', blogId)
-        .neq('status', 'FAILED')
-        .order('created_at', { ascending: false })
-        .limit(1000);
+    // Erros de banco interrompem a checagem (fail-closed): um corpus vazio por
+    // falha deixaria passar duplicatas sem a confirmação do usuário.
+    const { data: calendarItems, error: calendarError } = await supabase
+      .from('editorial_calendar')
+      .select('id, proposed_title, topic, keywords, status')
+      .eq('blog_id', blogId)
+      .neq('status', 'FAILED')
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (calendarError) throw new Error(`Falha ao consultar pautas do blog: ${calendarError.message}`);
 
-      for (const item of calendarItems ?? []) {
-        const title = item.proposed_title || item.topic || '';
-        const keywords = Array.isArray(item.keywords) ? item.keywords.join(' ') : '';
-        corpus.push({
-          source: 'CALENDAR',
-          calendarId: item.id,
-          title,
-          status: item.status,
-          normTitle: this.normalize(title),
-          tokens: this.extractTokens(`${title} ${keywords}`),
-        });
-      }
-    } catch (dbErr) {
-      logger.warn('CannibalizationGuardService', `Aviso ao consultar pautas do blog: ${String(dbErr)}`);
+    for (const item of calendarItems ?? []) {
+      const title = item.proposed_title || item.topic || '';
+      const keywords = Array.isArray(item.keywords) ? item.keywords.join(' ') : '';
+      corpus.push(this.buildEntry('CALENDAR', title, keywords, { calendarId: item.id, status: item.status }));
     }
 
-    try {
-      const { data: contentItems } = await supabase
-        .from('content_items')
-        .select('id, title, focus_keyword, status, editorial_calendar_id, external_post_url')
-        .eq('blog_id', blogId)
-        .neq('status', 'archived')
-        .order('created_at', { ascending: false })
-        .limit(1000);
+    const { data: contentItems, error: contentError } = await supabase
+      .from('content_items')
+      .select('id, title, focus_keyword, status, editorial_calendar_id, external_post_url')
+      .eq('blog_id', blogId)
+      .neq('status', 'archived')
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (contentError) throw new Error(`Falha ao consultar artigos do blog: ${contentError.message}`);
 
-      for (const item of contentItems ?? []) {
-        if (!item.title || item.title === 'Gerando...') continue;
-        corpus.push({
-          source: 'CONTENT',
+    for (const item of contentItems ?? []) {
+      if (!item.title || item.title === 'Gerando...') continue;
+      corpus.push(
+        this.buildEntry('CONTENT', item.title, item.focus_keyword ?? '', {
           calendarId: item.editorial_calendar_id ?? undefined,
-          title: item.title,
           status: item.status,
           url: item.external_post_url ?? undefined,
           focusKeyword: item.focus_keyword ?? undefined,
-          normTitle: this.normalize(item.title),
-          tokens: this.extractTokens(`${item.title} ${item.focus_keyword ?? ''}`),
-        });
-      }
-    } catch (dbErr) {
-      logger.warn('CannibalizationGuardService', `Aviso ao consultar artigos do blog: ${String(dbErr)}`);
+        })
+      );
     }
 
-    // Posts publicados no WordPress DESTE blog (API pública, sem credenciais).
-    try {
-      const { data: blog } = await supabase
-        .from('blogs')
-        .select('domain, editorial_config')
-        .eq('id', blogId)
-        .maybeSingle();
-      const editorial = (blog?.editorial_config ?? {}) as { wordpress?: { wp_site_url?: string } };
-      const rawUrl = (editorial.wordpress?.wp_site_url || blog?.domain || '').trim();
-      if (rawUrl) {
-        const siteUrl = rawUrl.replace(/\/+$/, '').replace(/^(?!https?:\/\/)/, 'https://');
-        const response = await fetch(`${siteUrl}/wp-json/wp/v2/posts?per_page=100&_fields=id,title,link`, {
-          headers: { Accept: 'application/json' },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (response.ok) {
+    const { data: blog, error: blogError } = await supabase
+      .from('blogs')
+      .select('domain, editorial_config')
+      .eq('id', blogId)
+      .maybeSingle();
+    if (blogError) throw new Error(`Falha ao consultar o blog: ${blogError.message}`);
+
+    // Posts publicados no WordPress DESTE blog (API pública, sem credenciais),
+    // página por página. Falhas do site externo não bloqueiam a checagem.
+    const editorial = (blog?.editorial_config ?? {}) as { wordpress?: { wp_site_url?: string } };
+    const rawUrl = (editorial.wordpress?.wp_site_url || blog?.domain || '').trim();
+    if (rawUrl) {
+      const siteUrl = rawUrl.replace(/\/+$/, '').replace(/^(?!https?:\/\/)/, 'https://');
+      try {
+        for (let page = 1; page <= WORDPRESS_MAX_PAGES; page++) {
+          const response = await fetch(
+            `${siteUrl}/wp-json/wp/v2/posts?per_page=100&page=${page}&_fields=id,title,link`,
+            { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) }
+          );
+          if (!response.ok) break;
           const posts = await response.json();
           for (const post of Array.isArray(posts) ? posts : []) {
             const title = String(post?.title?.rendered ?? '');
             if (!title) continue;
-            corpus.push({
-              source: 'WORDPRESS',
-              title,
-              status: 'PUBLISHED',
-              url: post.link || undefined,
-              normTitle: this.normalize(title),
-              tokens: this.extractTokens(title),
-            });
+            corpus.push(this.buildEntry('WORDPRESS', title, '', { status: 'PUBLISHED', url: post.link || undefined }));
           }
+          const totalPages = Number(response.headers.get('X-WP-TotalPages') ?? '1');
+          if (!Array.isArray(posts) || page >= totalPages) break;
         }
+      } catch (wpErr) {
+        logger.warn('CannibalizationGuardService', `Aviso ao consultar WordPress do blog: ${String(wpErr)}`);
       }
-    } catch (wpErr) {
-      logger.warn('CannibalizationGuardService', `Aviso ao consultar WordPress do blog: ${String(wpErr)}`);
     }
 
     return corpus;
