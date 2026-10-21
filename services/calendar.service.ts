@@ -158,6 +158,63 @@ export class CalendarService {
     return result;
   }
 
+  /**
+   * Aprova pautas do banco de ideias: passam de IDEA para PLANNED e recebem
+   * uma data por dia a partir de startDate (padrão: amanhã).
+   */
+  static async approveIdeas(ids: string[], startDate?: string): Promise<{ success: boolean; count: number }> {
+    if (ids.length === 0) return { success: true, count: 0 };
+    const supabase = await getSupabaseServerClient();
+
+    const base = startDate ? new Date(startDate) : new Date();
+    if (!startDate) base.setDate(base.getDate() + 1);
+    if (Number.isNaN(base.getTime())) throw new Error('Data de início inválida.');
+
+    let count = 0;
+    for (const [index, id] of ids.entries()) {
+      const scheduledAt = new Date(base);
+      scheduledAt.setDate(base.getDate() + index);
+      const { data, error } = await supabase
+        .from('editorial_calendar')
+        .update({
+          status: 'PLANNED',
+          scheduled_at: scheduledAt.toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('status', 'IDEA')
+        .select('id');
+
+      if (error) {
+        logger.error('CalendarService.approveIdeas', `Falha ao aprovar pauta ${id}`, { error });
+        throw new Error(`Falha ao aprovar pautas: ${error.message}`);
+      }
+      count += data?.length ?? 0;
+    }
+
+    logger.info('CalendarService.approveIdeas', `${count} pautas aprovadas e enviadas ao calendário.`);
+    return { success: true, count };
+  }
+
+  /** Descarta pautas que ainda estão no banco de ideias (nunca apaga pautas aprovadas). */
+  static async discardIdeas(ids: string[]): Promise<{ success: boolean; count: number }> {
+    if (ids.length === 0) return { success: true, count: 0 };
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('editorial_calendar')
+      .delete()
+      .in('id', ids)
+      .eq('status', 'IDEA')
+      .select('id');
+
+    if (error) {
+      logger.error('CalendarService.discardIdeas', 'Falha ao descartar pautas', { error, ids });
+      throw new Error(`Falha ao descartar pautas: ${error.message}`);
+    }
+
+    return { success: true, count: data?.length ?? 0 };
+  }
+
   static async bulkRevokeSchedules(ids: string[]): Promise<{ success: boolean; count: number }> {
     if (ids.length === 0) return { success: true, count: 0 };
     const supabase = await getSupabaseServerClient();

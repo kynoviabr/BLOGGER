@@ -81,6 +81,7 @@ export async function updateCalendarItemAction(
   prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  let savedAsIdea = false;
   try {
     // 1. Autorização estrita
     await requireAuth();
@@ -116,6 +117,7 @@ export async function updateCalendarItemAction(
 
     // 3. Persistência real
     await CalendarService.updateCalendarItem(id, updates);
+    savedAsIdea = updates.status === "IDEA";
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível atualizar a pauta. Verifique a conexão com o banco e tente novamente.";
     logger.error("CalendarAction.update", `Erro ao atualizar pauta ${id}`, { err });
@@ -124,8 +126,10 @@ export async function updateCalendarItemAction(
 
   revalidatePath("/calendar");
   revalidatePath(`/calendar/${id}`);
+  revalidatePath("/ideas");
   revalidatePath("/");
-  redirect("/calendar");
+  // Pautas ainda não aprovadas voltam para a aba de aprovação, não para o calendário.
+  redirect(savedAsIdea ? "/ideas?tab=approval" : "/calendar");
 }
 
 export async function updateCalendarStatusAction(id: string, status: CalendarStatus) {
@@ -161,3 +165,25 @@ export async function bulkRevokeScheduleAction(ids: string[]) {
   return result;
 }
 
+
+export async function listPendingIdeasAction(blogId?: string) {
+  await requireAuth();
+  return CalendarService.listCalendarItems({ blogId, status: 'IDEA' });
+}
+
+export async function approveIdeasAction(ids: string[], startDate?: string) {
+  await requireAuth();
+  const result = await CalendarService.approveIdeas(ids, startDate);
+  revalidatePath("/calendar");
+  revalidatePath("/ideas");
+  revalidatePath("/");
+  return result;
+}
+
+export async function discardIdeasAction(ids: string[]) {
+  await requireAuth();
+  const result = await CalendarService.discardIdeas(ids);
+  revalidatePath("/ideas");
+  revalidatePath("/");
+  return result;
+}

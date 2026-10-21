@@ -27,6 +27,7 @@ import { SUPPORTED_LANGUAGES } from "@/config/languages";
 interface ManualPautaIngestProps {
   blogs: BlogWithRelations[];
   initialBlogId?: string;
+  onSaved?: () => void;
 }
 
 interface EnhancedPauta {
@@ -54,7 +55,7 @@ interface CannibalizationInfo {
   }>;
 }
 
-export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestProps) {
+export function ManualPautaIngest({ blogs, initialBlogId, onSaved }: ManualPautaIngestProps) {
   const router = useRouter();
 
   const activeInitialBlog = initialBlogId ? blogs.find((b) => b.id === initialBlogId) : null;
@@ -144,6 +145,8 @@ export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestPro
         body: JSON.stringify({
           blogId: selectedBlogId,
           language: selectedLanguage,
+          // "Aprovar e escrever agora" já é a aprovação; "Salvar" vai para o banco de ideias.
+          approve: executeNow,
           ideas: [
             {
               title: enhancedPauta.title,
@@ -160,14 +163,20 @@ export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestPro
         throw new Error(data.error || "Falha ao salvar pauta no calendário.");
       }
 
-      const createdItem = data.results?.[0];
+      const createdItem = data.data?.[0];
 
       if (executeNow && createdItem?.id) {
-        router.push(`/calendar?execute=${createdItem.id}`);
+        const execRes = await fetch(`/api/calendar/${createdItem.id}/execute`, { method: "POST" });
+        const execData = await execRes.json();
+        if (!execRes.ok || !execData.success) {
+          throw new Error(execData.error || "Pauta aprovada, mas não foi possível iniciar a escrita do artigo.");
+        }
+        router.push(execData.contentId ? `/content/${execData.contentId}` : "/calendar");
       } else {
-        setSuccessMsg("Pauta salva com sucesso no Calendário Editorial!");
+        setSuccessMsg('Pauta salva para aprovação. Revise na aba "Para aprovar".');
         setRawText("");
         setEnhancedPauta(null);
+        onSaved?.();
         router.refresh();
       }
     } catch (err: unknown) {
@@ -432,7 +441,7 @@ export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestPro
                   className="gap-1.5 text-xs"
                 >
                   <CalendarPlus className="h-3.5 w-3.5 text-primary" />
-                  Salvar no Calendário Editorial
+                  Salvar para aprovação
                 </Button>
                 <Button
                   size="sm"
@@ -441,7 +450,7 @@ export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestPro
                   className="gap-1.5 text-xs bg-success text-white hover:brightness-95 font-semibold"
                 >
                   <Play className="h-3.5 w-3.5 fill-current" />
-                  Salvar e Executar Agora
+                  Aprovar e escrever agora
                 </Button>
               </div>
             </div>

@@ -29,7 +29,8 @@ export default async function CalendarPage({
       CalendarService.listCalendarItems({ blogId, status }),
       blogId ? CategoryService.listCategoriesByBlog(blogId).catch(() => []) : Promise.resolve([]),
     ]);
-    items = fetchedItems;
+    // Pautas ainda não aprovadas (IDEA) ficam no Ideation Engine, fora do calendário.
+    items = status ? fetchedItems : fetchedItems.filter((item) => item.status !== "IDEA");
     categories = fetchedCategories;
   } catch (err) {
     loadError = err instanceof Error ? err.message : "Não foi possível carregar o calendário.";

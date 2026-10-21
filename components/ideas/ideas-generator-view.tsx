@@ -15,9 +15,10 @@ import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 interface IdeasGeneratorViewProps {
   blogs: BlogWithRelations[];
   initialBlogId?: string;
+  onSaved?: () => void;
 }
 
-export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewProps) {
+export function IdeasGeneratorView({ blogs, initialBlogId, onSaved }: IdeasGeneratorViewProps) {
   const router = useRouter();
 
   const activeInitialBlog = initialBlogId ? blogs.find((b) => b.id === initialBlogId) : null;
@@ -257,7 +258,7 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
 
   const handleSaveToCalendar = async () => {
     if (selectedIndices.size === 0) {
-      setError("Selecione pelo menos uma ideia para adicionar ao calendário.");
+      setError("Selecione pelo menos uma ideia para enviar à aprovação.");
       return;
     }
 
@@ -292,11 +293,12 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
         throw new Error(data.error || "Falha ao adicionar pautas ao calendário.");
       }
 
-      setSuccessMessage(`${data.count} pautas adicionadas com sucesso com status PLANNED! Redirecionando...`);
-      setTimeout(() => {
-        router.push("/calendar");
-        router.refresh();
-      }, 1200);
+      setSuccessMessage(`${data.count} pautas salvas para aprovação. Revise na aba "Para aprovar".`);
+      setGeneratedIdeas((prev) => prev.filter((_, idx) => !selectedIndices.has(idx)));
+      setSelectedIndices(new Set());
+      setIsSaving(false);
+      onSaved?.();
+      router.refresh();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro ao salvar pautas no calendário.";
       setError(msg);
@@ -499,12 +501,12 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
               {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Adicionando ao Calendário...
+                  Salvando para aprovação...
                 </>
               ) : (
                 <>
                   <CalendarPlus className="h-4 w-4" />
-                  Adicionar Selecionados ao Calendário ({selectedIndices.size})
+                  Enviar para aprovação ({selectedIndices.size})
                 </>
               )}
             </Button>
@@ -588,12 +590,12 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
               {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Adicionando ao Calendário...
+                  Salvando para aprovação...
                 </>
               ) : (
                 <>
                   <CalendarPlus className="h-4 w-4" />
-                  Adicionar Selecionados ao Calendário ({selectedIndices.size})
+                  Enviar para aprovação ({selectedIndices.size})
                 </>
               )}
             </Button>
