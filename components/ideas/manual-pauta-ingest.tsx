@@ -24,6 +24,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { SUPPORTED_LANGUAGES } from "@/config/languages";
 import { startArticleGeneration } from "@/lib/ideas/start-generation";
+import { saveIdeasBatch } from "@/lib/ideas/save-ideas";
 
 interface ManualPautaIngestProps {
   blogs: BlogWithRelations[];
@@ -139,28 +140,20 @@ export function ManualPautaIngest({ blogs, initialBlogId }: ManualPautaIngestPro
         .map((k) => k.trim())
         .filter(Boolean);
 
-      const res = await fetch("/api/content/ideas/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          blogId: selectedBlogId,
-          language: selectedLanguage,
-          mode: executeNow ? "generate" : "idea",
-          ideas: [
-            {
-              title: enhancedPauta.title,
-              keywords: enhancedPauta.keywords,
-              description: enhancedPauta.description,
-              type: enhancedPauta.article_type,
-            },
-          ],
-        }),
+      const data = await saveIdeasBatch({
+        blogId: selectedBlogId,
+        language: selectedLanguage,
+        mode: executeNow ? "generate" : "idea",
+        ideas: [
+          {
+            title: enhancedPauta.title,
+            keywords: enhancedPauta.keywords,
+            description: enhancedPauta.description,
+            type: enhancedPauta.article_type,
+          },
+        ],
       });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Falha ao salvar a pauta.");
-      }
+      if (!data) return;
 
       const createdItem = data.data?.[0];
 

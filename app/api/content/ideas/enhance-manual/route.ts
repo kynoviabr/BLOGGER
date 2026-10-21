@@ -144,6 +144,7 @@ Retorne EXATAMENTE um objeto JSON com as seguintes propriedades:
     const primaryKeyword = keywordsArray[0] || enhancedResult.topic;
 
     const cannibalization = await CannibalizationGuardService.checkCannibalization({
+      blogId,
       title: enhancedResult.title,
       focusKeyword: primaryKeyword,
       keywords: keywordsArray,
