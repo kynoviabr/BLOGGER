@@ -18,6 +18,9 @@ export class ContentService {
     }
     if (filters?.status) {
       query = query.eq('status', filters.status);
+    } else {
+      // "Todos" não mostra os arquivados; eles têm a própria aba.
+      query = query.neq('status', 'archived');
     }
 
     const { data, error } = await query;

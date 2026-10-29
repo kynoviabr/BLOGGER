@@ -289,7 +289,7 @@ export function ApiControlRoom() {
                           <Input
                             value={credentialForm.model}
                             onChange={(event) => setCredentialForm((current) => ({ ...current, model: event.target.value }))}
-                            placeholder={provider.id === "gemini" ? "gemini-2.5-flash" : "Modelo do provedor"}
+                            placeholder={provider.id === "gemini" ? "gemini-3.6-flash" : "Modelo do provedor"}
                           />
                         </div>
                         <div>

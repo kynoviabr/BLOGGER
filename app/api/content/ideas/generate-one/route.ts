@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
       logger.warn('API.ideas.generateOne', `Pauta gerada fora do escopo estrito: "${idea.title}".`);
     }
     const durationMs = Date.now() - startTime;
-    const modelUsed = (aiProvider as { defaultModel?: string }).defaultModel || process.env.GEMINI_IDEAS_MODEL || 'gemini-2.5-flash';
+    const modelUsed = (aiProvider as { defaultModel?: string }).defaultModel || process.env.GEMINI_IDEAS_MODEL || 'gemini-3.5-flash';
 
     await LogService.recordLog(
       'info',

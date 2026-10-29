@@ -88,7 +88,7 @@ Retorne EXATAMENTE um objeto JSON com as seguintes propriedades:
     if (process.env.GEMINI_API_KEY) {
       const { GoogleGenAI, Type } = await import("@google/genai");
       const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const model = process.env.GEMINI_IDEAS_MODEL || "gemini-2.5-flash";
+      const model = process.env.GEMINI_IDEAS_MODEL || "gemini-3.5-flash";
 
       const response = await client.models.generateContent({
         model,

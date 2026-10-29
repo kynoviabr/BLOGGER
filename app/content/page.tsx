@@ -10,6 +10,7 @@ import { ContentService } from "@/services/content.service";
 import { BlogService } from "@/services/blog.service";
 import { formatDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ArchiveDraftsButton } from "@/components/content/archive-drafts-button";
 import { ContentItemWithRelations, ContentStatus } from "@/types/content";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,7 @@ export default async function ContentListPage({
     { label: "Agendados", value: "scheduled" },
     { label: "Falha de publicação", value: "publish_failed" },
     { label: "Publicados", value: "published" },
+    { label: "Arquivados", value: "archived" },
   ];
 
   return (
@@ -83,6 +85,10 @@ export default async function ContentListPage({
             );
           })}
         </div>
+
+        {status === "draft" && contentItems.length > 0 && (
+          <ArchiveDraftsButton ids={contentItems.map((item) => item.id)} />
+        )}
 
         {activeBlogName && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-md border border-border">
