@@ -2,6 +2,10 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 type JsonRecord = Record<string, unknown>;
 
+/** Quantas vezes o pipeline espera a pesquisa terminar antes de escrever sem fontes. */
+const MAX_RESEARCH_WAITS = 6;
+const RESEARCH_WAIT_MS = 60_000;
+
 export class ContentGenerationError extends Error {
   constructor(message: string, readonly retryable: boolean) {
     super(message);
@@ -17,6 +21,12 @@ interface GeneratedArticle {
   secondaryKeywords?: string[];
   content: string;
   imagePrompt?: string;
+}
+
+/** Enfileira um job a partir do worker; falha alta para o job não terminar "concluído" sem o próximo passo. */
+async function enqueueFromWorker(client: SupabaseClient, args: JsonRecord): Promise<void> {
+  const { error } = await client.rpc("enqueue_background_job", args);
+  if (error) throw new ContentGenerationError(`Falha ao enfileirar ${String(args.p_job_type)}: ${error.message}`, true);
 }
 
 function slugify(value: string): string {
@@ -130,35 +140,42 @@ export async function generateContentJob(payload: JsonRecord, db?: SupabaseClien
   if (researchStatus === "review_required") {
     throw new ContentGenerationError("Research em REVIEW_REQUIRED (YMYL sem fonte oficial) — geração bloqueada até aprovação humana", false);
   }
-  // 4F: sem fontes → enfileira research e reagenda este pipeline (idempotente, sem duplicar research)
+  // 4F: sem fontes → pesquisa primeiro e reagenda este pipeline. Se a pesquisa já
+  // terminou (mesmo sem achar fontes) ou desistiu, escreve sem fontes.
   if (!sources || sources.length === 0) {
-    const { data: existingResearch } = await client.from("background_jobs")
+    const { data: researchJobs } = await client.from("background_jobs")
       .select("id,status").eq("payload->>contentId", contentId).eq("job_type", "research")
-      .in("status", ["queued", "running", "retrying"]).maybeSingle();
-    if (!existingResearch) {
-      await client.rpc("enqueue_background_job", {
-        p_job_type: "research",
-        p_payload: { contentId },
-        p_organization_id: String(blog.organization_id ?? ""),
-        p_blog_id: item.blog_id,
-        p_idempotency_key: `research:${contentId}`.slice(0, 200),
-        p_priority: 40,
-        p_max_attempts: 3,
-      });
+      .order("created_at", { ascending: false }).limit(1);
+    const researchJob = (researchJobs ?? [])[0] as { id: string; status: string } | undefined;
+    const researchActive = researchJob && ["queued", "running", "retrying"].includes(researchJob.status);
+    const waits = Number(payload.researchWaits ?? 0);
+    const organizationId = String(blog.organization_id ?? "");
+
+    if (!researchStatus && (!researchJob || researchActive) && waits < MAX_RESEARCH_WAITS) {
+      if (!researchJob) {
+        await enqueueFromWorker(client, {
+          p_job_type: "research",
+          p_payload: { contentId },
+          p_organization_id: organizationId,
+          p_blog_id: item.blog_id,
+          p_idempotency_key: `research:${contentId}`.slice(0, 200),
+          p_priority: 40,
+          p_max_attempts: 3,
+        });
+      }
       await client.from("content_items").update({ status: "researching" }).eq("id", contentId);
-      await client.rpc("enqueue_background_job", {
+      await enqueueFromWorker(client, {
         p_job_type: "content_pipeline",
-        p_payload: payload,
-        p_organization_id: String(blog.organization_id ?? ""),
+        p_payload: { ...payload, researchWaits: waits + 1 },
+        p_organization_id: organizationId,
         p_blog_id: item.blog_id,
-        p_idempotency_key: `content_pipeline:${contentId}:after-research`.slice(0, 200),
+        p_idempotency_key: `content_pipeline:${contentId}:after-research:${waits + 1}`.slice(0, 200),
         p_priority: 50,
         p_max_attempts: 3,
-        p_scheduled_at: new Date(Date.now() + 90_000).toISOString(),
+        p_scheduled_at: new Date(Date.now() + RESEARCH_WAIT_MS).toISOString(),
       });
-      return { contentId, status: "chained_research", message: "Research enfileirado; pipeline reagendado em 90s" } as unknown as JsonRecord;
+      return { contentId, status: "chained_research", message: `Pesquisa em andamento; pipeline reagendado em ${RESEARCH_WAIT_MS / 1000}s` } as unknown as JsonRecord;
     }
-    throw new ContentGenerationError("Research em andamento; tente novamente em 90s", true);
   }
   const research = (sources ?? []).map((source) => `- ${source.title}: ${source.url}${source.notes ? ` — ${source.notes}` : ""}`).join("\n");
   const user = `Data de referência: ${new Date().toISOString().slice(0, 10)}

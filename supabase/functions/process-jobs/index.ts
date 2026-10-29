@@ -9,9 +9,11 @@ type JsonRecord = Record<string, unknown>;
 
 const SERVICE = "EdgeWorker.processJobs";
 // A generation can spend most of the Edge Function wall-clock budget waiting
-// for the LLM. One claim per invocation prevents a slow article from starving
-// the remaining jobs; pg_cron invokes the worker again every minute.
+// for the LLM, so jobs are claimed one at a time. Quick jobs (chaining, research)
+// let the same invocation claim the next one while it is still early;
+// pg_cron invokes the worker again every minute.
 const BATCH_SIZE = 1;
+const CLAIM_MORE_UNTIL_MS = 20_000;
 const LEASE_SECONDS = 600;
 
 class JobFailure extends Error {
@@ -115,49 +117,58 @@ export default {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const workerId = `edge-${crypto.randomUUID()}`;
-    const { data: jobs, error: claimError } = await db.rpc("claim_background_jobs", {
-      p_worker_id: workerId,
-      p_limit: BATCH_SIZE,
-      p_lease_seconds: LEASE_SECONDS,
-    });
-    if (claimError) return Response.json({ error: claimError.message }, { status: 500 });
-
+    const startedAt = Date.now();
     const results: JsonRecord[] = [];
-    for (const job of (jobs ?? []) as JsonRecord[]) {
-      const jobId = String(job.id);
-      try {
-        const result = await executeJob(job, db);
-        const { data: completed, error } = await db.rpc("complete_background_job", {
-          p_job_id: jobId,
-          p_worker_id: workerId,
-          p_result: result,
-        });
-        if (error || completed !== true) throw new Error(error?.message ?? "Job completion lost its lease");
-        results.push({ jobId, status: "completed" });
-      } catch (error) {
-        const failure = error instanceof JobFailure
-          ? error
-          : error instanceof ContentGenerationError || error instanceof ImageGenerationError || error instanceof AutopilotError || error instanceof ResearchError
-          ? new JobFailure(error.message, error.retryable)
-          : new JobFailure(messageOf(error), true);
-        const { data: failedJob, error: failError } = await db.rpc("fail_background_job", {
-          p_job_id: jobId,
-          p_worker_id: workerId,
-          p_error: messageOf(failure).slice(0, 4000),
-          p_retryable: failure.retryable,
-        });
-        results.push({
-          jobId,
-          status: failError ? "transition_failed" : String((failedJob as JsonRecord | null)?.status ?? "failed"),
-          error: failError?.message ?? failure.message,
-        });
+    let claimed = 0;
+    while (Date.now() - startedAt < CLAIM_MORE_UNTIL_MS) {
+      const { data: jobs, error: claimError } = await db.rpc("claim_background_jobs", {
+        p_worker_id: workerId,
+        p_limit: BATCH_SIZE,
+        p_lease_seconds: LEASE_SECONDS,
+      });
+      if (claimError) {
+        if (claimed === 0) return Response.json({ error: claimError.message }, { status: 500 });
+        break;
+      }
+      if (!jobs || jobs.length === 0) break;
+      claimed += jobs.length;
+
+      for (const job of jobs as JsonRecord[]) {
+        const jobId = String(job.id);
+        try {
+          const result = await executeJob(job, db);
+          const { data: completed, error } = await db.rpc("complete_background_job", {
+            p_job_id: jobId,
+            p_worker_id: workerId,
+            p_result: result,
+          });
+          if (error || completed !== true) throw new Error(error?.message ?? "Job completion lost its lease");
+          results.push({ jobId, status: "completed" });
+        } catch (error) {
+          const failure = error instanceof JobFailure
+            ? error
+            : error instanceof ContentGenerationError || error instanceof ImageGenerationError || error instanceof AutopilotError || error instanceof ResearchError
+            ? new JobFailure(error.message, error.retryable)
+            : new JobFailure(messageOf(error), true);
+          const { data: failedJob, error: failError } = await db.rpc("fail_background_job", {
+            p_job_id: jobId,
+            p_worker_id: workerId,
+            p_error: messageOf(failure).slice(0, 4000),
+            p_retryable: failure.retryable,
+          });
+          results.push({
+            jobId,
+            status: failError ? "transition_failed" : String((failedJob as JsonRecord | null)?.status ?? "failed"),
+            error: failError?.message ?? failure.message,
+          });
+        }
       }
     }
 
     return Response.json({
       success: true,
       workerId,
-      claimed: jobs?.length ?? 0,
+      claimed,
       completed: results.filter((result) => result.status === "completed").length,
       results,
     });

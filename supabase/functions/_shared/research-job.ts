@@ -236,7 +236,8 @@ export async function researchJob(payload: JsonRecord, db?: SupabaseClient): Pro
 
   // Persist content_sources + briefing
   for (const src of fetched) {
-    await client.from("content_sources").upsert({ content_id: contentId, title: src.title.slice(0, 255), url: src.url, source_type: src.isOfficial ? "official" : "secondary", notes: `fetched ${src.byteLength} bytes` }, { onConflict: "content_id,url", ignoreDuplicates: false }).select();
+    const { error: sourceError } = await client.from("content_sources").upsert({ content_id: contentId, title: src.title.slice(0, 255), url: src.url, source_type: src.isOfficial ? "official" : "secondary", notes: `fetched ${src.byteLength} bytes` }, { onConflict: "content_id,url", ignoreDuplicates: false });
+    if (sourceError) throw new ResearchError(`Falha ao salvar fonte: ${sourceError.message}`, true);
   }
 
   const briefingLines: string[] = [];
@@ -256,9 +257,11 @@ export async function researchJob(payload: JsonRecord, db?: SupabaseClient): Pro
 
   // Gate: YMYL HIGH without official source is not terminal, but REVIEW_REQUIRED
   // Persist status hint on content_items (optional column if exists)
-  try {
-    await client.from("content_items").update({ research_status: status, researched_at: new Date().toISOString() }).eq("id", contentId);
-  } catch { /* column may not exist yet — non-fatal */ }
+  // A coluna aceita só valores minúsculos ('ready', 'review_required').
+  const { error: statusError } = await client.from("content_items")
+    .update({ research_status: status === "READY" ? "ready" : "review_required", researched_at: new Date().toISOString() })
+    .eq("id", contentId);
+  if (statusError) throw new ResearchError(`Falha ao salvar status da pesquisa: ${statusError.message}`, true);
 
   return { contentId, status, risk, facts: facts.length, fetched: fetched.length, warnings, briefingText };
 }
