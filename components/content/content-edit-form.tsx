@@ -477,7 +477,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 md:w-auto md:grid-cols-3">
             {/* 1. Gerar Artigo com IA */}
             <Button
               type="button"
@@ -589,7 +589,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
 
           {/* 5. Agendar publicação (entra no Calendário Editorial) */}
           {!isPublished && (
-            <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               {scheduledAt && content.status === "scheduled" ? (
                 <>
                   <span className="flex items-center gap-1.5 text-sm text-foreground">
