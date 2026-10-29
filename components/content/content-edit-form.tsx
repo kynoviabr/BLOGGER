@@ -463,7 +463,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
 
       {/* PAINEL DE AÇÕES DO MAESTRO / ORQUESTRADOR */}
       <Card className="border-blue-200 bg-blue-50/40 dark:border-blue-900/50 dark:bg-blue-950/20 shadow-sm">
-        <CardContent className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <CardContent className="p-4 sm:p-5 flex flex-col gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-blue-600" />
@@ -477,7 +477,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
             </p>
           </div>
 
-          <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 md:w-auto md:grid-cols-3">
+          <div className="flex flex-wrap items-center gap-2.5 [&_button]:whitespace-nowrap">
             {/* 1. Gerar Artigo com IA */}
             <Button
               type="button"
