@@ -157,6 +157,8 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
         title: updated.title,
         slug: updated.slug,
         meta_description: updated.meta_description || "",
+        seo_title: updated.seo_title || "",
+        excerpt: updated.excerpt || "",
         body: updated.body,
         status: updated.status,
         focus_keyword: updated.focus_keyword || "",
