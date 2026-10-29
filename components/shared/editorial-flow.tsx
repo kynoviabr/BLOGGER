@@ -9,7 +9,15 @@ const STEPS = [
   { key: "publish", label: "Publicação", hint: "só os aprovados, na data", href: "/content?status=scheduled" },
 ] as const;
 
-type StepKey = (typeof STEPS)[number]["key"];
+export type StepKey = (typeof STEPS)[number]["key"];
+
+/** Etapa do fluxo correspondente ao filtro de status da lista de artigos. */
+export function flowStepForContentStatus(status?: string): StepKey {
+  if (status === "researching" || status === "draft") return "production";
+  if (status === "ready") return "calendar";
+  if (status === "scheduled" || status === "published" || status === "publish_failed") return "publish";
+  return "review";
+}
 
 /** Faixa com as 5 etapas do fluxo editorial, destacando onde a pessoa está. */
 export function EditorialFlow({ current }: { current: StepKey }) {

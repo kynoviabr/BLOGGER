@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { FileText, CheckCircle, Clock, AlertCircle, AlertTriangle, CalendarClock, Filter, X } from "lucide-react";
-import { EditorialFlow } from "@/components/shared/editorial-flow";
+import { EditorialFlow, flowStepForContentStatus } from "@/components/shared/editorial-flow";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -78,7 +78,7 @@ export default async function ContentListPage({
         description="Os artigos chegam aqui prontos, com texto, SEO e imagem. Revise e aprove: só artigos aprovados são publicados."
       />
 
-      <EditorialFlow current="review" />
+      <EditorialFlow current={flowStepForContentStatus(status)} />
 
       {pendingWithDate.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
