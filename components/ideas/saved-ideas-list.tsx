@@ -4,14 +4,14 @@ import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, CheckCircle2, Loader2, Pencil, Tag, Trash2, AlertCircle, Inbox, PenLine } from "lucide-react";
+import { CheckCircle2, Loader2, Pencil, Tag, Trash2, AlertCircle, Inbox, PenLine } from "lucide-react";
 import { BlogWithRelations } from "@/types/blog";
 import { CalendarItemWithRelations } from "@/types/calendar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
-import { discardIdeasAction, listPendingIdeasAction, prepareIdeasForGenerationAction, sendIdeasToCalendarAction } from "@/app/actions/calendar";
+import { discardIdeasAction, listPendingIdeasAction, prepareIdeasForGenerationAction } from "@/app/actions/calendar";
 import { startArticleGeneration } from "@/lib/ideas/start-generation";
 
 interface SavedIdeasListProps {
@@ -85,25 +85,6 @@ export function SavedIdeasList({ blogs, initialBlogId, onCountChange }: SavedIde
     }
   };
 
-  const handleSendToCalendar = async () => {
-    if (selectedIds.size === 0) return;
-    setIsWorking(true);
-    setError(null);
-    setSuccessMessage(null);
-    try {
-      const result = await sendIdeasToCalendarAction(selectedInOrder());
-      setSuccessMessage(
-        `${result.count} pauta(s) enviadas ao Calendário. Lá você escolhe a data; o artigo é produzido antes e chega em Revisão com texto e imagem.`
-      );
-      await loadIdeas();
-      router.refresh();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao enviar ao calendário.");
-    } finally {
-      setIsWorking(false);
-    }
-  };
-
   const handleDiscard = async () => {
     if (selectedIds.size === 0) return;
     if (!window.confirm(`Descartar ${selectedIds.size} ideia(s)? Essa ação não pode ser desfeita.`)) return;
@@ -140,8 +121,8 @@ export function SavedIdeasList({ blogs, initialBlogId, onCountChange }: SavedIde
             </Select>
           </div>
           <p className="text-xs text-muted-foreground self-end sm:col-span-2">
-            Ideias que você guardou. &ldquo;Enviar ao Calendário&rdquo; transforma a ideia em pauta para você agendar; o
-            artigo é produzido sozinho antes da data. &ldquo;Gerar agora&rdquo; produz o artigo já, sem data.
+            Ideias que você guardou. &ldquo;Enviar para produção&rdquo; gera o texto e a imagem automaticamente; o artigo
+            chega em Revisão. Depois de aprovado, você escolhe a data no próprio artigo.
           </p>
         </div>
       </Card>
@@ -198,21 +179,12 @@ export function SavedIdeasList({ blogs, initialBlogId, onCountChange }: SavedIde
                 Descartar
               </Button>
               <Button
-                variant="outline"
-                onClick={handleSendToCalendar}
-                disabled={isWorking || selectedIds.size === 0}
-                className="gap-2 flex-1 sm:flex-none"
-              >
-                <CalendarPlus className="h-4 w-4" />
-                Enviar ao Calendário ({selectedIds.size})
-              </Button>
-              <Button
                 onClick={handleGenerate}
                 disabled={isWorking || selectedIds.size === 0}
                 className="gap-2 bg-success hover:brightness-95 text-white flex-1 sm:flex-none"
               >
                 {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
-                Gerar agora ({selectedIds.size})
+                Enviar para produção ({selectedIds.size})
               </Button>
             </div>
           </div>

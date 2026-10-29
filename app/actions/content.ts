@@ -313,3 +313,41 @@ export async function approveContentAction(ids: string[]): Promise<ApproveResult
     return { ...result, success: false, error: message };
   }
 }
+
+/**
+ * Aprova o artigo revisado sem data: ele fica "pronto" e espera a etapa de
+ * Calendário, onde a data de publicação é escolhida. Não publica nada.
+ */
+export async function approveReviewedContentAction(id: string): Promise<ActionResult> {
+  try {
+    await requireAuth();
+    const supabase = await getSupabaseServerClient();
+    const { data: item, error: itemError } = await supabase
+      .from("content_items")
+      .select("id, body, status")
+      .eq("id", id)
+      .maybeSingle();
+    if (itemError || !item) return { success: false, error: "Artigo não encontrado." };
+    if (!["reviewing", "draft"].includes(item.status)) {
+      return { success: false, error: "Só artigos em revisão podem ser aprovados." };
+    }
+    if (!item.body || item.body.trim().length === 0) {
+      return { success: false, error: "O artigo precisa ter texto antes de ser aprovado." };
+    }
+
+    const { error } = await supabase
+      .from("content_items")
+      .update({ status: "ready", updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .in("status", ["reviewing", "draft"]);
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/content");
+    revalidatePath(`/content/${id}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível aprovar o artigo.";
+    logger.error("ContentAction.approveReviewed", `Erro ao aprovar artigo ${id}`, { err });
+    return { success: false, error: message };
+  }
+}

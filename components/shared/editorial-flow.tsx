@@ -2,10 +2,10 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
-  { key: "ideas", label: "Ideias", hint: "aprovar temas", href: "/ideas" },
-  { key: "calendar", label: "Calendário", hint: "agendar a pauta", href: "/calendar" },
-  { key: "production", label: "Produção", hint: "texto, SEO e imagem, sozinha antes da data", href: null },
-  { key: "review", label: "Revisão", hint: "conferir e aprovar", href: "/content?status=reviewing" },
+  { key: "ideas", label: "Ideias", hint: "aprovar temas e enviar para produção", href: "/ideas" },
+  { key: "production", label: "Produção", hint: "texto, SEO e imagem, geradas automaticamente", href: "/content?status=researching" },
+  { key: "review", label: "Revisão", hint: "conferir e aprovar o artigo", href: "/content?status=reviewing" },
+  { key: "calendar", label: "Calendário", hint: "escolher a data de publicação", href: "/calendar" },
   { key: "publish", label: "Publicação", hint: "só os aprovados, na data", href: "/content?status=scheduled" },
 ] as const;
 
