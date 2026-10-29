@@ -27,12 +27,12 @@ async function resolveTogetherConfig(organizationId?: string): Promise<{ apiKey:
   throw new ImageRouteError('Nenhuma chave da Together encontrada. Salve a chave em Settings > Together AI.', 400);
 }
 
-async function callTogether(apiKey: string, model: string, prompt: string): Promise<Buffer> {
+async function callTogether(apiKey: string, model: string, prompt: string, referenceUrl?: string): Promise<Buffer> {
   const isPro = model.includes('pro');
   const response = await fetch('https://api.together.xyz/v1/images/generations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, prompt, width: 1216, height: 672, n: 1, response_format: isPro ? undefined : 'b64_json', steps: isPro ? undefined : 28 }),
+    body: JSON.stringify({ model, prompt, width: 1216, height: 672, n: 1, response_format: isPro ? undefined : 'b64_json', steps: isPro ? undefined : 28, image_url: referenceUrl }),
     signal: AbortSignal.timeout(45_000),
   });
   const body = (await response.json().catch(() => ({}))) as { data?: Array<{ b64_json?: string; url?: string }>; error?: { message?: string } };
@@ -63,7 +63,15 @@ export interface FeaturedImageResult {
   publicUrl: string;
 }
 
-export async function generateFeaturedImage(contentId: string, promptOverride?: string, scene?: string): Promise<FeaturedImageResult> {
+// Modelo que aceita imagem de referência (FLUX Kontext): cria uma imagem nova parecida com ela.
+const REFERENCE_MODEL = process.env.TOGETHER_REFERENCE_IMAGE_MODEL || 'black-forest-labs/FLUX.1-kontext-pro';
+
+export interface ReferenceImage {
+  buffer: Buffer;
+  mime: string;
+}
+
+export async function generateFeaturedImage(contentId: string, promptOverride?: string, scene?: string, reference?: ReferenceImage): Promise<FeaturedImageResult> {
   const startedAt = Date.now();
   const admin = getSupabaseAdminClient();
   const { data: item, error: itemError } = await admin
@@ -74,12 +82,27 @@ export async function generateFeaturedImage(contentId: string, promptOverride?: 
   if (itemError || !item) throw new ImageRouteError('Artigo não encontrado.', 404);
   const row = item as unknown as { title: string | null; excerpt: string | null; focus_keyword: string | null; blog_id: string; status: string; blog: { organization_id?: string } | null };
   const title = String(row.title ?? '');
-  const prompt = promptOverride || buildFeaturedImagePrompt({ title, excerpt: row.excerpt, focusKeyword: row.focus_keyword, scene });
+  let prompt = promptOverride || buildFeaturedImagePrompt({ title, excerpt: row.excerpt, focusKeyword: row.focus_keyword, scene });
 
   // 1. Chave: a salva em Settings; se não houver, a das variáveis da Vercel.
-  const { apiKey, model, source } = await resolveTogetherConfig(row.blog?.organization_id);
+  const config = await resolveTogetherConfig(row.blog?.organization_id);
+  const { apiKey, source } = config;
+  let model = config.model;
+
+  // Imagem de referência: vai para o Storage e a Together recebe o link público.
+  let referenceUrl: string | undefined;
+  if (reference) {
+    const refExt = reference.mime === 'image/png' ? 'png' : reference.mime === 'image/webp' ? 'webp' : 'jpg';
+    const refPath = `${row.blog_id}/${contentId}/reference-${Date.now()}.${refExt}`;
+    const { error: refError } = await admin.storage.from('blog-assets').upload(refPath, reference.buffer, { contentType: reference.mime, upsert: false });
+    if (refError) throw new ImageRouteError(`Falha ao salvar a imagem de referência: ${refError.message}`);
+    referenceUrl = admin.storage.from('blog-assets').getPublicUrl(refPath).data.publicUrl;
+    model = REFERENCE_MODEL;
+    prompt = `Create a new, original image inspired by the reference image: keep a similar composition, mood, colors and style, but do not copy it exactly. ${scene ? `Scene: ${scene}.` : `It illustrates a blog article titled "${title}".`} Landscape format. Avoid written words, captions or watermarks in the image.`;
+  }
+
   // 2. Together gera a imagem.
-  const buffer = await callTogether(apiKey, model, prompt);
+  const buffer = await callTogether(apiKey, model, prompt, referenceUrl);
 
   // 3. Salva no Storage e registra como imagem de destaque do artigo.
   const mime = detectMime(buffer);
