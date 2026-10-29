@@ -65,6 +65,8 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
   const [scheduleInput, setScheduleInput] = useState<string>("");
   const [showOtherDate, setShowOtherDate] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [imageScene, setImageScene] = useState("");
   const [selectedGenerationLanguage, setSelectedGenerationLanguage] = useState<string>(
     initialContent.language || "pt-BR"
   );
@@ -184,12 +186,16 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
 
   // 3. Disparar Endpoint de Geração de Imagem de Destaque
   const handleGenerateImage = async () => {
+    setIsImageModalOpen(false);
     setNotification(null);
     setIsGeneratingImage(true);
 
     try {
+      const scene = imageScene.trim();
       const res = await fetch(`/api/content/${content.id}/image`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(scene ? { scene } : {}),
       });
       const data = await res.json();
 
@@ -470,7 +476,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
               type="button"
               variant="outline"
               size="sm"
-              onClick={handleGenerateImage}
+              onClick={() => setIsImageModalOpen(true)}
               disabled={isAnyActionRunning}
               className="bg-white hover:bg-slate-50 border-amber-200 text-amber-700 hover:text-amber-800 dark:bg-slate-900 dark:border-amber-900 dark:text-amber-300"
             >
@@ -1051,6 +1057,41 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
             >
               <Sparkles className="h-4 w-4" />
               Confirmar e Gerar Artigo
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+        title="Gerar nova imagem de destaque"
+        description="Descreva a cena que você quer, ou deixe em branco para o sistema criar a partir do artigo."
+      >
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="image-scene" className="text-sm font-medium text-foreground">
+              O que deve aparecer na imagem (opcional)
+            </label>
+            <Textarea
+              id="image-scene"
+              rows={3}
+              maxLength={400}
+              value={imageScene}
+              onChange={(e) => setImageScene(e.target.value)}
+              placeholder="Ex.: uma pessoa na bolsa de valores olhando os painéis de cotação"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              A sua frase substitui a cena sugerida pelo sistema. O estilo, a luz e as cores continuam variando a cada geração.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
+            <Button type="button" variant="outline" onClick={() => setIsImageModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleGenerateImage} className="gap-1.5">
+              <ImageIcon className="h-4 w-4" />
+              {imageScene.trim() ? "Gerar com a minha frase" : "Gerar automaticamente"}
             </Button>
           </div>
         </div>
