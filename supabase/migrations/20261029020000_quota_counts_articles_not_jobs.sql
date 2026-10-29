@@ -2,6 +2,9 @@
 -- content_pipeline (espera da pesquisa, novas tentativas, reenfileiramentos),
 -- então um artigo consumia várias unidades da cota. Agora conta artigos e
 -- imagens distintos (por contentId) no mês.
+--
+-- A cota fica desligada por padrão: o sistema é de uso próprio. Quem quiser um
+-- limite liga em Settings.
 CREATE OR REPLACE FUNCTION public.get_organization_quota_usage(p_organization_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -30,7 +33,10 @@ BEGIN
     'monthly_token_limit', quota.monthly_token_limit,
     'articles_this_month', articles_this_month,
     'images_this_month', images_this_month,
-    'enabled', COALESCE(quota.enabled, true)
+    'enabled', COALESCE(quota.enabled, false)
   );
 END;
 $$;
+
+ALTER TABLE public.organization_quotas ALTER COLUMN enabled SET DEFAULT false;
+UPDATE public.organization_quotas SET enabled = false;
