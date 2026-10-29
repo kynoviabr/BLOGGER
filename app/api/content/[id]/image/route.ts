@@ -30,10 +30,11 @@ export async function POST(
       if (body && typeof body.prompt === 'string' && body.prompt.trim().length > 10) prompt = body.prompt.trim();
     } catch {}
 
-    const idempotencyKey = `image-generation:${id}:${contentItem.updated_at}`.slice(0, 200);
+    // Cada clique pede uma imagem nova; a chave só evita duplicar cliques no mesmo instante.
+    const idempotencyKey = `image-generation:${id}:manual:${Math.floor(Date.now() / 5000)}`.slice(0, 200);
     const { data: job, error: enqueueError } = await supabase.rpc('enqueue_background_job', {
       p_job_type: 'image_generation',
-      p_payload: { contentId: id, prompt, requestedBy: user.id },
+      p_payload: { contentId: id, prompt, requestedBy: user.id, regenerate: true },
       p_organization_id: (contentItem.blog as { organization_id?: string } | null)?.organization_id,
       p_blog_id: contentItem.blog_id,
       p_idempotency_key: idempotencyKey,

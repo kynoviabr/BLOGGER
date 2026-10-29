@@ -90,16 +90,19 @@ export async function generateImageJob(payload: JsonRecord, db?: SupabaseClient)
   const blog = item.blog as JsonRecord | null;
   if (!blog) throw new ImageGenerationError("Blog não encontrado", false);
 
-  // Idempotência: se já tem featured_image, retorna sem regenerar
-  if (item.featured_image_id) {
-    return { contentId, status: "already_has_image", mediaAssetId: item.featured_image_id };
-  }
+  // Geração automática não sobrescreve imagem existente; o botão "Gerar imagem" (regenerate) sempre cria uma nova.
+  const regenerate = payload.regenerate === true;
+  if (!regenerate) {
+    if (item.featured_image_id) {
+      return { contentId, status: "already_has_image", mediaAssetId: item.featured_image_id };
+    }
 
-  // Dedupe por contentId: se já existe media_asset para este content, reutiliza
-  const { data: existingMedia } = await client.from("media_assets").select("id,public_url").eq("content_id", contentId).maybeSingle();
-  if (existingMedia) {
-    await client.from("content_items").update({ featured_image_id: existingMedia.id }).eq("id", contentId).is("featured_image_id", null);
-    return { contentId, status: "deduplicated", mediaAssetId: existingMedia.id };
+    // Dedupe por contentId: se já existe media_asset para este content, reutiliza
+    const { data: existingMedia } = await client.from("media_assets").select("id,public_url").eq("content_id", contentId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (existingMedia) {
+      await client.from("content_items").update({ featured_image_id: existingMedia.id }).eq("id", contentId).is("featured_image_id", null);
+      return { contentId, status: "deduplicated", mediaAssetId: existingMedia.id, publicUrl: existingMedia.public_url };
+    }
   }
 
   const title = String(item.title ?? "");
@@ -157,8 +160,8 @@ export async function generateImageJob(payload: JsonRecord, db?: SupabaseClient)
   } else {
     // Se já existe (race), busca existente
     if (uploadErr?.message?.includes("already exists") || uploadErr?.message?.includes("Duplicate")) {
-      const { data: dup } = await client.from("media_assets").select("id").eq("content_id", contentId).maybeSingle();
-      if (dup) return { contentId, status: "deduplicated", mediaAssetId: dup.id };
+      const { data: dup } = await client.from("media_assets").select("id").eq("content_id", contentId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (dup && !regenerate) return { contentId, status: "deduplicated", mediaAssetId: dup.id };
     }
     throw new ImageGenerationError(`Falha no upload blog-assets: ${uploadErr?.message ?? "desconhecido"}`, true);
   }
