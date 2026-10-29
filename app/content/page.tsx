@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { FileText, CheckCircle, Clock, AlertCircle, Filter, X } from "lucide-react";
+import { FileText, CheckCircle, Clock, AlertCircle, AlertTriangle, CalendarClock, Filter, X } from "lucide-react";
+import { EditorialFlow } from "@/components/shared/editorial-flow";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { BlogService } from "@/services/blog.service";
 import { formatDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ArchiveDraftsButton } from "@/components/content/archive-drafts-button";
+import { ApproveReviewedButton } from "@/components/content/approve-reviewed-button";
 import { ContentItemWithRelations, ContentStatus } from "@/types/content";
 
 export const dynamic = "force-dynamic";
@@ -28,15 +30,18 @@ export default async function ContentListPage({
   const blogId = rawBlogId && rawBlogId !== "all" ? rawBlogId : undefined;
 
   let contentItems: ContentItemWithRelations[] = [];
+  let reviewingItems: ContentItemWithRelations[] = [];
   let loadError: string | null = null;
   let activeBlogName = "";
 
   try {
-    const [items, blogs] = await Promise.all([
+    const [items, blogs, reviewing] = await Promise.all([
       ContentService.listContent({ blogId, status }),
       BlogService.listBlogs(),
+      status === "reviewing" ? Promise.resolve(null) : ContentService.listContent({ blogId, status: "reviewing" }),
     ]);
     contentItems = items;
+    reviewingItems = reviewing ?? items;
     if (blogId) {
       activeBlogName = blogs.find((b) => b.id === blogId)?.name || "";
     }
@@ -47,20 +52,51 @@ export default async function ContentListPage({
   const statuses: { label: string; value?: ContentStatus }[] = [
     { label: "Todos" },
     { label: "Rascunho", value: "draft" },
+    { label: "Em produção", value: "researching" },
     { label: "Em Revisão", value: "reviewing" },
     { label: "Prontos", value: "ready" },
-    { label: "Agendados", value: "scheduled" },
+    { label: "Aprovados e agendados", value: "scheduled" },
     { label: "Falha de publicação", value: "publish_failed" },
     { label: "Publicados", value: "published" },
     { label: "Arquivados", value: "archived" },
   ];
 
+  // Artigos em revisão com data no calendário: sem aprovação eles não são publicados.
+  const now = Date.now();
+  const pendingWithDate = reviewingItems.filter((item) => item.editorial_calendar?.scheduled_at);
+  const overdueCount = pendingWithDate.filter(
+    (item) => new Date(item.editorial_calendar!.scheduled_at!).getTime() <= now
+  ).length;
+  const approvableIds = pendingWithDate
+    .filter((item) => new Date(item.editorial_calendar!.scheduled_at!).getTime() > now && item.body?.trim())
+    .map((item) => item.id);
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Artigos & Conteúdo"
-        description="Visualize todos os artigos criados pela pipeline de IA, revise textos, ajuste SEO e acompanhe publicações."
+        title="Artigos: Revisão e Aprovação"
+        description="Os artigos chegam aqui prontos, com texto, SEO e imagem. Revise e aprove: só artigos aprovados são publicados."
       />
+
+      <EditorialFlow current="review" />
+
+      {pendingWithDate.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>
+              <strong>{pendingWithDate.length} artigo(s) com data marcada ainda não foram aprovados.</strong> Sem aprovação,
+              eles não são publicados.
+              {overdueCount > 0 && ` ${overdueCount} já passaram da data.`}
+            </span>
+          </div>
+          {status !== "reviewing" && (
+            <Link href={`/content?status=reviewing${blogId ? `&blogId=${blogId}` : ""}`}>
+              <Button size="sm" variant="outline" className="h-7 text-xs">Ver os que faltam aprovar</Button>
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Barra de Filtros de Status e Blog Ativo */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -85,6 +121,8 @@ export default async function ContentListPage({
             );
           })}
         </div>
+
+        {status === "reviewing" && approvableIds.length > 0 && <ApproveReviewedButton ids={approvableIds} />}
 
         {status === "draft" && contentItems.length > 0 && (
           <ArchiveDraftsButton ids={contentItems.map((item) => item.id)} />
@@ -136,7 +174,7 @@ export default async function ContentListPage({
                 <TableHead>Blog</TableHead>
                 <TableHead>Idioma</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Data de Publicação</TableHead>
+                <TableHead>Publicação</TableHead>
                 <TableHead>Última Edição</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -182,6 +220,21 @@ export default async function ContentListPage({
                         <CheckCircle className="h-3.5 w-3.5" />
                         {formatDate(item.published_at)}
                       </div>
+                    ) : item.editorial_calendar?.scheduled_at ? (
+                      item.status === "scheduled" || item.status === "ready" ? (
+                        <div className="flex items-center gap-1.5 text-foreground">
+                          <CalendarClock className="h-3.5 w-3.5 text-primary" />
+                          {formatDate(item.editorial_calendar.scheduled_at)}
+                        </div>
+                      ) : (
+                        <div
+                          className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400"
+                          title="Sem aprovação, o artigo não é publicado nesta data."
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          {formatDate(item.editorial_calendar.scheduled_at)} · falta aprovar
+                        </div>
+                      )
                     ) : (
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Clock className="h-3.5 w-3.5" />

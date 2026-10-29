@@ -247,3 +247,55 @@ export async function archiveDraftsAction(ids: string[]): Promise<ActionResult &
     return { success: false, error: message };
   }
 }
+
+export interface ApproveResult extends ActionResult {
+  approved: number;
+  needsDate: string[];
+  late: string[];
+  failed: Array<{ id: string; error: string }>;
+}
+
+/**
+ * Aprova artigos revisados para publicação na data que já está no Calendário.
+ * Sem data (ou com a data já vencida) o artigo não é aprovado: é preciso escolher
+ * uma data nova no próprio artigo.
+ */
+export async function approveContentAction(ids: string[]): Promise<ApproveResult> {
+  const result: ApproveResult = { success: true, approved: 0, needsDate: [], late: [], failed: [] };
+  try {
+    await requireAuth();
+    if (!Array.isArray(ids) || ids.length === 0) return result;
+    const supabase = await getSupabaseServerClient();
+    const { data: items, error } = await supabase
+      .from("content_items")
+      .select("id, body, status, editorial_calendar:editorial_calendar(scheduled_at)")
+      .in("id", ids.slice(0, 200));
+    if (error) throw new Error(error.message);
+
+    for (const item of items ?? []) {
+      if (!["reviewing", "draft", "ready"].includes(item.status)) continue;
+      if (!item.body || item.body.trim().length === 0) {
+        result.failed.push({ id: item.id, error: "O artigo ainda não tem texto." });
+        continue;
+      }
+      const calendar = (Array.isArray(item.editorial_calendar) ? item.editorial_calendar[0] : item.editorial_calendar) as { scheduled_at?: string | null } | null;
+      const scheduledAt = calendar?.scheduled_at;
+      if (!scheduledAt) {
+        result.needsDate.push(item.id);
+        continue;
+      }
+      if (new Date(scheduledAt).getTime() <= Date.now()) {
+        result.late.push(item.id);
+        continue;
+      }
+      const scheduled = await scheduleContentAction(item.id, scheduledAt);
+      if (scheduled.success) result.approved++;
+      else result.failed.push({ id: item.id, error: scheduled.error ?? "Falha ao aprovar." });
+    }
+    return result;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível aprovar os artigos.";
+    logger.error("ContentAction.approve", "Erro ao aprovar artigos", { err });
+    return { ...result, success: false, error: message };
+  }
+}

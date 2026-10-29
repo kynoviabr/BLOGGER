@@ -9,7 +9,7 @@ export class ContentService {
     const organizationId = await getActiveOrganizationId();
     let query = supabase
       .from('content_items')
-      .select('*, blog:blogs!inner(id, name, slug, organization_id), featured_image:media_assets!content_items_featured_image_id_fkey(*)')
+      .select('*, blog:blogs!inner(id, name, slug, organization_id), featured_image:media_assets!content_items_featured_image_id_fkey(*), editorial_calendar:editorial_calendar(id, scheduled_at, status)')
       .eq('blog.organization_id', organizationId)
       .order('created_at', { ascending: false });
 

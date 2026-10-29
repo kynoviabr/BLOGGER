@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { AlertCircle } from "lucide-react";
+import { EditorialFlow } from "@/components/shared/editorial-flow";
 import { PageHeader } from "@/components/shared/page-header";
 import { CalendarService } from "@/services/calendar.service";
 import { CategoryService } from "@/services/category.service";
@@ -47,6 +48,8 @@ export default async function CalendarPage({
         title="Calendário & Planejamento Editorial"
         description="Visualize a grade de publicações, configure a cadência multi-categoria e acompanhe a publicação automática nativa pelo Supabase."
       />
+
+      <EditorialFlow current="calendar" />
 
       {loadError && (
         <div className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-[hsl(var(--danger-bg))] p-4 text-xs text-destructive">

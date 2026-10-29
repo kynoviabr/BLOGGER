@@ -168,14 +168,18 @@ export async function generateContentJob(payload: JsonRecord, db?: SupabaseClien
     const waits = Number(payload.researchWaits ?? 0);
     const organizationId = String(blog.organization_id ?? "");
 
-    if (!researchStatus && (!researchJob || researchActive) && waits < MAX_RESEARCH_WAITS) {
-      if (!researchJob) {
+    // "Atualizar antes de publicar" apaga as fontes antigas e pede uma pesquisa nova.
+    const refreshTag = payload.refreshTag ? `:${String(payload.refreshTag)}` : "";
+    const freshResearch = Boolean(refreshTag) && waits === 0;
+
+    if (!researchStatus && (!researchJob || researchActive || freshResearch) && waits < MAX_RESEARCH_WAITS) {
+      if (!researchJob || freshResearch) {
         await enqueueFromWorker(client, {
           p_job_type: "research",
           p_payload: { contentId },
           p_organization_id: organizationId,
           p_blog_id: item.blog_id,
-          p_idempotency_key: `research:${contentId}`.slice(0, 200),
+          p_idempotency_key: `research:${contentId}${refreshTag}`.slice(0, 200),
           p_priority: 40,
           p_max_attempts: 3,
         });
@@ -186,7 +190,7 @@ export async function generateContentJob(payload: JsonRecord, db?: SupabaseClien
         p_payload: { ...payload, researchWaits: waits + 1 },
         p_organization_id: organizationId,
         p_blog_id: item.blog_id,
-        p_idempotency_key: `content_pipeline:${contentId}:after-research:${waits + 1}`.slice(0, 200),
+        p_idempotency_key: `content_pipeline:${contentId}${refreshTag}:after-research:${waits + 1}`.slice(0, 200),
         p_priority: 50,
         p_max_attempts: 3,
         p_scheduled_at: new Date(Date.now() + RESEARCH_WAIT_MS).toISOString(),

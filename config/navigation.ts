@@ -12,19 +12,19 @@ export const navigationItems: NavItem[] = [
     icon: "LayoutDashboard",
   },
   {
-    title: "Ideation Engine",
+    title: "1 · Ideias",
     href: "/ideas",
     icon: "Sparkles",
   },
   {
-    title: "Content",
-    href: "/content",
-    icon: "FileText",
-  },
-  {
-    title: "Editorial Calendar",
+    title: "2 · Calendário",
     href: "/calendar",
     icon: "Calendar",
+  },
+  {
+    title: "3 · Revisão e Aprovação",
+    href: "/content",
+    icon: "FileText",
   },
   {
     title: "Monetization",

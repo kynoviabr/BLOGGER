@@ -37,6 +37,10 @@ export async function POST(
       contentId = (inserted as { id: string }).id;
     }
 
+    // A pauta entra em produção: o artigo vai para Revisão com texto e imagem.
+    await supabase.from('content_items').update({ status: 'researching' }).eq('id', contentId).in('status', ['draft', 'researching']);
+    await supabase.from('editorial_calendar').update({ status: 'IN_PROGRESS', updated_at: new Date().toISOString() }).eq('id', calendarId).in('status', ['PLANNED', 'READY', 'SCHEDULED', 'FAILED']);
+
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const calLanguage = (cal as unknown as { language?: string | null }).language;
     const language = typeof body.language === 'string' ? body.language : (calLanguage || 'pt-BR');

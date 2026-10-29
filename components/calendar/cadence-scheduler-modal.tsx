@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { CalendarItemWithRelations } from "@/types/calendar";
 import { CadenceService, CadenceSlotConfig, PlannedScheduleItem } from "@/services/cadence.service";
 import { bulkScheduleAction } from "@/app/actions/calendar";
+import { editorialStage } from "@/lib/editorial-stage";
+import { formatDate } from "@/lib/utils";
 
 interface CadenceSchedulerModalProps {
   isOpen: boolean;
@@ -35,10 +37,26 @@ export function CadenceSchedulerModal({
   items,
   onScheduledSuccess,
 }: CadenceSchedulerModalProps) {
-  // Pautas candidatas a agendamento (todas exceto já publicadas)
-  const candidateItems = useMemo(() => {
-    return items.filter((it) => it.status !== "PUBLISHED");
+  // Pautas que podem receber data (todas exceto as já publicadas). Por padrão só
+  // as que ainda não têm data entram; as demais aparecem para você marcar.
+  const eligibleItems = useMemo(() => {
+    return items.filter((it) => it.status !== "PUBLISHED" && editorialStage(it).stage !== "published");
   }, [items]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  React.useEffect(() => {
+    if (isOpen) setSelectedIds(new Set(eligibleItems.filter((it) => !it.scheduled_at).map((it) => it.id)));
+  }, [isOpen, eligibleItems]);
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const candidateItems = useMemo(() => {
+    return eligibleItems.filter((it) => selectedIds.has(it.id));
+  }, [eligibleItems, selectedIds]);
+  const stageById = useMemo(() => new Map(eligibleItems.map((it) => [it.id, editorialStage(it)])), [eligibleItems]);
 
   // Data inicial padrão: amanhã
   const defaultStartDate = useMemo(() => {
@@ -136,17 +154,65 @@ export function CadenceSchedulerModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Planejar Calendário de Publicação"
-      description="Configure a cadência de publicação diária e distribua artigos automaticamente entre horários e categorias."
+      description="Escolha as pautas e a cadência. Cada pauta recebe uma data; o artigo é produzido antes e só publica depois de aprovado."
       className="max-w-3xl"
     >
       <div className="space-y-6 text-sm">
+        {/* Quais pautas recebem data */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+              Quais pautas entram ({candidateItems.length} de {eligibleItems.length})
+            </h4>
+            <div className="flex items-center gap-1.5">
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedIds(new Set(eligibleItems.map((it) => it.id)))}>
+                Todas
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedIds(new Set(eligibleItems.filter((it) => !it.scheduled_at).map((it) => it.id)))}>
+                Só as sem data
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>
+                Nenhuma
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Você agenda a pauta. O texto, o SEO e a imagem são produzidos sozinhos antes da data, e o artigo só é
+            publicado depois que você aprovar em Revisão.
+          </p>
+          <div className="rounded-lg border border-border max-h-[180px] overflow-y-auto divide-y divide-border/60 bg-card">
+            {eligibleItems.map((it) => {
+              const stage = stageById.get(it.id);
+              return (
+                <label key={it.id} className="flex items-center gap-2.5 p-2 text-xs cursor-pointer hover:bg-muted/40">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(it.id)}
+                    onChange={() => toggleSelected(it.id)}
+                    className="h-3.5 w-3.5 rounded border-input text-primary"
+                  />
+                  <span className="truncate flex-1 font-medium text-foreground">{it.proposed_title || it.topic}</span>
+                  {stage && (
+                    <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${stage.className}`}>
+                      {stage.label}
+                    </span>
+                  )}
+                  <span className="shrink-0 w-28 text-right text-[11px] text-muted-foreground">
+                    {it.scheduled_at ? formatDate(it.scheduled_at) : "sem data"}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Resumo de pautas elegíveis */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-lg border border-primary/20 bg-primary/5">
           <div className="flex items-center gap-2.5">
             <Sparkles className="h-4 w-4 text-primary shrink-0" />
             <div>
               <span className="font-semibold text-foreground">
-                {candidateItems.length} pauta(s) prontas para agendamento
+                {candidateItems.length} pauta(s) vão receber data
               </span>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Distribuição entre {categoriesPresent.length} categoria(s):{" "}
@@ -289,9 +355,7 @@ export function CadenceSchedulerModal({
             <h4 className="font-semibold text-foreground text-xs uppercase tracking-wider text-muted-foreground">
               Pré-Visualização do Agendamento ({plannedSchedule.length} artigos)
             </h4>
-            <span className="text-xs text-muted-foreground">
-              Será gravado no Supabase com status <Badge variant="info" className="text-[10px] py-0 px-1.5">SCHEDULED</Badge>
-            </span>
+
           </div>
 
           <div className="rounded-lg border border-border overflow-hidden max-h-[220px] overflow-y-auto bg-card">
@@ -324,6 +388,11 @@ export function CadenceSchedulerModal({
                       <span className="truncate font-medium text-foreground">
                         {p.title}
                       </span>
+                      {stageById.get(p.calendarId) && (
+                        <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${stageById.get(p.calendarId)!.className}`}>
+                          {stageById.get(p.calendarId)!.label}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -342,7 +411,7 @@ export function CadenceSchedulerModal({
         {saveSuccess !== null && (
           <div className="flex items-center gap-2 p-3 rounded-lg border border-success/30 bg-[hsl(var(--success-bg))] text-xs text-success">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span>{saveSuccess} pautas gravadas e agendadas com sucesso no Supabase!</span>
+            <span>{saveSuccess} pauta(s) agendadas no calendário.</span>
           </div>
         )}
 
@@ -360,7 +429,7 @@ export function CadenceSchedulerModal({
             {isSaving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Gravando no Supabase...
+                Agendando...
               </>
             ) : saveSuccess !== null ? (
               <>
@@ -370,7 +439,7 @@ export function CadenceSchedulerModal({
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4" />
-                Salvar e Agendar no Supabase ({plannedSchedule.length})
+                Agendar {plannedSchedule.length} pauta(s)
               </>
             )}
           </Button>

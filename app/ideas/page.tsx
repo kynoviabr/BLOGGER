@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { ArrowLeft, Sparkles } from "lucide-react";
+import { EditorialFlow } from "@/components/shared/editorial-flow";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { BlogService } from "@/services/blog.service";
@@ -38,6 +39,8 @@ export default async function IdeasPage({
           </Link>
         }
       />
+
+      <EditorialFlow current="ideas" />
 
       <IdeasTabsContainer blogs={blogs} initialBlogId={activeBlogId} initialTab={initialTab} />
     </div>
