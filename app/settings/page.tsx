@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ApiControlRoom } from "@/components/settings/api-control-room";
 import { ApiQuickLinks } from "@/components/settings/api-quick-links";
 import { QuotasEditor } from "@/components/settings/quotas-editor";
+import { ProductionSettings } from "@/components/settings/production-settings";
 import { WebhooksManager } from "@/components/settings/webhooks-manager";
 
 export default function SettingsPage() {
@@ -105,6 +106,9 @@ export default function SettingsPage() {
         title="Configurações & Sala de Controle das APIs"
         description="Acesse diretamente as contas de cada IA, gerencie credenciais, adicione créditos e monitore o status da infraestrutura em tempo real."
       />
+
+      {/* Antecedência da produção automática das pautas agendadas */}
+      <ProductionSettings />
 
       {/* Central de Acesso Rápido a todos os Portais de APIs */}
       <ApiQuickLinks />

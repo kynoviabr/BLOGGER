@@ -18,6 +18,7 @@ import {
   Clock,
   SquareX,
   CalendarX,
+  AlertTriangle,
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { Modal } from "@/components/ui/modal";
 import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
+import { editorialStage } from "@/lib/editorial-stage";
 import { CalendarItemWithRelations, CalendarStatus } from "@/types/calendar";
 import { bulkRevokeScheduleAction, updateScheduleAction } from "@/app/actions/calendar";
 
@@ -50,7 +52,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
   const [queueProgress, setQueueProgress] = useState<QueueProgress | null>(null);
   const [executingItem, setExecutingItem] = useState<CalendarItemWithRelations | null>(null);
   const [executionLanguage, setExecutionLanguage] = useState<string>("pt-BR");
-  const [executionImageMode, setExecutionImageMode] = useState<"auto" | "inspect">("inspect");
+  const [executionImageMode] = useState<"auto" | "inspect">("inspect");
   const [inspectingItem, setInspectingItem] = useState<{
     calendarId: string;
     contentId?: string;
@@ -153,7 +155,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
         setItems((prev) =>
           prev.map((it) =>
             it.id === currentId
-              ? { ...it, status: "PUBLISHED" as CalendarStatus, last_error: null }
+              ? { ...it, status: "IN_PROGRESS" as CalendarStatus, last_error: null, content_item: { id: it.content_item?.id ?? "", status: "researching" } }
               : it
           )
         );
@@ -184,12 +186,12 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
       if (failureCount === 0) {
         setNotification({
           type: "success",
-          message: `Processamento em lote finalizado com sucesso! Todas as ${successCount} pautas foram publicadas no WordPress.`,
+          message: `${successCount} pauta(s) em produção. Os artigos chegam em Revisão com texto e imagem e só são publicados depois que você aprovar.`,
         });
       } else {
         setNotification({
           type: "error",
-          message: `Processamento em lote finalizado: ${successCount} pautas publicadas com sucesso e ${failureCount} com falha (consulte o tooltip de erro).`,
+          message: `${successCount} pauta(s) em produção e ${failureCount} com falha (passe o mouse sobre o status para ver o erro).`,
         });
       }
     }
@@ -312,14 +314,14 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
 
       setItems((prev) =>
         prev.map((it) =>
-          it.id === item.id ? { ...it, status: "PUBLISHED" as CalendarStatus, language: lang, last_error: null } : it
+          it.id === item.id ? { ...it, status: "IN_PROGRESS" as CalendarStatus, language: lang, last_error: null, content_item: { id: it.content_item?.id ?? "", status: "researching" } } : it
         )
       );
 
       const langInfo = getLanguageConfig(lang);
       setNotification({
         type: "success",
-        message: `Pipeline executado com sucesso em ${langInfo.name} (${langInfo.flag})! Artigo publicado no WordPress: "${item.proposed_title || item.topic}"`,
+        message: `Produção iniciada em ${langInfo.name} (${langInfo.flag}): "${item.proposed_title || item.topic}" chega em Revisão com texto e imagem. Só é publicado depois que você aprovar.`,
         wpUrl: data.data?.wpUrl,
       });
 
@@ -521,7 +523,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                 className="h-8 gap-1.5 bg-success hover:brightness-95 text-white font-semibold shadow-sm"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
-                Executar Selecionados ({selectedIds.size})
+                Produzir selecionados ({selectedIds.size})
               </Button>
               <Button
                 type="button"
@@ -548,7 +550,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
             </div>
           ) : (
             <span className="text-muted-foreground">
-              Selecione checkboxes para ações em lote ou execute pautas individualmente.
+              Selecione pautas para produzir em lote. Os artigos vão para Revisão e só são publicados depois de aprovados.
             </span>
           )}
         </div>
@@ -664,8 +666,21 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  {/* StatusBadge com tooltip de erro em hover se status for FAILED */}
-                  <StatusBadge status={item.status} errorMessage={item.last_error} />
+                  {item.status === "FAILED" ? (
+                    <StatusBadge status={item.status} errorMessage={item.last_error} />
+                  ) : (
+                    <div className="space-y-1">
+                      <span className={`inline-flex rounded border px-1.5 py-0.5 text-[11px] font-medium ${editorialStage(item).className}`}>
+                        {editorialStage(item).label}
+                      </span>
+                      {editorialStage(item).warning && (
+                        <span className="flex items-start gap-1 text-[11px] text-amber-700 dark:text-amber-400 max-w-[220px]">
+                          <AlertTriangle className="h-3 w-3 shrink-0 mt-px" />
+                          {editorialStage(item).warning}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
@@ -678,7 +693,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                         onClick={() => handleExecuteNow(item)}
                         disabled={isRunning || runningId !== null || isProcessingQueue}
                         className="h-8 px-2.5 text-xs bg-success text-white hover:brightness-95 border-success font-semibold shadow-sm"
-                        title="Executar pipeline completo agora (Gerar Artigo -> Gerar Imagem -> Publicar no WordPress)"
+                        title="Produzir agora: texto, SEO e imagem. O artigo vai para Revisão e só é publicado depois de aprovado."
                       >
                         {isRunning ? (
                           <>
@@ -688,7 +703,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
                         ) : (
                           <>
                             <Play className="mr-1 h-3.5 w-3.5 fill-current" />
-                            {item.status === "FAILED" ? "Reprocessar" : "Executar"}
+                            {item.status === "FAILED" ? "Produzir de novo" : "Produzir agora"}
                           </>
                         )}
                       </Button>
@@ -725,8 +740,8 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
       <Modal
         isOpen={executingItem !== null}
         onClose={() => setExecutingItem(null)}
-        title="Confirmar Execução do Pipeline Editorial"
-        description="Confirme o idioma para produção do artigo, pesquisa factual, geração de imagem e publicação no WordPress."
+        title="Produzir artigo agora"
+        description="Gera texto, SEO e imagem agora. O artigo vai para Revisão e só é publicado depois que você aprovar."
       >
         <div className="space-y-4">
           <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-200 dark:bg-slate-800/40 dark:border-slate-700 text-xs space-y-1">
@@ -761,25 +776,6 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
             </p>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Modo de Geração de Imagem *
-            </label>
-            <Select
-              value={executionImageMode}
-              onChange={(e) => setExecutionImageMode(e.target.value as "auto" | "inspect")}
-              disabled={runningId !== null}
-            >
-              <option value="inspect">👁️ Modo INSPECT (Pausar e inspecionar imagem antes de publicar)</option>
-              <option value="auto">⚡ Modo AUTO (Gerar imagem e publicar direto no WordPress)</option>
-            </Select>
-            <p className="text-[11px] text-slate-500">
-              {executionImageMode === "inspect"
-                ? "O artigo e imagem serão gerados, mas a publicação no WordPress aguardará a sua aprovação visual."
-                : "O pipeline rodará 100% autônomo e publicará o artigo e a imagem automaticamente."}
-            </p>
-          </div>
-
           <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
             <Button
               type="button"
@@ -796,7 +792,7 @@ export function CalendarTableView({ initialItems }: CalendarTableViewProps) {
               className="gap-1.5 bg-success text-white hover:brightness-95"
             >
               <Play className="h-4 w-4 fill-current" />
-              Confirmar e Executar Pipeline
+              Produzir agora
             </Button>
           </div>
         </div>

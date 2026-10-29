@@ -29,7 +29,8 @@ export class CalendarService {
 
     const items = ((data || []) as any[]).map((raw) => {
       const contentList = raw.content_items;
-      const firstContent = Array.isArray(contentList) && contentList.length > 0 ? contentList[0] : null;
+      const contents = Array.isArray(contentList) ? contentList : [];
+      const firstContent = contents.find((c: { status: string }) => c.status !== 'archived') ?? contents[0] ?? null;
       return {
         ...raw,
         content_item: firstContent,
@@ -148,7 +149,8 @@ export class CalendarService {
       await supabase
         .from('content_items')
         .update({
-          status: 'draft',
+          // Sem data, o artigo aprovado volta para Revisão (não para rascunho).
+          status: 'reviewing',
           updated_at: new Date().toISOString(),
         })
         .eq('editorial_calendar_id', id)
@@ -180,6 +182,24 @@ export class CalendarService {
     // Preserva a ordem escolhida pelo usuário.
     const updated = new Set((data ?? []).map((row) => row.id));
     return ids.filter((id) => updated.has(id));
+  }
+
+  /** Envia ideias aprovadas ao Calendário como pautas sem data, prontas para agendar. */
+  static async sendIdeasToCalendar(ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('editorial_calendar')
+      .update({ status: 'PLANNED', updated_at: new Date().toISOString() })
+      .in('id', ids)
+      .eq('status', 'IDEA')
+      .select('id');
+
+    if (error) {
+      logger.error('CalendarService.sendIdeasToCalendar', 'Falha ao enviar ideias ao calendário', { error, ids });
+      throw new Error(`Falha ao enviar ideias ao calendário: ${error.message}`);
+    }
+    return data?.length ?? 0;
   }
 
   static async revertIdeasToSaved(ids: string[]): Promise<number> {
@@ -257,7 +277,7 @@ export class CalendarService {
     await supabase
       .from('content_items')
       .update({
-        status: 'draft',
+        status: 'reviewing',
         updated_at: new Date().toISOString(),
       })
       .in('editorial_calendar_id', ids)
@@ -284,13 +304,29 @@ export class CalendarService {
           })
           .eq('id', schedule.id);
 
-        await supabase
+        const { data: contents } = await supabase
           .from('content_items')
           .update({
             updated_at: new Date().toISOString(),
           })
           .eq('editorial_calendar_id', schedule.id)
-          .neq('status', 'published');
+          .neq('status', 'published')
+          .select('id, blog_id, status, publish_attempts');
+
+        // Artigo já aprovado: a publicação precisa de um job na nova data, senão
+        // o job antigo roda na data velha, não encontra nada e a nova data se perde.
+        for (const content of contents ?? []) {
+          if (content.status !== 'scheduled') continue;
+          await supabase.rpc('enqueue_background_job', {
+            p_job_type: 'publish_content',
+            p_payload: { contentId: content.id },
+            p_blog_id: content.blog_id,
+            p_idempotency_key: `publish:${content.id}:${content.publish_attempts ?? 0}:${schedule.scheduledAt}`,
+            p_scheduled_at: schedule.scheduledAt,
+            p_priority: 100,
+            p_max_attempts: 5,
+          } as never);
+        }
 
         count++;
       } catch (err) {

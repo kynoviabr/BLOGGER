@@ -186,6 +186,14 @@ export async function discardIdeasAction(ids: string[]) {
   return result;
 }
 
+export async function sendIdeasToCalendarAction(ids: string[]) {
+  await requireAuth();
+  const count = await CalendarService.sendIdeasToCalendar(ids);
+  revalidatePath("/ideas");
+  revalidatePath("/calendar");
+  return { success: true, count };
+}
+
 /** Devolve ao banco de ideias as pautas cuja geração não chegou a começar. */
 export async function revertIdeasToSavedAction(ids: string[]) {
   await requireAuth();

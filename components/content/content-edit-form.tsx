@@ -17,6 +17,8 @@ import {
   Search,
   CalendarClock,
   X,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { ContentItemWithRelations } from "@/types/content";
 import { Button } from "@/components/ui/button";
@@ -58,8 +60,10 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
   const [isPublishing, setIsPublishing] = useState(false);
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<string | null>(initialContent.editorial_calendar?.scheduled_at ?? null);
   const [scheduleInput, setScheduleInput] = useState<string>("");
+  const [showOtherDate, setShowOtherDate] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [selectedGenerationLanguage, setSelectedGenerationLanguage] = useState<string>(
     initialContent.language || "pt-BR"
@@ -296,6 +300,46 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     }
   };
 
+  // 4.2 Aprovar na data que já está no Calendário (a pauta foi agendada antes do artigo existir)
+  const handleApproveOnDate = async () => {
+    if (!scheduledAt) return;
+    setNotification(null);
+    setIsScheduling(true);
+    try {
+      await persistEditorChanges();
+      const result = await scheduleContentAction(content.id, scheduledAt);
+      if (!result.success || !result.scheduledAt) throw new Error(result.error || "Falha ao aprovar o artigo.");
+      setContent((prev) => ({ ...prev, status: "scheduled" }));
+      setFormData((prev) => ({ ...prev, status: "scheduled" }));
+      showNotification("success", `Aprovado. O artigo será publicado em ${new Date(result.scheduledAt).toLocaleString("pt-BR")}.`);
+      router.refresh();
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Erro ao aprovar o artigo.");
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
+  // 4.3 Atualizar antes de publicar: pesquisa de novo e reescreve, mantendo a imagem
+  const handleRefreshContent = async () => {
+    if (!window.confirm("Pesquisar de novo e reescrever o texto? A imagem continua a mesma, e o artigo volta para Revisão para você aprovar outra vez.")) return;
+    setNotification(null);
+    setIsRefreshing(true);
+    try {
+      const res = await fetch(`/api/content/${content.id}/refresh`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Falha ao atualizar o artigo.");
+      setContent((prev) => ({ ...prev, status: "researching" }));
+      setFormData((prev) => ({ ...prev, status: "researching" }));
+      showNotification("success", "Atualização iniciada. O texto novo chega em alguns minutos e o artigo volta para Revisão.");
+      router.refresh();
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Erro ao atualizar o artigo.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleUnschedule = async () => {
     setNotification(null);
     setIsScheduling(true);
@@ -359,7 +403,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
     }
   };
 
-  const isAnyActionRunning = isSaving || isGeneratingText || isGeneratingImage || isPublishing || isBackfilling || isScheduling;
+  const isAnyActionRunning = isSaving || isGeneratingText || isGeneratingImage || isPublishing || isBackfilling || isScheduling || isRefreshing;
   const isPublished = content.status === "published";
 
   return (
@@ -465,6 +509,26 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
               )}
             </Button>
 
+            {/* 3.1 Atualizar antes de publicar */}
+            {!isPublished && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshContent}
+                disabled={isAnyActionRunning || !formData.body || content.status === "researching"}
+                title="Pesquisa de novo e reescreve o texto com dados atuais. A imagem continua a mesma."
+                className="bg-white hover:bg-slate-50 border-blue-200 text-blue-700 hover:text-blue-800 dark:bg-slate-900 dark:border-blue-900 dark:text-blue-300"
+              >
+                {isRefreshing ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Atualizar antes de publicar
+              </Button>
+            )}
+
             {/* 4. Publicar no WordPress */}
             <Button
               type="button"
@@ -490,7 +554,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
 
           {/* 5. Agendar publicação (entra no Calendário Editorial) */}
           {!isPublished && (
-            <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center">
+            <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:items-center">
               {scheduledAt && content.status === "scheduled" ? (
                 <>
                   <span className="flex items-center gap-1.5 text-sm text-foreground">
@@ -509,10 +573,39 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
                     Cancelar agendamento
                   </Button>
                 </>
+              ) : scheduledAt && new Date(scheduledAt).getTime() > Date.now() && !showOtherDate ? (
+                <>
+                  <span className="flex items-center gap-1.5 text-sm text-foreground">
+                    <CalendarClock className="h-4 w-4 text-amber-600" />
+                    Data no calendário: <strong>{new Date(scheduledAt).toLocaleString("pt-BR")}</strong>
+                    <span className="text-xs text-amber-700 dark:text-amber-400">(só publica se você aprovar)</span>
+                  </span>
+                  <div className="flex items-center gap-2 sm:ml-auto">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowOtherDate(true)} disabled={isAnyActionRunning}>
+                      Outra data
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleApproveOnDate}
+                      disabled={isAnyActionRunning || !formData.body || content.status === "researching"}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      {isScheduling ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
+                      Aprovar para esta data
+                    </Button>
+                  </div>
+                </>
               ) : (
                 <>
+                  {scheduledAt && new Date(scheduledAt).getTime() <= Date.now() && (
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 sm:basis-full">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      A data do calendário ({new Date(scheduledAt).toLocaleString("pt-BR")}) passou sem aprovação. Escolha uma nova data.
+                    </span>
+                  )}
                   <label htmlFor="schedule-at" className="text-sm font-medium text-foreground">
-                    Agendar publicação
+                    Aprovar e agendar para
                   </label>
                   <Input
                     id="schedule-at"
@@ -534,7 +627,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
                     ) : (
                       <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
                     )}
-                    Agendar
+                    Aprovar e agendar
                   </Button>
                 </>
               )}
@@ -780,6 +873,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
                     disabled={isAnyActionRunning}
                   >
                     <option value="draft">Rascunho (Draft)</option>
+                    <option value="researching">Em produção</option>
                     <option value="reviewing">Em Revisão</option>
                     <option value="ready">Pronto para Publicar</option>
                     <option value="scheduled">Agendado</option>

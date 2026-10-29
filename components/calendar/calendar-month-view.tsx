@@ -19,6 +19,7 @@ import {
   Edit2,
   Send,
   CalendarX,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { CalendarItemWithRelations, CalendarStatus } from "@/types/calendar";
 import { updateScheduleAction } from "@/app/actions/calendar";
+import { editorialStage } from "@/lib/editorial-stage";
 
 interface CalendarMonthViewProps {
   items: CalendarItemWithRelations[];
@@ -308,23 +310,7 @@ export function CalendarMonthView({
     }
   };
 
-  // Cor do status
-  const getStatusColor = (status: CalendarStatus) => {
-    switch (status) {
-      case "PUBLISHED":
-        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30";
-      case "SCHEDULED":
-        return "bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30";
-      case "READY":
-        return "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30";
-      case "IN_PROGRESS":
-        return "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30";
-      case "FAILED":
-        return "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30";
-      default:
-        return "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30";
-    }
-  };
+  const stageOf = (item: CalendarItemWithRelations) => editorialStage(item);
 
   // Cores de categorias (geradas deterministicamente pelo nome)
   const getCategoryBadgeClass = (categoryName?: string) => {
@@ -354,8 +340,8 @@ export function CalendarMonthView({
     for (const day of calendarDays) {
       if (day.isCurrentMonth) {
         for (const it of day.items) {
-          if (it.status === "SCHEDULED") totalScheduled++;
           if (it.status === "PUBLISHED") totalPublished++;
+          else totalScheduled++;
         }
       }
     }
@@ -494,11 +480,11 @@ export function CalendarMonthView({
                               {timeStr}
                             </span>
                             <span
-                              className={`text-[9px] px-1 py-0.2 rounded border font-medium ${getStatusColor(
-                                item.status
-                              )}`}
+                              title={stageOf(item).warning ?? undefined}
+                              className={`text-[9px] px-1 py-0.2 rounded border font-medium truncate ${stageOf(item).className}`}
                             >
-                              {item.status.slice(0, 4)}
+                              {stageOf(item).warning ? "⚠ " : ""}
+                              {stageOf(item).label}
                             </span>
                           </div>
 
@@ -553,8 +539,8 @@ export function CalendarMonthView({
 
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={getStatusColor(selectedItem.status)}>
-                    {selectedItem.status}
+                  <Badge variant="outline" className={stageOf(selectedItem).className}>
+                    {stageOf(selectedItem).label}
                   </Badge>
                   <Badge variant="outline" className={getCategoryBadgeClass(selectedItem.category?.name)}>
                     {selectedItem.category?.name || "Geral"}
@@ -568,6 +554,12 @@ export function CalendarMonthView({
                 <h4 className="font-semibold text-foreground text-sm leading-tight">
                   {selectedItem.proposed_title || selectedItem.topic}
                 </h4>
+                {stageOf(selectedItem).warning && (
+                  <p className="flex items-start gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                    {stageOf(selectedItem).warning}
+                  </p>
+                )}
                 <p className="text-muted-foreground text-[11px] line-clamp-1">
                   Tema: {selectedItem.topic}
                 </p>
