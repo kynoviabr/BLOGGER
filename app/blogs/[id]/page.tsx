@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Languages, CheckCircle2, Settings2, Bot, Share2, FolderTree } from "lucide-react";
+import { ArrowLeft, Languages, CheckCircle2, Settings2, Share2, FolderTree } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BlogService } from "@/services/blog.service";
 import { BlogEditForm } from "@/components/blogs/blog-edit-form";
-import { AutopilotSettingsCard } from "@/components/blogs/autopilot-settings-card";
 import { SocialPublishingCard } from "@/components/blogs/social-publishing-card";
 import { CategoryManager } from "@/components/blogs/category-manager";
 import { BlogSettingsTabs } from "@/components/blogs/blog-settings-tabs";
@@ -75,14 +74,6 @@ export default async function BlogDetailsPage({
                 </CardContent>
               </Card>
             ),
-          },
-          {
-            id: "autopilot",
-            label: "Piloto Automático",
-            description: "Horários e limite diário",
-            icon: <Bot className="h-4 w-4" />,
-            badge: blog.autopilot_enabled ? <Badge variant="success">On</Badge> : undefined,
-            content: <AutopilotSettingsCard blog={safeBlog} />,
           },
           {
             id: "redes-sociais",
