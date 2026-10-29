@@ -17,14 +17,24 @@ export const navigationItems: NavItem[] = [
     icon: "Sparkles",
   },
   {
-    title: "2 · Calendário",
+    title: "2 · Produção",
+    href: "/content?status=researching",
+    icon: "Layers",
+  },
+  {
+    title: "3 · Revisão e Aprovação",
+    href: "/content?status=reviewing",
+    icon: "FileText",
+  },
+  {
+    title: "4 · Calendário",
     href: "/calendar",
     icon: "Calendar",
   },
   {
-    title: "3 · Revisão e Aprovação",
-    href: "/content",
-    icon: "FileText",
+    title: "5 · Publicação",
+    href: "/content?status=scheduled",
+    icon: "Send",
   },
   {
     title: "Monetization",
