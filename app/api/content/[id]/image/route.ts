@@ -4,17 +4,10 @@ import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { syncImageKeyFromEnv } from '@/lib/image-key-sync';
+import { buildFeaturedImagePrompt } from '@/lib/image-prompt';
 
 // O botão gera a imagem aqui mesmo, sem fila: a Vercel já tem a chave da Together.
 export const maxDuration = 60;
-
-const VISUAL_STYLES = [
-  'Conceptual minimalist still life photography, real physical objects in elegant studio composition (golden keys, precision scales, metallic gears, growing green plants on solid marble)',
-  'Editorial isometric 3D render, minimalist Blender/C4D aesthetic, smooth matte textures, soft studio lighting, abstract geometric shapes representing balance and progress',
-  'Modern architectural and urban photography, grand perspective, majestic concrete and glass facades, illuminated bridges, dynamic urban geometry conveying scale and future',
-  'Artistic macro photography, extreme close-up of rich textures, brushed metal, intricate watchmaking mechanics, watermark paper fibers, dramatic chiaroscuro lighting',
-  'Editorial conceptual flat illustration and collage, The New Yorker and The Economist cover style, bold contrasting colors, modern graphic design',
-];
 
 class ImageRouteError extends Error {
   constructor(message: string, readonly status = 500) {
@@ -82,7 +75,7 @@ export async function POST(
     // 1. O artigo precisa existir e pertencer à organização de quem clicou (RLS).
     const { data: contentItem, error: contentError } = await supabase
       .from('content_items')
-      .select('id, title, blog_id, blog:blogs(organization_id)')
+      .select('id, title, excerpt, focus_keyword, blog_id, blog:blogs(organization_id)')
       .eq('id', id)
       .maybeSingle();
     if (contentError || !contentItem) {
@@ -98,8 +91,11 @@ export async function POST(
       if (body && typeof body.prompt === 'string' && body.prompt.trim().length > 10) promptOverride = body.prompt.trim();
     } catch {}
     const title = String(contentItem.title ?? '');
-    const style = VISUAL_STYLES[Math.floor(Math.random() * VISUAL_STYLES.length)];
-    const prompt = promptOverride || `${style}. Visual metaphor for editorial theme: "${title}". Editorial studio lighting, shallow depth of field, 8k, hyper-detailed, clean elegant composition, no text, no logos, no watermarks, no screens, no laptops, no smartphones, no office desks`;
+    const prompt = promptOverride || buildFeaturedImagePrompt({
+      title,
+      excerpt: (contentItem as { excerpt?: string | null }).excerpt,
+      focusKeyword: (contentItem as { focus_keyword?: string | null }).focus_keyword,
+    });
 
     // 2. Chave: a salva em Settings; se não houver, a das variáveis da Vercel.
     const { apiKey, model, source } = await resolveTogetherConfig(organizationId);
