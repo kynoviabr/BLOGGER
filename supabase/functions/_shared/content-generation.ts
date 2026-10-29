@@ -16,7 +16,9 @@ export class ContentGenerationError extends Error {
 interface GeneratedArticle {
   title: string;
   slug?: string;
+  seoTitle?: string;
   metaDescription?: string;
+  excerpt?: string;
   primaryKeyword?: string;
   secondaryKeywords?: string[];
   content: string;
@@ -39,6 +41,15 @@ function wordCount(value: string): number {
     .trim().split(/\s+/).filter(Boolean).length;
 }
 
+/** Corta no último espaço antes do limite, para não quebrar palavras no Google. */
+function fitLength(value: string | undefined, max: number): string {
+  const text = (value ?? "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.-]+$/, "")}…`;
+}
+
 function parseJson(raw: string): GeneratedArticle {
   const clean = raw.trim().replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
   let value: GeneratedArticle;
@@ -59,7 +70,11 @@ Escreva exclusivamente em ${language}. Produza conteúdo natural, útil, preciso
 Não invente estatísticas, taxas, leis, datas, fontes ou URLs. Se não houver fonte atual para um fato mutável, explique que ele deve ser confirmado em fonte oficial.
 Não use H1 no corpo; use Markdown com H2/H3, parágrafos claros, listas apenas quando úteis e FAQ final.
 Evite clichês de IA, clickbait e promessas garantidas. Conteúdo financeiro ou de saúde é informativo, não aconselhamento individual.
-Responda somente com JSON válido contendo: title, slug, metaDescription, primaryKeyword, secondaryKeywords, content e imagePrompt.
+Responda somente com JSON válido contendo: title, slug, seoTitle, metaDescription, excerpt, primaryKeyword, secondaryKeywords, content e imagePrompt.
+- primaryKeyword: a palavra-chave foco (2 a 4 palavras), que deve aparecer no title, no seoTitle, na metaDescription e no primeiro parágrafo.
+- seoTitle: título para o Google com no máximo 60 caracteres, começando pela palavra-chave foco.
+- metaDescription: entre 140 e 155 caracteres, com a palavra-chave foco e um convite à leitura.
+- excerpt: resumo de 1 a 2 frases (até 300 caracteres) para a listagem do blog.
 O conteúdo deve ter de 1300 a 2200 palavras. O imagePrompt deve estar em inglês e não pode pedir telas, notebooks, smartphones ou mesas de escritório.`;
 }
 
@@ -216,12 +231,14 @@ Fontes verificadas disponíveis (use somente estas URLs):\n${research || "Nenhum
     title: article.title.trim(),
     slug,
     focus_keyword: article.primaryKeyword || keywords[0] || article.title,
-    meta_description: article.metaDescription?.trim() || "",
+    seo_title: fitLength(article.seoTitle || article.title, 60),
+    meta_description: fitLength(article.metaDescription, 160),
+    excerpt: fitLength(article.excerpt, 300),
     tags: Array.isArray(article.secondaryKeywords) ? article.secondaryKeywords.slice(0, 6) : keywords.slice(0, 5),
     body: article.content.trim(),
     language,
     status: "reviewing",
-  }).eq("id", contentId).select("id,title,slug,status,language,focus_keyword,meta_description,tags,body").single();
+  }).eq("id", contentId).select("id,title,slug,status,language,focus_keyword,seo_title,meta_description,excerpt,tags,body").single();
   if (updateError) throw new ContentGenerationError(`Falha ao salvar artigo: ${updateError.message}`, true);
 
   const durationMs = Date.now() - startedAt;
