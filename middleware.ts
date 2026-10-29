@@ -11,10 +11,11 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isLoginPage = pathname === '/login';
   const isCronRoute = pathname.startsWith('/api/cron');
+  const isInternalRoute = pathname.startsWith('/api/internal');
   const isAuthCallback = pathname === '/auth/callback';
 
-  // Rotas de Cron validam a autenticação via Bearer CRON_SECRET no próprio endpoint
-  if (isCronRoute || isAuthCallback) {
+  // Rotas de Cron e internas (worker do Supabase) validam o Bearer no próprio endpoint
+  if (isCronRoute || isInternalRoute || isAuthCallback) {
     return response;
   }
 

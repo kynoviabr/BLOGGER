@@ -76,6 +76,29 @@ async function callPollinations(prompt: string): Promise<Uint8Array> {
   return buf;
 }
 
+// Texto pronto + imagem pronta: o artigo sai de "em produção" e entra em Revisão.
+async function moveToReview(client: SupabaseClient, contentId: string): Promise<void> {
+  await client.from("content_items").update({ status: "reviewing" }).eq("id", contentId).eq("status", "researching");
+}
+
+// A chave da Together fica na Vercel; o worker pede a imagem para o app.
+async function generateViaApp(contentId: string, prompt: string | undefined, serviceKey: string): Promise<JsonRecord> {
+  const appUrl = (Deno.env.get("APP_URL") ?? "https://blogger-bice-three.vercel.app").replace(/\/+$/, "");
+  const response = await fetch(`${appUrl}/api/internal/featured-image`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+    body: JSON.stringify({ contentId, prompt }),
+    signal: AbortSignal.timeout(75_000),
+  });
+  const body = await response.json().catch(() => ({})) as JsonRecord;
+  if (!response.ok || body.success !== true) {
+    const message = String(body.error ?? `HTTP ${response.status}`);
+    // 400 = chave recusada/sem saldo/sem chave: tentar de novo não resolve.
+    throw new ImageGenerationError(`Imagem via app falhou: ${message}`, response.status !== 400 && response.status !== 401 && response.status !== 404);
+  }
+  return { contentId, status: "completed", mediaAssetId: body.mediaAssetId, publicUrl: body.publicUrl, provider: "TogetherImageProvider(app)" };
+}
+
 export async function generateImageJob(payload: JsonRecord, db?: SupabaseClient): Promise<JsonRecord> {
   const contentId = String(payload.contentId ?? "");
   if (!contentId) throw new ImageGenerationError("image_generation requer payload.contentId", false);
@@ -95,6 +118,7 @@ export async function generateImageJob(payload: JsonRecord, db?: SupabaseClient)
   const regenerate = payload.regenerate === true;
   if (!regenerate) {
     if (item.featured_image_id) {
+      await moveToReview(client, contentId);
       return { contentId, status: "already_has_image", mediaAssetId: item.featured_image_id };
     }
 
@@ -102,12 +126,22 @@ export async function generateImageJob(payload: JsonRecord, db?: SupabaseClient)
     const { data: existingMedia } = await client.from("media_assets").select("id,public_url").eq("content_id", contentId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (existingMedia) {
       await client.from("content_items").update({ featured_image_id: existingMedia.id }).eq("id", contentId).is("featured_image_id", null);
+      await moveToReview(client, contentId);
       return { contentId, status: "deduplicated", mediaAssetId: existingMedia.id, publicUrl: existingMedia.public_url };
     }
   }
 
   const title = String(item.title ?? "");
   const promptOverride = String(payload.prompt ?? "").trim();
+
+  // Caminho principal: o app (Vercel) gera, salva, vincula e move para Revisão.
+  // Só cai para a geração local se o app não responder e o Supabase tiver chave própria.
+  const hasLocalKey = Boolean(Deno.env.get("TOGETHER_API_KEY") || Deno.env.get("OPENAI_API_KEY") || Deno.env.get("IMAGE_PROVIDER"));
+  try {
+    return await generateViaApp(contentId, promptOverride || undefined, serviceKey);
+  } catch (err) {
+    if (!hasLocalKey || (err instanceof ImageGenerationError && !err.retryable)) throw err;
+  }
   const prompt = promptOverride || buildFeaturedImagePrompt({
     title,
     excerpt: item.excerpt as string | null | undefined,
@@ -169,6 +203,7 @@ export async function generateImageJob(payload: JsonRecord, db?: SupabaseClient)
   if (mediaErr) throw new ImageGenerationError(`Falha ao registrar media_asset: ${mediaErr.message}`, true);
 
   await client.from("content_items").update({ featured_image_id: mediaAsset.id }).eq("id", contentId);
+  await moveToReview(client, contentId);
   const durationMs = Date.now() - startedAt;
   await client.from("ai_runs").insert({ content_id: contentId, agent: "SupabaseImageWorker", provider: providerName, model: String(tenantConfig?.model ?? preferred), status: "completed", input_summary: prompt.slice(0, 200), output_summary: `Imagem ${publicUrl.slice(0, 80)}`, duration_ms: durationMs, estimated_cost: 0 });
   await client.from("system_logs").insert({ level: "info", service: "EdgeWorker.generateImage", message: `Imagem ${contentId} gerada via ${providerName}`, metadata: { contentId, provider: providerName, durationMs } });

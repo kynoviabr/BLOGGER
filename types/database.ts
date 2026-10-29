@@ -18,6 +18,7 @@ export type CalendarStatus =
   | 'FAILED';
 export type ContentStatus =
   | 'draft'
+  | 'researching'
   | 'reviewing'
   | 'ready'
   | 'scheduled'

@@ -239,7 +239,8 @@ Fontes verificadas disponíveis (use somente estas URLs):\n${research || "Nenhum
     tags: Array.isArray(article.secondaryKeywords) ? article.secondaryKeywords.slice(0, 6) : keywords.slice(0, 5),
     body: article.content.trim(),
     language,
-    status: "reviewing",
+    // Só entra em Revisão quando a imagem também estiver pronta (o job de imagem muda o status).
+    status: item.featured_image_id ? "reviewing" : "researching",
   }).eq("id", contentId).select("id,title,slug,status,language,focus_keyword,seo_title,meta_description,excerpt,tags,body").single();
   if (updateError) throw new ContentGenerationError(`Falha ao salvar artigo: ${updateError.message}`, true);
 
@@ -261,6 +262,8 @@ Fontes verificadas disponíveis (use somente estas URLs):\n${research || "Nenhum
         message: `Imagem automática não enfileirada para ${contentId}: ${imageEnqueueError.message}`,
         metadata: { contentId },
       });
+      // Sem o job de imagem o artigo ficaria preso em produção; vai para Revisão e o botão gera a imagem.
+      await client.from("content_items").update({ status: "reviewing" }).eq("id", contentId).eq("status", "researching");
     }
   }
 
