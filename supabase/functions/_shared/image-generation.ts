@@ -78,7 +78,7 @@ async function callPollinations(prompt: string): Promise<Uint8Array> {
 
 // Texto pronto + imagem pronta: o artigo sai de "em produção" e entra em Revisão.
 async function moveToReview(client: SupabaseClient, contentId: string): Promise<void> {
-  await client.from("content_items").update({ status: "reviewing" }).eq("id", contentId).eq("status", "researching");
+  await client.from("content_items").update({ status: "reviewing" }).eq("id", contentId).eq("status", "researching").neq("body", "");
 }
 
 // A chave da Together fica na Vercel; o worker pede a imagem para o app.

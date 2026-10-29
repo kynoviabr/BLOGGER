@@ -100,7 +100,7 @@ export async function generateFeaturedImage(contentId: string, promptOverride?: 
   const { error: linkError } = await admin.from('content_items').update({ featured_image_id: mediaAssetId } as never).eq('id', contentId);
   if (linkError) throw new ImageRouteError(`Imagem gerada, mas não foi vinculada ao artigo: ${linkError.message}`);
   // Artigo em produção (texto pronto, esperando a imagem) passa para Revisão já com a imagem.
-  await admin.from('content_items').update({ status: 'reviewing' } as never).eq('id', contentId).eq('status', 'researching');
+  await admin.from('content_items').update({ status: 'reviewing' } as never).eq('id', contentId).eq('status', 'researching').neq('body', '');
 
   const durationMs = Date.now() - startedAt;
   await admin.from('ai_runs').insert({ content_id: contentId, agent: 'ImageRoute', provider: 'TogetherImageProvider', model, status: 'completed', input_summary: prompt.slice(0, 200), output_summary: `Imagem ${publicUrl.slice(0, 80)}`, duration_ms: durationMs, estimated_cost: 0 } as never);
