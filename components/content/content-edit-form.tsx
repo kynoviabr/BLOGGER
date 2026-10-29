@@ -67,6 +67,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [imageScene, setImageScene] = useState("");
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [selectedGenerationLanguage, setSelectedGenerationLanguage] = useState<string>(
     initialContent.language || "pt-BR"
   );
@@ -185,6 +186,34 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
   };
 
   // 3. Disparar Endpoint de Geração de Imagem de Destaque
+  // Reduz a foto de referência no navegador (máx. 1280 px, JPEG) antes de enviar.
+  const handleReferenceFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showNotification("error", "Escolha um arquivo de imagem (JPG, PNG ou WebP).");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+        img.src = url;
+      });
+      const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d")?.drawImage(img, 0, 0, canvas.width, canvas.height);
+      setReferenceImage(canvas.toDataURL("image/jpeg", 0.85));
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Não foi possível ler a imagem.");
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
   const handleGenerateImage = async () => {
     setIsImageModalOpen(false);
     setNotification(null);
@@ -195,7 +224,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
       const res = await fetch(`/api/content/${content.id}/image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(scene ? { scene } : {}),
+        body: JSON.stringify({ ...(scene ? { scene } : {}), ...(referenceImage ? { referenceImage } : {}) }),
       });
       const data = await res.json();
 
@@ -1066,7 +1095,7 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
         isOpen={isImageModalOpen}
         onClose={() => setIsImageModalOpen(false)}
         title="Gerar nova imagem de destaque"
-        description="Descreva a cena que você quer, ou deixe em branco para o sistema criar a partir do artigo."
+        description="Descreva a cena, envie uma imagem de referência, ou deixe em branco para o sistema criar a partir do artigo."
       >
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -1085,13 +1114,39 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
               A sua frase substitui a cena sugerida pelo sistema. O estilo, a luz e as cores continuam variando a cada geração.
             </p>
           </div>
+          <div className="space-y-1.5">
+            <label htmlFor="image-reference" className="text-sm font-medium text-foreground">
+              Imagem de referência (opcional)
+            </label>
+            {referenceImage ? (
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={referenceImage} alt="Referência" className="h-16 w-28 rounded border border-border object-cover" />
+                <Button type="button" variant="ghost" size="sm" onClick={() => setReferenceImage(null)}>
+                  <X className="mr-1 h-3.5 w-3.5" />
+                  Remover
+                </Button>
+              </div>
+            ) : (
+              <input
+                id="image-reference"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => handleReferenceFile(e.target.files?.[0])}
+                className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-1.5 file:text-xs file:font-medium"
+              />
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              O sistema cria uma imagem nova parecida com esta, com composição e clima semelhantes. Prefira imagens livres de direitos.
+            </p>
+          </div>
           <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
             <Button type="button" variant="outline" onClick={() => setIsImageModalOpen(false)}>
               Cancelar
             </Button>
             <Button type="button" onClick={handleGenerateImage} className="gap-1.5">
               <ImageIcon className="h-4 w-4" />
-              {imageScene.trim() ? "Gerar com a minha frase" : "Gerar automaticamente"}
+              {referenceImage ? "Gerar a partir da referência" : imageScene.trim() ? "Gerar com a minha frase" : "Gerar automaticamente"}
             </Button>
           </div>
         </div>
