@@ -12,27 +12,27 @@ export const navigationItems: NavItem[] = [
     icon: "LayoutDashboard",
   },
   {
-    title: "1 · Ideias",
+    title: "Ideias",
     href: "/ideas",
     icon: "Sparkles",
   },
   {
-    title: "2 · Produção",
+    title: "Produção",
     href: "/content?status=researching",
     icon: "Layers",
   },
   {
-    title: "3 · Revisão e Aprovação",
+    title: "Revisão e Aprovação",
     href: "/content?status=reviewing",
     icon: "FileText",
   },
   {
-    title: "4 · Calendário",
+    title: "Calendário",
     href: "/calendar",
     icon: "Calendar",
   },
   {
-    title: "5 · Publicação",
+    title: "Publicação",
     href: "/content?status=scheduled",
     icon: "Send",
   },
