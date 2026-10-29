@@ -75,52 +75,34 @@ Retorne EXATAMENTE um objeto JSON com as seguintes propriedades:
 - "article_type": Tipo de formato (ex: 'standard', 'listicle', 'how-to', 'review', 'pillar').
 - "category_slug": O slug da categoria mais compatível da lista fornecida acima (ex: '${categories[0]?.slug || "geral"}').`;
 
-    let enhancedResult: {
-      title: string;
-      topic: string;
-      keywords: string;
-      description: string;
-      article_type: string;
-      category_slug?: string;
-    };
+    let enhancedResult: EnhancedPauta;
 
-    // Chamada direta via Gemini ou DeepSeek
+    // Gemini com novas tentativas; se continuar sobrecarregado, DeepSeek; por último, o provedor configurado.
+    let parsed: EnhancedPauta | null = null;
+    let lastError: unknown = null;
     if (process.env.GEMINI_API_KEY) {
-      const { GoogleGenAI, Type } = await import("@google/genai");
-      const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const model = process.env.GEMINI_IDEAS_MODEL || "gemini-3.5-flash";
-
-      const response = await client.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          temperature: 0.5,
-          responseMimeType: "application/json",
-          responseJsonSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              topic: { type: Type.STRING },
-              keywords: { type: Type.STRING },
-              description: { type: Type.STRING },
-              article_type: { type: Type.STRING },
-              category_slug: { type: Type.STRING },
-            },
-            required: ["title", "topic", "keywords", "description", "article_type"],
-          },
-        },
-      });
-
-      enhancedResult = JSON.parse(response.text || "{}");
-    } else {
-      // Fallback para geração via provedor de texto configurado
+      try {
+        parsed = await enhanceWithGemini(prompt);
+      } catch (err) {
+        lastError = err;
+        logger.warn("API.ideas.enhance-manual", `Gemini indisponível, tentando DeepSeek: ${describeError(err)}`);
+      }
+    }
+    if (!parsed && process.env.DEEPSEEK_API_KEY) {
+      try {
+        parsed = await enhanceWithDeepSeek(prompt);
+      } catch (err) {
+        lastError = err;
+        logger.warn("API.ideas.enhance-manual", `DeepSeek falhou: ${describeError(err)}`);
+      }
+    }
+    if (!parsed && !process.env.GEMINI_API_KEY && !process.env.DEEPSEEK_API_KEY) {
       const generated = await aiProvider.generateArticle(rawText, ["seo"], {
         blogName: blog.name,
         niche: blog.niche,
         language,
       });
-
-      enhancedResult = {
+      parsed = {
         title: generated.title,
         topic: rawText.slice(0, 80),
         keywords: generated.keywords.join(", "),
@@ -129,6 +111,14 @@ Retorne EXATAMENTE um objeto JSON com as seguintes propriedades:
         category_slug: categories[0]?.slug || "geral",
       };
     }
+    if (!parsed) {
+      logger.error("API.ideas.enhance-manual", "Nenhuma IA respondeu", { lastError: describeError(lastError) });
+      return NextResponse.json(
+        { success: false, error: "As IAs de texto estão sobrecarregadas agora. Espere um minuto e clique de novo em Aprimorar Pauta com IA." },
+        { status: 503 }
+      );
+    }
+    enhancedResult = parsed;
 
     // Resolver ID da categoria pelo slug sugerido
     const matchedCategory = categories.find(
@@ -171,8 +161,99 @@ Retorne EXATAMENTE um objeto JSON com as seguintes propriedades:
       durationMs,
     });
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : "Erro ao aprimorar pauta com IA.";
+    const errorMsg = isTransient(err)
+      ? "As IAs de texto estão sobrecarregadas agora. Espere um minuto e clique de novo em Aprimorar Pauta com IA."
+      : err instanceof Error ? err.message : "Erro ao aprimorar pauta com IA.";
     logger.error("API.ideas.enhance-manual", errorMsg, { err });
     return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
   }
+}
+
+type EnhancedPauta = {
+  title: string;
+  topic: string;
+  keywords: string;
+  description: string;
+  article_type: string;
+  category_slug?: string;
+};
+
+function describeError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function isTransient(err: unknown): boolean {
+  const msg = describeError(err).toLowerCase();
+  return msg.includes("503") || msg.includes("429") || msg.includes("unavailable") || msg.includes("high demand") || msg.includes("overloaded") || msg.includes("resource_exhausted");
+}
+
+function parsePauta(text: string): EnhancedPauta {
+  const parsed = JSON.parse(text) as Partial<EnhancedPauta>;
+  if (!parsed.title || !parsed.topic) throw new Error("Resposta da IA sem título ou tema.");
+  return {
+    title: String(parsed.title),
+    topic: String(parsed.topic),
+    keywords: Array.isArray(parsed.keywords) ? (parsed.keywords as string[]).join(", ") : String(parsed.keywords ?? ""),
+    description: String(parsed.description ?? ""),
+    article_type: String(parsed.article_type ?? "standard"),
+    category_slug: parsed.category_slug ? String(parsed.category_slug) : undefined,
+  };
+}
+
+async function enhanceWithGemini(prompt: string): Promise<EnhancedPauta> {
+  const { GoogleGenAI, Type } = await import("@google/genai");
+  const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  const model = process.env.GEMINI_IDEAS_MODEL || "gemini-3.5-flash";
+  const delays = [0, 2000, 5000];
+  let lastError: unknown = null;
+  for (const delay of delays) {
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    try {
+      const response = await client.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          temperature: 0.5,
+          responseMimeType: "application/json",
+          responseJsonSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              topic: { type: Type.STRING },
+              keywords: { type: Type.STRING },
+              description: { type: Type.STRING },
+              article_type: { type: Type.STRING },
+              category_slug: { type: Type.STRING },
+            },
+            required: ["title", "topic", "keywords", "description", "article_type"],
+          },
+        },
+      });
+      return parsePauta(response.text || "{}");
+    } catch (err) {
+      lastError = err;
+      if (!isTransient(err)) throw err;
+    }
+  }
+  throw lastError;
+}
+
+async function enhanceWithDeepSeek(prompt: string): Promise<EnhancedPauta> {
+  const response = await fetch(`${process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com"}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}` },
+    body: JSON.stringify({
+      model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+      temperature: 0.5,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: "Responda somente com um objeto JSON válido." },
+        { role: "user", content: prompt },
+      ],
+    }),
+    signal: AbortSignal.timeout(40_000),
+  });
+  if (!response.ok) throw new Error(`DeepSeek HTTP ${response.status}`);
+  const body = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  return parsePauta(body.choices?.[0]?.message?.content || "{}");
 }
