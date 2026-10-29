@@ -18,6 +18,9 @@ export function StatusBadge({ status, errorMessage }: StatusBadgeProps) {
     case "COMPLETED":
       badgeElement = <Badge variant="success">{status}</Badge>;
       break;
+    case "RESEARCHING":
+      badgeElement = <Badge variant="info">em produção</Badge>;
+      break;
     case "IN_PROGRESS":
     case "SCHEDULED":
     case "RUNNING":
