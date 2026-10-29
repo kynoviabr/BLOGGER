@@ -30,12 +30,15 @@ export async function POST(
     await syncImageKeyFromEnv(supabase, organizationId);
 
     let promptOverride: string | undefined;
+    let scene: string | undefined;
     try {
       const body = await request.json();
       if (body && typeof body.prompt === 'string' && body.prompt.trim().length > 10) promptOverride = body.prompt.trim();
+      // Frase da pessoa ("uma pessoa na bolsa de valores"): vira a cena; o estilo continua variado.
+      if (body && typeof body.scene === 'string' && body.scene.trim().length >= 3) scene = body.scene.trim().slice(0, 400);
     } catch {}
 
-    const result = await generateFeaturedImage(id, promptOverride);
+    const result = await generateFeaturedImage(id, promptOverride, scene);
     return NextResponse.json({ success: true, ...result });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Erro ao gerar a imagem.';

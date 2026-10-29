@@ -63,7 +63,7 @@ export interface FeaturedImageResult {
   publicUrl: string;
 }
 
-export async function generateFeaturedImage(contentId: string, promptOverride?: string): Promise<FeaturedImageResult> {
+export async function generateFeaturedImage(contentId: string, promptOverride?: string, scene?: string): Promise<FeaturedImageResult> {
   const startedAt = Date.now();
   const admin = getSupabaseAdminClient();
   const { data: item, error: itemError } = await admin
@@ -74,7 +74,7 @@ export async function generateFeaturedImage(contentId: string, promptOverride?: 
   if (itemError || !item) throw new ImageRouteError('Artigo não encontrado.', 404);
   const row = item as unknown as { title: string | null; excerpt: string | null; focus_keyword: string | null; blog_id: string; status: string; blog: { organization_id?: string } | null };
   const title = String(row.title ?? '');
-  const prompt = promptOverride || buildFeaturedImagePrompt({ title, excerpt: row.excerpt, focusKeyword: row.focus_keyword });
+  const prompt = promptOverride || buildFeaturedImagePrompt({ title, excerpt: row.excerpt, focusKeyword: row.focus_keyword, scene });
 
   // 1. Chave: a salva em Settings; se não houver, a das variáveis da Vercel.
   const { apiKey, model, source } = await resolveTogetherConfig(row.blog?.organization_id);

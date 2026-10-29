@@ -5,6 +5,8 @@ export interface ImagePromptInput {
   title: string;
   excerpt?: string | null;
   focusKeyword?: string | null;
+  /** Cena escrita pela pessoa ao gerar a imagem; substitui a cena sugerida pelo sistema. */
+  scene?: string | null;
 }
 
 const MEDIUMS = [
@@ -73,12 +75,15 @@ export function buildFeaturedImagePrompt(input: ImagePromptInput): string {
   const title = clean(input.title, 160);
   const excerpt = clean(input.excerpt, 280);
   const keyword = clean(input.focusKeyword, 80);
-  const subject = [
-    `Featured image for a blog article titled "${title}".`,
-    excerpt ? `The article is about: ${excerpt}.` : "",
-    keyword ? `Main topic: ${keyword}.` : "",
-    "Show a concrete, specific scene that someone would instantly connect to this topic (real places, objects, people or situations from the subject), not a generic abstract metaphor.",
-  ].filter(Boolean).join(" ");
+  const scene = clean(input.scene, 400);
+  const subject = scene
+    ? `Featured image for a blog article titled "${title}". Show exactly this scene, as the editor described it: ${scene}.`
+    : [
+        `Featured image for a blog article titled "${title}".`,
+        excerpt ? `The article is about: ${excerpt}.` : "",
+        keyword ? `Main topic: ${keyword}.` : "",
+        "Show a concrete, specific scene that someone would instantly connect to this topic (real places, objects, people or situations from the subject), not a generic abstract metaphor.",
+      ].filter(Boolean).join(" ");
   return [
     subject,
     `Style: ${pick(MEDIUMS)}.`,
