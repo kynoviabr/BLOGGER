@@ -1,3 +1,4 @@
+import { MAX_EXISTING_IDEAS_IN_PROMPT } from '@/services/ai/ai-provider.interface';
 import { getLanguagePromptDirective, getLanguageConfig, getLegalDisclaimerHtml } from '@/config/languages';
 
 export interface DeepSeekArticlePromptOptions {
@@ -292,10 +293,10 @@ export function buildDeepSeekIdeaUserPrompt(options: DeepSeekIdeaPromptOptions):
   let existingBlock = '';
   if (options.existingIdeas && options.existingIdeas.length > 0) {
     const list = options.existingIdeas
-      .slice(-20)
-      .map((item, idx) => `${idx + 1}. "${item.title}" [Keywords: ${item.keywords || 'N/A'}]`)
+      .slice(-MAX_EXISTING_IDEAS_IN_PROMPT)
+      .map((item, idx) => `${idx + 1}. "${item.title}"${item.keywords ? ` [Keywords: ${item.keywords}]` : ''}`)
       .join('\n');
-    existingBlock = `\nPAUTAS JÁ EXISTENTES NESTA SESSÃO (NÃO REPETIR OU VARIAR SUTILMENTE ESTES TEMAS):\n${list}\n`;
+    existingBlock = `\nASSUNTOS QUE O BLOG JÁ TEM OU QUE JÁ FORAM GERADOS NESTA SESSÃO (NÃO REPETIR NEM VARIAR SUTILMENTE ESTES TEMAS):\n${list}\n`;
   }
 
   return `Crie EXATAMENTE UMA nova ideia de pauta editorial para o portal ${blogName}${pos}.

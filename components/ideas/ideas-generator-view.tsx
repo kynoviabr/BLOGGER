@@ -123,6 +123,7 @@ export function IdeasGeneratorView({ blogs, initialBlogId }: IdeasGeneratorViewP
     if (!continueFromRemaining) {
       setGeneratedIdeas([]);
       setSelectedIndices(new Set());
+      setDuplicateChecks({});
     }
 
     const totalToGenerate = continueFromRemaining ? currentIdeas.length + remainingCount : count;
