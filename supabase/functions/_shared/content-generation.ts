@@ -5,6 +5,8 @@ type JsonRecord = Record<string, unknown>;
 /** Quantas vezes o pipeline espera a pesquisa terminar antes de escrever sem fontes. */
 const MAX_RESEARCH_WAITS = 6;
 const RESEARCH_WAIT_MS = 60_000;
+/** Menor número sai antes da fila: a imagem passa na frente de novas pesquisas (40) e artigos (50). */
+const AUTO_IMAGE_PRIORITY = 35;
 
 export class ContentGenerationError extends Error {
   constructor(message: string, readonly retryable: boolean) {
@@ -240,6 +242,27 @@ Fontes verificadas disponíveis (use somente estas URLs):\n${research || "Nenhum
     status: "reviewing",
   }).eq("id", contentId).select("id,title,slug,status,language,focus_keyword,seo_title,meta_description,excerpt,tags,body").single();
   if (updateError) throw new ContentGenerationError(`Falha ao salvar artigo: ${updateError.message}`, true);
+
+  // A imagem de destaque é gerada logo em seguida, sem precisar de clique.
+  // Uma falha aqui não desfaz o artigo: o botão "Gerar Imagem de Destaque" continua disponível.
+  if (!item.featured_image_id) {
+    const { error: imageEnqueueError } = await client.rpc("enqueue_background_job", {
+      p_job_type: "image_generation",
+      p_payload: { contentId, requestedBy: "content_pipeline" },
+      p_organization_id: String(blog.organization_id ?? ""),
+      p_blog_id: item.blog_id,
+      p_idempotency_key: `image-generation:auto:${contentId}`.slice(0, 200),
+      p_priority: AUTO_IMAGE_PRIORITY,
+      p_max_attempts: 3,
+    });
+    if (imageEnqueueError) {
+      await client.from("system_logs").insert({
+        level: "warn", service: "EdgeWorker.generateContent",
+        message: `Imagem automática não enfileirada para ${contentId}: ${imageEnqueueError.message}`,
+        metadata: { contentId },
+      });
+    }
+  }
 
   const durationMs = Date.now() - startedAt;
   await client.from("ai_runs").insert({

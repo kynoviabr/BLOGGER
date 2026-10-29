@@ -37,7 +37,8 @@ export async function POST(
       p_organization_id: (contentItem.blog as { organization_id?: string } | null)?.organization_id,
       p_blog_id: contentItem.blog_id,
       p_idempotency_key: idempotencyKey,
-      p_priority: 60,
+      // Alguém está esperando na tela: passa na frente de pesquisas e artigos na fila.
+      p_priority: 30,
       p_max_attempts: 3,
     } as never);
 
