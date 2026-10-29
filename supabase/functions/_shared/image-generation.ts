@@ -114,7 +114,9 @@ export async function generateImageJob(payload: JsonRecord, db?: SupabaseClient)
   const style = visualStyles[Math.floor(Math.random() * visualStyles.length)];
   const prompt = promptOverride || `${style}. Visual metaphor for editorial theme: "${title}". Editorial studio lighting, shallow depth of field, 8k, hyper-detailed, clean elegant composition, no text, no logos, no watermarks, no screens, no laptops, no smartphones, no office desks`;
 
-  const globallyPreferred = String(Deno.env.get("IMAGE_PROVIDER") ?? Deno.env.get("IMAGE_PROVIDER_TYPE") ?? (Deno.env.get("TOGETHER_API_KEY") ? "together" : Deno.env.get("OPENAI_API_KEY") ? "openai" : "pollinations")).toLowerCase();
+  // Pollinations (gratuito, baixa qualidade) só roda quando escolhido explicitamente em IMAGE_PROVIDER.
+  const explicitProvider = String(Deno.env.get("IMAGE_PROVIDER") ?? Deno.env.get("IMAGE_PROVIDER_TYPE") ?? "").toLowerCase();
+  const globallyPreferred = explicitProvider || (Deno.env.get("TOGETHER_API_KEY") ? "together" : Deno.env.get("OPENAI_API_KEY") ? "openai" : "");
   const organizationId = String(blog.organization_id ?? "");
   const { data: creds } = await client.from("organization_provider_credentials").select("provider").eq("organization_id", organizationId).eq("enabled", true).in("provider", ["together", "openai"]);
   const configured = (creds ?? []).map((r) => String(r.provider));
@@ -132,20 +134,13 @@ export async function generateImageJob(payload: JsonRecord, db?: SupabaseClient)
     buffer = await callOpenAI(prompt, tenantConfig);
     providerName = "OpenAIImageProvider";
   } else if (preferred === "together") {
-    try {
-      buffer = await callTogether(prompt, tenantConfig);
-      providerName = "TogetherImageProvider";
-    } catch (e) {
-      // fallback gracioso para Pollinations se Together falhar com 401/403 (chave inválida)
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("401") || msg.includes("403")) {
-        buffer = await callPollinations(prompt);
-        providerName = "PollinationsImageProvider";
-      } else throw e;
-    }
-  } else {
+    buffer = await callTogether(prompt, tenantConfig);
+    providerName = "TogetherImageProvider";
+  } else if (preferred === "pollinations") {
     buffer = await callPollinations(prompt);
     providerName = "PollinationsImageProvider";
+  } else {
+    throw new ImageGenerationError("Nenhuma chave de imagem configurada. Cadastre uma chave da Together AI (FLUX) ou da OpenAI em Settings.", false);
   }
 
   const mime = detectMime(buffer) ?? "image/jpeg";

@@ -224,3 +224,26 @@ export async function unscheduleContentAction(id: string): Promise<ActionResult>
     return { success: false, error: message };
   }
 }
+
+/** Arquiva rascunhos (só os que ainda estão em rascunho). Reversível pelo status do artigo. */
+export async function archiveDraftsAction(ids: string[]): Promise<ActionResult & { count?: number }> {
+  try {
+    await requireAuth();
+    if (!Array.isArray(ids) || ids.length === 0) return { success: true, count: 0 };
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("content_items")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .in("id", ids.slice(0, 500))
+      .eq("status", "draft")
+      .select("id");
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/content");
+    return { success: true, count: data?.length ?? 0 };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível arquivar os rascunhos.";
+    logger.error("ContentAction.archiveDrafts", "Erro ao arquivar rascunhos", { err });
+    return { success: false, error: message };
+  }
+}
