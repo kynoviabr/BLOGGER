@@ -13,6 +13,7 @@ import { formatDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ArchiveDraftsButton } from "@/components/content/archive-drafts-button";
 import { ApproveReviewedButton } from "@/components/content/approve-reviewed-button";
+import { AutoRefresh } from "@/components/content/auto-refresh";
 import { ContentItemWithRelations, ContentStatus } from "@/types/content";
 
 export const dynamic = "force-dynamic";
@@ -79,6 +80,8 @@ export default async function ContentListPage({
       />
 
       <EditorialFlow current={flowStepForContentStatus(status)} />
+
+      <AutoRefresh active={contentItems.some((item) => item.status === "researching")} />
 
       {pendingWithDate.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">

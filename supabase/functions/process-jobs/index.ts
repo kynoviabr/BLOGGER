@@ -116,6 +116,16 @@ export default {
     const db = createClient(projectUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    // Uma esteira só (FIFO): se outro worker está com um job em andamento, este não pega nada.
+    // O worker ativo chama o próximo assim que terminar.
+    const { count: runningNow } = await db.from("background_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "running")
+      .gt("lease_expires_at", new Date().toISOString());
+    if ((runningNow ?? 0) > 0) {
+      return Response.json({ success: true, skipped: "another worker is running", running: runningNow });
+    }
+
     const workerId = `edge-${crypto.randomUUID()}`;
     const startedAt = Date.now();
     const results: JsonRecord[] = [];
@@ -165,8 +175,22 @@ export default {
       }
     }
 
+    // Terminou e ainda há jobs prontos? Chama o próximo worker agora, sem esperar o minuto do cron.
+    let chained = false;
+    if (claimed > 0) {
+      const { count: ready } = await db.from("background_jobs")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["queued", "retrying"])
+        .lte("scheduled_at", new Date().toISOString());
+      if ((ready ?? 0) > 0) {
+        const { error: kickError } = await db.rpc("kick_job_worker");
+        chained = !kickError;
+      }
+    }
+
     return Response.json({
       success: true,
+      chained,
       workerId,
       claimed,
       completed: results.filter((result) => result.status === "completed").length,

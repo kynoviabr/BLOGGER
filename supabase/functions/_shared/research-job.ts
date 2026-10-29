@@ -263,5 +263,13 @@ export async function researchJob(payload: JsonRecord, db?: SupabaseClient): Pro
     .eq("id", contentId);
   if (statusError) throw new ResearchError(`Falha ao salvar status da pesquisa: ${statusError.message}`, true);
 
+  // A redação estava agendada para depois da pesquisa; com a pesquisa pronta, começa já.
+  await client.from("background_jobs")
+    .update({ scheduled_at: new Date().toISOString() })
+    .eq("job_type", "content_pipeline")
+    .in("status", ["queued", "retrying"])
+    .eq("payload->>contentId", contentId)
+    .gt("scheduled_at", new Date().toISOString());
+
   return { contentId, status, risk, facts: facts.length, fetched: fetched.length, warnings, briefingText };
 }
