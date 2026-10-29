@@ -191,16 +191,44 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
         throw new Error(data.error || "Falha ao gerar imagem de destaque.");
       }
 
-      if (data.media) {
+      // A rota só coloca a imagem na fila; o worker do Supabase gera e vincula ao artigo.
+      showNotification("success", "Gerando a imagem de destaque. Ela aparece aqui quando ficar pronta.");
+
+      let result: { mediaAssetId?: string; publicUrl?: string } | null = null;
+      for (let attempt = 0; attempt < 90; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const statusResponse = await fetch(`/api/jobs/${data.jobId}`, { cache: "no-store" });
+        const statusData = await statusResponse.json();
+        if (!statusResponse.ok || !statusData.success) {
+          throw new Error(statusData.error || "Falha ao acompanhar a geração da imagem.");
+        }
+        const job = statusData.job;
+        if (job.status === "completed") {
+          result = job.result ?? {};
+          break;
+        }
+        if (job.status === "dead_letter" || job.status === "cancelled") {
+          throw new Error(job.last_error || "A imagem não pôde ser gerada.");
+        }
+      }
+      if (!result) {
+        throw new Error("A imagem continua em processamento. Atualize a página em alguns instantes.");
+      }
+
+      const { mediaAssetId, publicUrl } = result;
+      if (mediaAssetId && publicUrl) {
         setContent((prev) => ({
           ...prev,
-          featured_image_id: data.media.id,
-          featured_image: data.media,
+          featured_image_id: mediaAssetId,
+          featured_image: { ...(prev.featured_image ?? {}), id: mediaAssetId, public_url: publicUrl } as ContentItemWithRelations["featured_image"],
         }));
+        router.refresh();
+      } else {
+        // Imagem já existente (job deduplicado): recarrega para ler o vínculo salvo.
+        window.location.reload();
       }
 
       showNotification("success", "Imagem de destaque gerada e vinculada ao artigo com sucesso!");
-      router.refresh();
     } catch (err) {
       showNotification("error", err instanceof Error ? err.message : "Erro ao gerar imagem.");
     } finally {
