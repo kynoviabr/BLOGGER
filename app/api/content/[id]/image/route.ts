@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/auth';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
+import { syncImageKeyFromEnv } from '@/lib/image-key-sync';
 
 export const maxDuration = 10;
 
@@ -30,12 +31,17 @@ export async function POST(
       if (body && typeof body.prompt === 'string' && body.prompt.trim().length > 10) prompt = body.prompt.trim();
     } catch {}
 
+    // O worker roda no Supabase e só enxerga as chaves salvas no cofre da organização.
+    // Se a chave de imagem existe apenas nas variáveis da Vercel, copia para o cofre uma vez.
+    const organizationId = (contentItem.blog as { organization_id?: string } | null)?.organization_id;
+    await syncImageKeyFromEnv(supabase, organizationId);
+
     // Cada clique pede uma imagem nova; a chave só evita duplicar cliques no mesmo instante.
     const idempotencyKey = `image-generation:${id}:manual:${Math.floor(Date.now() / 5000)}`.slice(0, 200);
     const { data: job, error: enqueueError } = await supabase.rpc('enqueue_background_job', {
       p_job_type: 'image_generation',
       p_payload: { contentId: id, prompt, requestedBy: user.id, regenerate: true },
-      p_organization_id: (contentItem.blog as { organization_id?: string } | null)?.organization_id,
+      p_organization_id: organizationId,
       p_blog_id: contentItem.blog_id,
       p_idempotency_key: idempotencyKey,
       // Alguém está esperando na tela: passa na frente de pesquisas e artigos na fila.

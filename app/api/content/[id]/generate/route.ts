@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/supabase/auth';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
+import { syncImageKeyFromEnv } from '@/lib/image-key-sync';
 
 export async function POST(
   request: NextRequest,
@@ -43,6 +44,8 @@ export async function POST(
 
     const targetLanguage = requestLanguage || contentItem.language || blog?.default_language || 'pt-BR';
     const idempotencyKey = `content-generation:${id}:${contentItem.updated_at}`.slice(0, 200);
+    // A imagem é gerada automaticamente depois do texto; garante que o worker tenha a chave.
+    await syncImageKeyFromEnv(supabase, blog?.organization_id);
     const { data: job, error: enqueueError } = await supabase.rpc('enqueue_background_job', {
       p_job_type: 'content_pipeline',
       p_payload: { contentId: id, language: targetLanguage, requestedBy: user.id },
