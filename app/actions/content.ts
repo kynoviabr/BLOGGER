@@ -324,7 +324,7 @@ export async function approveReviewedContentAction(id: string): Promise<ActionRe
     const supabase = await getSupabaseServerClient();
     const { data: item, error: itemError } = await supabase
       .from("content_items")
-      .select("id, body, status")
+      .select("id, body, status, editorial_calendar_id")
       .eq("id", id)
       .maybeSingle();
     if (itemError || !item) return { success: false, error: "Artigo não encontrado." };
@@ -342,8 +342,18 @@ export async function approveReviewedContentAction(id: string): Promise<ActionRe
       .in("status", ["reviewing", "draft"]);
     if (error) throw new Error(error.message);
 
+    // A data antiga da pauta não vale mais: a etapa Calendário escolhe a nova.
+    if (item.editorial_calendar_id) {
+      await supabase
+        .from("editorial_calendar")
+        .update({ scheduled_at: null, status: "IN_PROGRESS", updated_at: new Date().toISOString() })
+        .eq("id", item.editorial_calendar_id)
+        .neq("status", "PUBLISHED");
+    }
+
     revalidatePath("/content");
     revalidatePath(`/content/${id}`);
+    revalidatePath("/calendar");
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível aprovar o artigo.";
