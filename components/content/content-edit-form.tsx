@@ -31,7 +31,7 @@ import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
-import { approveReviewedContentAction, scheduleContentAction, unscheduleContentAction, updateContentAction } from "@/app/actions/content";
+import { scheduleContentAction, unscheduleContentAction, updateContentAction } from "@/app/actions/content";
 import { backfillMonetizationAction } from "@/app/actions/monetization";
 
 interface ContentEditFormProps {
@@ -311,25 +311,6 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
   };
 
   // 4.1 Agendar publicação: o artigo entra no Calendário Editorial na data escolhida
-  // 4.4 Aprovar o artigo revisado sem data: ele vai para a etapa Calendário depois
-  const handleApproveReviewed = async () => {
-    setNotification(null);
-    setIsScheduling(true);
-    try {
-      await persistEditorChanges();
-      const result = await approveReviewedContentAction(content.id);
-      if (!result.success) throw new Error(result.error || "Falha ao aprovar o artigo.");
-      setContent((prev) => ({ ...prev, status: "ready" }));
-      setFormData((prev) => ({ ...prev, status: "ready" }));
-      showNotification("success", "Artigo aprovado. Agora escolha a data de publicação no campo abaixo.");
-      router.refresh();
-    } catch (err) {
-      showNotification("error", err instanceof Error ? err.message : "Erro ao aprovar o artigo.");
-    } finally {
-      setIsScheduling(false);
-    }
-  };
-
   const handleSchedule = async () => {
     if (!scheduleInput) {
       showNotification("error", "Escolha a data e a hora da publicação.");
@@ -657,18 +638,6 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
                       <AlertTriangle className="h-3.5 w-3.5" />
                       A data do calendário ({new Date(scheduledAt).toLocaleString("pt-BR")}) passou sem aprovação. Escolha uma nova data.
                     </span>
-                  )}
-                  {content.status !== "ready" && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleApproveReviewed}
-                      disabled={isAnyActionRunning || !formData.body}
-                    >
-                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                      Aprovar (data depois)
-                    </Button>
                   )}
                   <label htmlFor="schedule-at" className="text-sm font-medium text-foreground">
                     {content.status === "ready" ? "Escolher data e aprovar para" : "Aprovar e agendar para"}
