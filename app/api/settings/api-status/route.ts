@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/supabase/auth";
+import { getActiveOrganizationId, requireAuth } from "@/lib/supabase/auth";
+import { syncImageKeyFromEnv } from "@/lib/image-key-sync";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -33,6 +34,9 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const specificProvider = searchParams.get("provider");
   const supabase = await getSupabaseServerClient();
+  // O gerador de imagens (Supabase) só lê o cofre da organização: se a chave existe apenas na Vercel, copia antes de testar.
+  const activeOrganizationId = await getActiveOrganizationId().catch(() => undefined);
+  await syncImageKeyFromEnv(supabase, activeOrganizationId);
   const { data: storedCredentials } = await supabase.rpc("list_provider_credentials" as never, {} as never);
   const credentials = Array.isArray(storedCredentials) ? storedCredentials as Array<{
     organization_id: string; provider: string; model?: string; base_url?: string; configured: boolean;
@@ -154,7 +158,15 @@ export async function GET(request: NextRequest) {
         }
 
         if (provider.id === "together") {
-          const key = tenantKey || process.env.TOGETHER_API_KEY!;
+          // O teste usa a mesma chave que o gerador de imagens usa: a do cofre da organização.
+          if (!tenantKey) {
+            return {
+              ...provider,
+              status: "error" as const,
+              errorMessage: "O gerador de imagens não encontrou a chave. Clique em Atualizar, cole a chave da Together e salve.",
+            };
+          }
+          const key = tenantKey;
           const res = await fetch("https://api.together.xyz/v1/models", {
             method: "GET",
             headers: {
