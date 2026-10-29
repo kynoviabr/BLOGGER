@@ -3,12 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Globe, Calendar, FileText, Image as ImageIcon, ScrollText, Settings, Sparkles, ChevronRight, Layers, LogOut, BadgeDollarSign, Users } from "lucide-react";
+import { LayoutDashboard, Globe, Calendar, FileText, Image as ImageIcon, ScrollText, Settings, Sparkles, ChevronRight, Layers, LogOut, BadgeDollarSign, Users, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navigationItems } from "@/config/navigation";
 import { logoutAction } from "@/app/actions/auth";
 
-const iconMap: Record<string, React.ElementType> = { LayoutDashboard, Globe, Calendar, Sparkles, FileText, Image: ImageIcon, BadgeDollarSign, ScrollText, Users, Settings };
+const iconMap: Record<string, React.ElementType> = { LayoutDashboard, Globe, Calendar, Sparkles, FileText, Image: ImageIcon, BadgeDollarSign, ScrollText, Users, Settings, Layers, Send };
 interface SidebarProps {
   isOpen: boolean;
   onClose?: () => void;
@@ -17,6 +17,20 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose, selectedBlogId }: SidebarProps) {
   const pathname = usePathname();
+  // Filtros de status (?status=...) decidem qual etapa do fluxo fica destacada.
+  const [search, setSearch] = React.useState("");
+  React.useEffect(() => {
+    setSearch(window.location.search);
+  }, [pathname]);
+  const isItemActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    const [itemPath, itemQuery] = href.split("?");
+    if (!pathname.startsWith(itemPath)) return false;
+    if (!itemQuery) return true;
+    const wanted = new URLSearchParams(itemQuery);
+    const current = new URLSearchParams(search);
+    return Array.from(wanted.entries()).every(([key, value]) => current.get(key) === value);
+  };
   return (
     <>
       {isOpen && <div className="fixed inset-0 z-40 bg-foreground/35 backdrop-blur-sm lg:hidden" onClick={onClose} />}
@@ -29,7 +43,7 @@ export function Sidebar({ isOpen, onClose, selectedBlogId }: SidebarProps) {
           <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">Workspace</div>
           {navigationItems.map((item) => {
             const Icon = iconMap[item.icon] || Layers;
-            const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const isActive = isItemActive(item.href);
             const targetHref = selectedBlogId && selectedBlogId !== "all"
               ? `${item.href}${item.href.includes("?") ? "&" : "?"}blogId=${selectedBlogId}`
               : item.href;
