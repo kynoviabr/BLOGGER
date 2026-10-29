@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { buildFeaturedImagePrompt } from "./image-prompt.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -107,15 +108,11 @@ export async function generateImageJob(payload: JsonRecord, db?: SupabaseClient)
 
   const title = String(item.title ?? "");
   const promptOverride = String(payload.prompt ?? "").trim();
-  const visualStyles = [
-    "Conceptual minimalist still life photography, real physical objects in elegant studio composition (golden keys, precision scales, metallic gears, growing green plants on solid marble)",
-    "Editorial isometric 3D render, minimalist Blender/C4D aesthetic, smooth matte textures, soft studio lighting, abstract geometric shapes representing balance and progress",
-    "Modern architectural and urban photography, grand perspective, majestic concrete and glass facades, illuminated bridges, dynamic urban geometry conveying scale and future",
-    "Artistic macro photography, extreme close-up of rich textures, brushed metal, intricate watchmaking mechanics, watermark paper fibers, dramatic chiaroscuro lighting",
-    "Editorial conceptual flat illustration and collage, The New Yorker and The Economist cover style, bold contrasting colors, modern graphic design",
-  ];
-  const style = visualStyles[Math.floor(Math.random() * visualStyles.length)];
-  const prompt = promptOverride || `${style}. Visual metaphor for editorial theme: "${title}". Editorial studio lighting, shallow depth of field, 8k, hyper-detailed, clean elegant composition, no text, no logos, no watermarks, no screens, no laptops, no smartphones, no office desks`;
+  const prompt = promptOverride || buildFeaturedImagePrompt({
+    title,
+    excerpt: item.excerpt as string | null | undefined,
+    focusKeyword: item.focus_keyword as string | null | undefined,
+  });
 
   // Pollinations (gratuito, baixa qualidade) só roda quando escolhido explicitamente em IMAGE_PROVIDER.
   const explicitProvider = String(Deno.env.get("IMAGE_PROVIDER") ?? Deno.env.get("IMAGE_PROVIDER_TYPE") ?? "").toLowerCase();
