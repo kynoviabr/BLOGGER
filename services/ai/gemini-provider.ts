@@ -3,6 +3,7 @@ import {
   AIProvider,
   GeneratedArticle,
   ArticleGenerationContext,
+  MAX_EXISTING_IDEAS_IN_PROMPT,
 } from './ai-provider.interface';
 import { AIProviderError } from '@/lib/errors/ai.errors';
 import {
@@ -540,10 +541,10 @@ Cada ideia deve conter:
     let existingBlock = '';
     if (context.existingIdeas && context.existingIdeas.length > 0) {
       const list = context.existingIdeas
-        .slice(-20) // últimas 20 para diversidade robusta
-        .map((item, idx) => `${idx + 1}. "${item.title}" [Palavras-chave: ${item.keywords || 'N/A'}] (Tipo: ${item.type || 'N/A'})`)
+        .slice(-MAX_EXISTING_IDEAS_IN_PROMPT)
+        .map((item, idx) => `${idx + 1}. "${item.title}"${item.keywords ? ` [Palavras-chave: ${item.keywords}]` : ''}`)
         .join('\n');
-      existingBlock = `\nPAUTAS JÁ EXISTENTES / GERADAS NESTA SESSÃO (NÃO REPETIR OU VARIAR SUTILMENTE ESTES TEMAS):\n${list}\n`;
+      existingBlock = `\nASSUNTOS QUE O BLOG JÁ TEM OU QUE JÁ FORAM GERADOS NESTA SESSÃO (NÃO REPETIR NEM VARIAR SUTILMENTE ESTES TEMAS):\n${list}\n`;
     }
 
     const ideasModel = process.env.GEMINI_IDEAS_MODEL || 'gemini-3.5-flash';

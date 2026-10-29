@@ -6,8 +6,17 @@ import { logger } from '@/lib/logger';
 import { LogService } from '@/services/log.service';
 import { ExistingIdeaSummary } from '@/types/ideas';
 import { validateEditorialScope } from '@/services/editorial/scope-guard';
+import { CannibalizationGuardService, toGuardInput } from '@/services/editorial/cannibalization-guard.service';
+import { MAX_EXISTING_IDEAS_IN_PROMPT } from '@/services/ai/ai-provider.interface';
 
-export const maxDuration = 45;
+export const maxDuration = 60;
+
+/** Tentativas extras quando a pauta gerada se parece demais com algo que o blog já tem. */
+const MAX_REGENERATIONS = 2;
+/** Não começa uma nova tentativa depois deste tempo, para caber no limite da função. */
+const REGENERATION_BUDGET_MS = 30_000;
+/** A partir deste valor a pauta é parecida (badge "Parecida") e vale tentar outra. */
+const SIMILAR_THRESHOLD = 0.5;
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -55,20 +64,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Buscar pautas recentes já salvas no calendário do blog para evitar duplicidades temáticas
-    const { data: recentCalendarItems } = await adminSupabase
-      .from('editorial_calendar')
-      .select('proposed_title, topic')
-      .eq('blog_id', blogId)
-      .order('created_at', { ascending: false })
-      .limit(15);
+    // 2. Tudo o que o blog já tem (pautas, artigos e posts do WordPress), para a IA
+    // não repetir assuntos e para conferir a pauta gerada antes de devolvê-la.
+    const corpus = await CannibalizationGuardService.loadBlogCorpus(blogId);
+    for (const idea of existingIdeas) {
+      corpus.push(CannibalizationGuardService.buildEntry('BATCH', idea.title, idea.keywords ?? '', { status: 'NEW' }));
+    }
 
-    const calendarTitles: ExistingIdeaSummary[] = (recentCalendarItems || []).map((c) => ({
-      title: c.proposed_title || c.topic,
-    }));
+    const seenTitles = new Set<string>();
+    const blogTitles: ExistingIdeaSummary[] = [];
+    for (const entry of corpus) {
+      if (entry.source === 'BATCH' || !entry.title || seenTitles.has(entry.normTitle)) continue;
+      seenTitles.add(entry.normTitle);
+      blogTitles.push({ title: entry.title });
+    }
 
-    // Combina pautas já no calendário com as pautas geradas na fila da sessão atual
-    const combinedExisting: ExistingIdeaSummary[] = [...calendarTitles, ...existingIdeas];
+    // As ideias desta sessão ficam no fim, porque o prompt mantém os últimos itens da lista.
+    const combinedExisting: ExistingIdeaSummary[] = [
+      ...blogTitles.slice(0, MAX_EXISTING_IDEAS_IN_PROMPT - existingIdeas.length).reverse(),
+      ...existingIdeas,
+    ];
 
     // Buscar categorias ativas deste blog
     const { data: blogCategories } = await adminSupabase
@@ -93,19 +108,41 @@ export async function POST(request: NextRequest) {
       throw new Error('O provedor de IA atual não implementa geração unitária de ideias.');
     }
 
-    const idea = await aiProvider.generateIdea({
-      niche: blog.niche || 'Geral',
-      audience: blog.audience || 'Público leitor interessado no tema',
-      purpose: blog.description || 'Conteúdo editorial informativo com alta credibilidade e precisão técnica',
-      category: targetCategory,
-      availableCategories: availableCategories.length > 0 ? availableCategories : undefined,
-      language: language || blog.default_language || 'pt-BR',
-      blogName: blog.name,
-      currentDate: new Date().toISOString().split('T')[0],
-      existingIdeas: combinedExisting,
-      queuePosition,
-      totalRequested,
-    });
+    const generateIdea = aiProvider.generateIdea.bind(aiProvider);
+    const avoid = [...combinedExisting];
+    let idea: Awaited<ReturnType<typeof generateIdea>> | null = null;
+    let bestScore = Infinity;
+
+    // Se a pauta sair parecida com algo do blog, pede outra (até MAX_REGENERATIONS vezes),
+    // avisando a IA do conflito, e devolve a menos parecida.
+    for (let attempt = 0; attempt <= MAX_REGENERATIONS; attempt++) {
+      if (attempt > 0 && Date.now() - startTime > REGENERATION_BUDGET_MS) break;
+
+      const candidate = await generateIdea({
+        niche: blog.niche || 'Geral',
+        audience: blog.audience || 'Público leitor interessado no tema',
+        purpose: blog.description || 'Conteúdo editorial informativo com alta credibilidade e precisão técnica',
+        category: targetCategory,
+        availableCategories: availableCategories.length > 0 ? availableCategories : undefined,
+        language: language || blog.default_language || 'pt-BR',
+        blogName: blog.name,
+        currentDate: new Date().toISOString().split('T')[0],
+        existingIdeas: avoid,
+        queuePosition,
+        totalRequested,
+      });
+      if (!candidate?.title) continue;
+
+      const check = CannibalizationGuardService.scoreAgainst(corpus, toGuardInput(candidate));
+      if (check.score < bestScore) {
+        idea = candidate;
+        bestScore = check.score;
+      }
+      if (check.score < SIMILAR_THRESHOLD) break;
+
+      logger.warn('API.ideas.generateOne', `Pauta "${candidate.title}" parecida (${Math.round(check.score * 100)}%) com "${check.conflictingItems[0]?.title}". Gerando outra.`);
+      avoid.push({ title: candidate.title, keywords: candidate.keywords });
+    }
 
     // 4. Validação estrita dos campos da ideia
     if (!idea || !idea.title || idea.title.length < 5) {

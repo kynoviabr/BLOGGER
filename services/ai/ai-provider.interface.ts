@@ -10,6 +10,9 @@
  * 6. PUBLISH: Publicação no WordPress com featured_media e metadados SEO.
  */
 
+/** Quantos títulos já existentes do blog entram no prompt de geração de pautas. */
+export const MAX_EXISTING_IDEAS_IN_PROMPT = 150;
+
 export interface GeneratedArticle {
   title: string;
   slug: string;
