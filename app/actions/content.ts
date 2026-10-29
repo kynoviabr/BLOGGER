@@ -120,7 +120,7 @@ export async function scheduleContentAction(
     const supabase = await getSupabaseServerClient();
     const { data: item, error: itemError } = await supabase
       .from("content_items")
-      .select("id, blog_id, title, body, language, status, editorial_calendar_id, publish_attempts")
+      .select("id, blog_id, title, body, language, status, editorial_calendar_id, publish_attempts, featured_image_id")
       .eq("id", id)
       .maybeSingle();
     if (itemError || !item) return { success: false, error: "Artigo não encontrado." };
@@ -159,6 +159,20 @@ export async function scheduleContentAction(
       .update({ status: "scheduled", editorial_calendar_id: calendarId, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (contentError) throw new Error(`Falha ao atualizar o artigo: ${contentError.message}`);
+
+    // Artigos criados à mão não passam pelo pipeline, que gera a imagem sozinho.
+    // Se o artigo não tem imagem de destaque, enfileira a geração antes da publicação.
+    // Uma falha aqui não impede o agendamento; o botão "Gerar Imagem de Destaque" continua disponível.
+    if (!item.featured_image_id) {
+      await supabase.rpc("enqueue_background_job", {
+        p_job_type: "image_generation",
+        p_payload: { contentId: id, requestedBy: "schedule" },
+        p_blog_id: item.blog_id,
+        p_idempotency_key: `image-generation:schedule:${id}`,
+        p_priority: 100,
+        p_max_attempts: 3,
+      } as never);
+    }
 
     // O gatilho do banco só cria o job de publicação quando o status muda e
     // reaproveita a mesma chave; ao reagendar, o job antigo manteria a data
