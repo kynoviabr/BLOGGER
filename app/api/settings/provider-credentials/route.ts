@@ -47,7 +47,9 @@ export async function POST(request: NextRequest) {
     } catch {}
     return NextResponse.json({ success: true, credential: Array.isArray(data) ? data[0] : data });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Não foi possível salvar a credencial.";
+    // Erros do Supabase (PostgrestError) não são instâncias de Error; sem isso a tela só mostrava a mensagem genérica.
+    const raw = (error as { message?: unknown } | null)?.message;
+    const message = typeof raw === "string" && raw ? raw : "Não foi possível salvar a credencial.";
     const forbidden = message.includes("owners") || message.includes("admins") || message.includes("access");
     return NextResponse.json({ success: false, error: message }, { status: forbidden ? 403 : 500 });
   }
