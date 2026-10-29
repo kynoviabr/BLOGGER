@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { BlogService } from "@/services/blog.service";
 import { BlogEditForm } from "@/components/blogs/blog-edit-form";
-import { AutopilotSettingsCard } from "@/components/blogs/autopilot-settings-card";
 import { SocialPublishingCard } from "@/components/blogs/social-publishing-card";
 import { CategoryManager } from "@/components/blogs/category-manager";
 import { getLanguageConfig } from "@/config/languages";
@@ -68,9 +67,6 @@ export default async function BlogDetailsPage({
               <BlogEditForm blog={safeBlog} wordpressPasswordConfigured={wordpressPasswordConfigured} />
             </CardContent>
           </Card>
-
-          {/* Painel Autopilot Settings */}
-          <AutopilotSettingsCard blog={safeBlog} />
 
           {/* Publicação automática em redes sociais (somente UI por enquanto) */}
           <SocialPublishingCard blog={safeBlog} />
