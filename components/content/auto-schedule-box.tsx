@@ -215,10 +215,11 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
           {/* Período */}
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">1. Período</p>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Começar em</label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputClass} w-44`} />
-            </div>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Começar em</label>
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputClass} w-44`} />
+              </div>
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-muted-foreground">Dias da semana</span>
               <div className="flex flex-wrap gap-2">
@@ -235,6 +236,7 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
                   </Button>
                 ))}
               </div>
+            </div>
             </div>
           </div>
 
