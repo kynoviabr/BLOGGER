@@ -50,9 +50,28 @@ function formatDay(ymd: string): string {
   return `${WEEKDAY_SHORT[date.getDay()]}, ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
 }
 
-export function AutoScheduleBox({ blogId }: AutoScheduleBoxProps) {
+function readSelectedBlogId(): string {
+  try {
+    const cookie = document.cookie.match(/(?:^|;\s*)selected_blog_id=([^;]+)/)?.[1];
+    const stored = cookie ?? window.localStorage.getItem("selected_blog_id") ?? "";
+    return stored && stored !== "all" ? stored : "";
+  } catch {
+    return "";
+  }
+}
+
+export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps) {
   const router = useRouter();
   const tomorrow = useMemo(() => addDays(new Date(), 1), []);
+  // Blog do filtro do topo: vem da página; se não veio, usa a seleção atual do navegador.
+  const [blogId, setBlogId] = useState<string>(initialBlogId);
+  useEffect(() => {
+    if (initialBlogId) {
+      setBlogId(initialBlogId);
+      return;
+    }
+    setBlogId(readSelectedBlogId());
+  }, [initialBlogId]);
 
   const [items, setItems] = useState<AutoScheduleItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
