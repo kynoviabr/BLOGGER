@@ -319,15 +319,15 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
           {/* Horários */}
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">3. Horário da publicação</p>
-            <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
               {times.map((time, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                <div key={index} className="flex items-center gap-1.5 rounded-md border border-input bg-background pl-2 pr-1">
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <input
                     type="time"
                     value={time}
                     onChange={(e) => updateTime(index, e.target.value)}
-                    className={`${inputClass} w-32`}
+                    className="h-9 w-24 bg-transparent text-sm text-foreground focus:outline-none"
                   />
                   {times.length > 1 && (
                     <button
