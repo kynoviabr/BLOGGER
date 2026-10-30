@@ -200,14 +200,14 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
             <p className="text-xs text-muted-foreground">Escolha um blog para ver e agendar os artigos aprovados dele.</p>
           ) : (
           <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Data inicial</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                className="h-9 w-40 rounded-md border border-input bg-background px-2 text-sm"
               />
             </div>
             <div className="space-y-1">
@@ -216,7 +216,7 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                className="h-9 w-40 rounded-md border border-input bg-background px-2 text-sm"
               />
             </div>
           </div>
