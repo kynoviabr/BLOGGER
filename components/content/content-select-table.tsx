@@ -38,7 +38,15 @@ function Checkbox({
 }
 
 /** Tabela de artigos com seleção para enviar ao Calendário sem data. */
-export function ContentSelectTable({ items }: { items: ContentItemWithRelations[] }) {
+export function ContentSelectTable({ items: rawItems }: { items: ContentItemWithRelations[] }) {
+  // Ordem de data crescente; itens sem data vão para o fim, na ordem original.
+  const items = useMemo(() => {
+    const time = (item: ContentItemWithRelations) => {
+      const at = item.editorial_calendar?.scheduled_at;
+      return at ? new Date(at).getTime() : Number.POSITIVE_INFINITY;
+    };
+    return [...rawItems].sort((a, b) => time(a) - time(b));
+  }, [rawItems]);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
