@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CalendarClock, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { autoScheduleApprovedAction } from "@/app/actions/content";
+import { autoScheduleApprovedAction, listApprovedUndatedAction } from "@/app/actions/content";
 import { buildAutoSchedulePlan, type WeekdayMode } from "@/lib/auto-schedule/plan";
 
 export interface AutoScheduleItem {
@@ -18,7 +18,6 @@ export interface AutoScheduleItem {
 
 interface AutoScheduleBoxProps {
   blogId: string;
-  items: AutoScheduleItem[];
 }
 
 function isoDate(date: Date): string {
@@ -40,14 +39,32 @@ const WEEKDAY_OPTIONS: { value: WeekdayMode; label: string }[] = [
   { value: "weekends", label: "Só fins de semana" },
 ];
 
-export function AutoScheduleBox({ blogId, items }: AutoScheduleBoxProps) {
+export function AutoScheduleBox({ blogId }: AutoScheduleBoxProps) {
   const router = useRouter();
+  const [items, setItems] = useState<AutoScheduleItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+
+  useEffect(() => {
+    if (!blogId) {
+      setItems([]);
+      return;
+    }
+    let active = true;
+    setLoadingItems(true);
+    listApprovedUndatedAction(blogId)
+      .then((rows) => active && setItems(rows))
+      .catch(() => active && setItems([]))
+      .finally(() => active && setLoadingItems(false));
+    return () => {
+      active = false;
+    };
+  }, [blogId]);
+
   const tomorrow = useMemo(() => addDays(new Date(), 1), []);
   const [startDate, setStartDate] = useState(isoDate(tomorrow));
   const [endDate, setEndDate] = useState(isoDate(addDays(tomorrow, 29)));
   const [weekdayMode, setWeekdayMode] = useState<WeekdayMode>("all");
   const [timesText, setTimesText] = useState("09:00, 15:00");
-  const [open, setOpen] = useState(false);
 
   const categories = useMemo(() => {
     const map = new Map<string, { id: string; name: string; count: number }>();
@@ -110,7 +127,6 @@ export function AutoScheduleBox({ blogId, items }: AutoScheduleBoxProps) {
         if (result.skippedPastSlots) parts.push(`${result.skippedPastSlots} horário(s) já passaram e foram pulados.`);
         if (result.failed) parts.push(`${result.failed} falharam; veja o log.`);
         setMessage({ kind: "ok", text: parts.join(" ") });
-        setOpen(false);
         router.refresh();
       }
     } catch (err) {
@@ -134,15 +150,12 @@ export function AutoScheduleBox({ blogId, items }: AutoScheduleBoxProps) {
         <div className="flex items-start gap-2.5">
           <CalendarClock className="h-4 w-4 mt-0.5 text-primary shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-foreground">Publicação automática</p>
+            <p className="text-sm font-semibold text-foreground">Publicação automática de aprovados</p>
             <p className="text-xs text-muted-foreground">
-              {items.length} artigo(s) aprovados sem data. Escolha o período e quantos publicar por categoria e por dia.
+              {loadingItems ? "Carregando artigos aprovados..." : `${items.length} artigo(s) aprovados sem data.`} Escolha o período e quantos publicar por categoria e por dia.
             </p>
           </div>
         </div>
-        <Button size="sm" variant={open ? "outline" : "primary"} onClick={() => setOpen((v) => !v)}>
-          {open ? "Fechar" : "Agendar automaticamente"}
-        </Button>
       </div>
 
       {message && (
@@ -158,8 +171,7 @@ export function AutoScheduleBox({ blogId, items }: AutoScheduleBoxProps) {
         </div>
       )}
 
-      {open && (
-        <div className="space-y-4 border-t border-border pt-4">
+              <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Data inicial</label>
@@ -276,7 +288,6 @@ export function AutoScheduleBox({ blogId, items }: AutoScheduleBoxProps) {
             </Button>
           </div>
         </div>
-      )}
     </Card>
   );
 }

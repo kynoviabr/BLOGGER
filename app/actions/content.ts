@@ -499,3 +499,31 @@ export async function autoScheduleApprovedAction(
     return { success: false, error: message };
   }
 }
+
+/** Lista os artigos aprovados (ready) do blog que ainda não têm data, para a caixa de agendamento automático. */
+export async function listApprovedUndatedAction(blogId: string) {
+  await requireAuth();
+  if (!blogId) return [];
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("content_items")
+    .select("id, title, body, created_at, editorial_calendar:editorial_calendar(id, scheduled_at, category_id, category:categories(id, name))")
+    .eq("blog_id", blogId)
+    .eq("status", "ready")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`Falha ao carregar artigos aprovados: ${error.message}`);
+  type Row = {
+    id: string;
+    title: string;
+    body: string | null;
+    editorial_calendar: { scheduled_at: string | null; category_id: string | null; category: { id: string; name: string } | null } | null;
+  };
+  return ((data ?? []) as unknown as Row[])
+    .filter((row) => row.body?.trim() && !row.editorial_calendar?.scheduled_at)
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      categoryId: row.editorial_calendar?.category_id ?? null,
+      categoryName: row.editorial_calendar?.category?.name ?? "Geral",
+    }));
+}

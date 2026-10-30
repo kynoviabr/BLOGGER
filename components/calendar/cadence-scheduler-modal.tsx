@@ -23,11 +23,13 @@ import { CadenceService, CadenceSlotConfig, PlannedScheduleItem } from "@/servic
 import { bulkScheduleAction } from "@/app/actions/calendar";
 import { editorialStage } from "@/lib/editorial-stage";
 import { formatDate } from "@/lib/utils";
+import { AutoScheduleBox } from "@/components/content/auto-schedule-box";
 
 interface CadenceSchedulerModalProps {
   isOpen: boolean;
   onClose: () => void;
   items: CalendarItemWithRelations[];
+  blogId?: string;
   onScheduledSuccess?: () => void;
 }
 
@@ -35,6 +37,7 @@ export function CadenceSchedulerModal({
   isOpen,
   onClose,
   items,
+  blogId,
   onScheduledSuccess,
 }: CadenceSchedulerModalProps) {
   // Pautas que podem receber data (todas exceto as já publicadas). Por padrão só
@@ -158,6 +161,9 @@ export function CadenceSchedulerModal({
       className="max-w-3xl"
     >
       <div className="space-y-6 text-sm">
+        {/* Publicação automática dos artigos aprovados sem data */}
+        <AutoScheduleBox blogId={blogId ?? ""} />
+
         {/* Quais pautas recebem data */}
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
