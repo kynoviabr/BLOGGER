@@ -307,7 +307,11 @@ export function CalendarViewContainer({
       <CadenceSchedulerModal
         isOpen={isSchedulerOpen}
         onClose={() => setIsSchedulerOpen(false)}
+        items={initialItems}
         blogId={blogId}
+        onScheduledSuccess={() => {
+          router.refresh();
+        }}
       />
     </div>
   );
