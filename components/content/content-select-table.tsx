@@ -116,6 +116,7 @@ export function ContentSelectTable({ items: rawItems }: { items: ContentItemWith
               <TableHead className="w-10" />
               <TableHead>Título do Artigo</TableHead>
               <TableHead>Blog</TableHead>
+              <TableHead>Categoria</TableHead>
               <TableHead>Idioma</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Publicação</TableHead>
@@ -155,6 +156,7 @@ export function ContentSelectTable({ items: rawItems }: { items: ContentItemWith
                     </div>
                   </TableCell>
                   <TableCell className="text-xs text-foreground">{item.blog?.name || "Blog"}</TableCell>
+                  <TableCell className="text-xs text-foreground">{item.editorial_calendar?.category?.name || "—"}</TableCell>
                   <TableCell className="text-xs font-mono text-muted-foreground">{item.language}</TableCell>
                   <TableCell>
                     <StatusBadge status={item.status} errorMessage={item.last_publish_error} />
