@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, CalendarClock, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { autoScheduleApprovedAction, listApprovedUndatedAction } from "@/app/actions/content";
+import {
+  autoScheduleApprovedAction,
+  listApprovedUndatedAction,
+  listBlogsForScheduleAction,
+} from "@/app/actions/content";
 import { buildAutoSchedulePlan, type WeekdayMode } from "@/lib/auto-schedule/plan";
 
 export interface AutoScheduleItem {
@@ -17,7 +21,7 @@ export interface AutoScheduleItem {
 }
 
 interface AutoScheduleBoxProps {
-  blogId: string;
+  blogId: string; // blog selecionado no filtro da página (pode estar vazio)
 }
 
 function isoDate(date: Date): string {
@@ -39,10 +43,22 @@ const WEEKDAY_OPTIONS: { value: WeekdayMode; label: string }[] = [
   { value: "weekends", label: "Só fins de semana" },
 ];
 
-export function AutoScheduleBox({ blogId }: AutoScheduleBoxProps) {
+export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps) {
   const router = useRouter();
+  const [blogs, setBlogs] = useState<{ id: string; name: string }[]>([]);
+  const [blogId, setBlogId] = useState<string>(initialBlogId);
   const [items, setItems] = useState<AutoScheduleItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+
+  useEffect(() => {
+    listBlogsForScheduleAction()
+      .then(setBlogs)
+      .catch(() => setBlogs([]));
+  }, []);
+
+  useEffect(() => {
+    setBlogId(initialBlogId);
+  }, [initialBlogId]);
 
   useEffect(() => {
     if (!blogId) {
@@ -136,14 +152,6 @@ export function AutoScheduleBox({ blogId }: AutoScheduleBoxProps) {
     }
   };
 
-  if (!blogId) {
-    return (
-      <Card className="p-4 text-xs text-muted-foreground">
-        Escolha um blog no filtro do topo para agendar automaticamente os artigos aprovados desse blog.
-      </Card>
-    );
-  }
-
   return (
     <Card className="p-4 sm:p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -172,6 +180,26 @@ export function AutoScheduleBox({ blogId }: AutoScheduleBoxProps) {
       )}
 
               <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Blog</label>
+            <select
+              value={blogId}
+              onChange={(e) => setBlogId(e.target.value)}
+              className="h-9 w-full sm:w-72 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              <option value="">Escolha um blog</option>
+              {blogs.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {!blogId ? (
+            <p className="text-xs text-muted-foreground">Escolha um blog para ver e agendar os artigos aprovados dele.</p>
+          ) : (
+          <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Data inicial</label>
@@ -287,6 +315,8 @@ export function AutoScheduleBox({ blogId }: AutoScheduleBoxProps) {
               Agendar {preview?.items.length ?? 0} artigo(s)
             </Button>
           </div>
+          </>
+          )}
         </div>
     </Card>
   );
