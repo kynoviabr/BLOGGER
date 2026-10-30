@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ArchiveDraftsButton } from "@/components/content/archive-drafts-button";
 import { ApproveReviewedButton } from "@/components/content/approve-reviewed-button";
 import { AutoRefresh } from "@/components/content/auto-refresh";
+import { ContentSelectTable } from "@/components/content/content-select-table";
 import { ContentItemWithRelations, ContentStatus } from "@/types/content";
 
 export const dynamic = "force-dynamic";
@@ -169,97 +170,7 @@ export default async function ContentListPage({
           icon={<FileText className="h-6 w-6" />}
         />
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Título do Artigo</TableHead>
-                <TableHead>Blog</TableHead>
-                <TableHead>Idioma</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Publicação</TableHead>
-                <TableHead>Última Edição</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {contentItems.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium max-w-md">
-                    <Link
-                      href={`/content/${item.id}`}
-                      className="text-foreground hover:text-primary dark:hover:text-blue-400 block truncate"
-                    >
-                      {item.title}
-                    </Link>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                      <span className="text-[11px] text-muted-foreground font-mono truncate max-w-[180px]">
-                        /{item.slug}
-                      </span>
-                      {item.focus_keyword && (
-                        <span className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                          🎯 {item.focus_keyword}
-                        </span>
-                      )}
-                      {item.tags && item.tags.length > 0 && (
-                        <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                          #{item.tags.length} {item.tags.length === 1 ? "tag" : "tags"}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-foreground">
-                    {item.blog?.name || "Blog"}
-                  </TableCell>
-                  <TableCell className="text-xs font-mono text-muted-foreground">
-                    {item.language}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={item.status} errorMessage={item.last_publish_error} />
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                    {item.published_at ? (
-                      <div className="flex items-center gap-1.5 text-success">
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        {formatDate(item.published_at)}
-                      </div>
-                    ) : item.editorial_calendar?.scheduled_at ? (
-                      item.status === "scheduled" || item.status === "ready" ? (
-                        <div className="flex items-center gap-1.5 text-foreground">
-                          <CalendarClock className="h-3.5 w-3.5 text-primary" />
-                          {formatDate(item.editorial_calendar.scheduled_at)}
-                        </div>
-                      ) : (
-                        <div
-                          className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400"
-                          title="Sem aprovação, o artigo não é publicado nesta data."
-                        >
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                          {formatDate(item.editorial_calendar.scheduled_at)} · falta aprovar
-                        </div>
-                      )
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" />
-                        Não publicado
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                    {formatDate(item.updated_at)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Link href={`/content/${item.id}`}>
-                      <Button variant="outline" size="sm" className="text-xs">
-                        Editar
-                      </Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <ContentSelectTable items={contentItems} />
       )}
     </div>
   );
