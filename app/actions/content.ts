@@ -200,6 +200,74 @@ export async function scheduleContentAction(
   }
 }
 
+/**
+ * Publica agora pela fila do Supabase: o artigo vai para a data atual e um job
+ * publish_content é enfileirado. O worker (pg_cron → process-jobs) envia ao
+ * WordPress em até ~2 minutos, usando as credenciais do blog guardadas no Vault.
+ * Também serve para tentar de novo um artigo que falhou.
+ */
+export async function publishContentNowAction(id: string): Promise<ActionResult> {
+  try {
+    await requireAuth();
+    const supabase = await getSupabaseServerClient();
+    const { data: item, error: itemError } = await supabase
+      .from("content_items")
+      .select("id, blog_id, title, body, status, editorial_calendar_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (itemError || !item) return { success: false, error: "Artigo não encontrado." };
+    if (item.status === "published") return { success: false, error: "Este artigo já foi publicado." };
+    if (item.status === "publishing") return { success: false, error: "Este artigo já está sendo publicado." };
+    if (!item.body || item.body.trim().length === 0) {
+      return { success: false, error: "O artigo precisa ter texto antes de ser publicado." };
+    }
+
+    const iso = new Date().toISOString();
+    if (item.editorial_calendar_id) {
+      const { error } = await supabase
+        .from("editorial_calendar")
+        .update({ scheduled_at: iso, status: "SCHEDULED", updated_at: iso })
+        .eq("id", item.editorial_calendar_id);
+      if (error) throw new Error(`Falha ao atualizar o calendário: ${error.message}`);
+    }
+
+    // Zera as tentativas e o erro anterior: o publicador ignora artigos que já
+    // esgotaram as tentativas, e um artigo que falhou precisa voltar a "scheduled".
+    const { error: contentError } = await supabase
+      .from("content_items")
+      .update({
+        status: "scheduled",
+        publish_attempts: 0,
+        last_publish_error: null,
+        publish_failure_code: null,
+        next_publish_attempt_at: null,
+        updated_at: iso,
+      })
+      .eq("id", id);
+    if (contentError) throw new Error(`Falha ao atualizar o artigo: ${contentError.message}`);
+
+    const { error: jobError } = await supabase.rpc("enqueue_background_job", {
+      p_job_type: "publish_content",
+      p_payload: { contentId: id },
+      p_blog_id: item.blog_id,
+      p_idempotency_key: `publish:${id}:now:${iso}`,
+      p_scheduled_at: iso,
+      p_priority: 100,
+      p_max_attempts: 5,
+    } as never);
+    if (jobError) throw new Error(`A publicação não foi enfileirada: ${jobError.message}`);
+
+    revalidatePath("/content");
+    revalidatePath(`/content/${id}`);
+    revalidatePath("/calendar");
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível publicar o artigo.";
+    logger.error("ContentAction.publishNow", `Erro ao publicar artigo ${id}`, { err });
+    return { success: false, error: message };
+  }
+}
+
 /** Cancela o agendamento: o artigo volta para revisão e sai do calendário. */
 export async function unscheduleContentAction(id: string): Promise<ActionResult> {
   try {

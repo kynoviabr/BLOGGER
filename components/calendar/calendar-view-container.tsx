@@ -47,15 +47,6 @@ export function CalendarViewContainer({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [isSchedulerOpen, setIsSchedulerOpen] = useState(false);
 
-  // Estado para teste manual do Cron do Supabase
-  const [isRunningCron, setIsRunningCron] = useState(false);
-  const [cronResult, setCronResult] = useState<{
-    success: boolean;
-    message: string;
-    publishedCount?: number;
-    durationMs?: number;
-  } | null>(null);
-
   // Filtragem local combinada (Status e Categoria)
   const filteredItems = React.useMemo(() => {
     return initialItems.filter((item) => {
@@ -77,39 +68,6 @@ export function CalendarViewContainer({
     "IN_PROGRESS",
     "FAILED",
   ];
-
-  // Acionamento manual do Cron (testar publicação nativa do Supabase)
-  const handleTriggerSupabaseCron = async () => {
-    setIsRunningCron(true);
-    setCronResult(null);
-
-    try {
-      const res = await fetch("/api/cron/publish-content", {
-        method: "POST",
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Erro ao acionar o cron de publicação.");
-      }
-
-      setCronResult({
-        success: true,
-        message: data.message || `Verificação concluída: ${data.publishedCount ?? 0} artigo(s) publicado(s).`,
-        publishedCount: data.publishedCount,
-        durationMs: data.totalDurationMs,
-      });
-
-      router.refresh();
-    } catch (err) {
-      setCronResult({
-        success: false,
-        message: err instanceof Error ? err.message : "Falha na comunicação com o endpoint de cron.",
-      });
-    } finally {
-      setIsRunningCron(false);
-    }
-  };
 
   return (
     <div className="space-y-5">
@@ -152,29 +110,6 @@ export function CalendarViewContainer({
             Planejar Calendário
           </Button>
 
-          {/* Botão Testar Cron Supabase */}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={handleTriggerSupabaseCron}
-            disabled={isRunningCron}
-            className="gap-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
-            title="Executa a mesma rotina disparada pelo pg_cron do Supabase a cada 5 minutos"
-          >
-            {isRunningCron ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Verificando...
-              </>
-            ) : (
-              <>
-                <Zap className="h-3.5 w-3.5 text-emerald-600" />
-                Testar Cron Supabase
-              </>
-            )}
-          </Button>
-
           {/* Links para Ideias e Nova Pauta */}
           <Link href={`/ideas${blogId ? `?blogId=${blogId}` : ""}`}>
             <Button size="sm" variant="outline" className="gap-1.5 text-xs">
@@ -191,35 +126,6 @@ export function CalendarViewContainer({
           </Link>
         </div>
       </div>
-
-      {/* Banner de Feedback da Execução do Cron */}
-      {cronResult && (
-        <div
-          className={`flex items-center justify-between gap-3 p-3.5 rounded-lg border text-xs ${
-            cronResult.success
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-              : "border-destructive/30 bg-destructive/10 text-destructive"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {cronResult.success ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-            ) : (
-              <AlertCircle className="h-4 w-4 shrink-0" />
-            )}
-            <span>
-              <strong>Execução do Cron:</strong> {cronResult.message}
-              {cronResult.durationMs ? ` (${cronResult.durationMs}ms)` : ""}
-            </span>
-          </div>
-          <button
-            onClick={() => setCronResult(null)}
-            className="text-xs opacity-70 hover:opacity-100 font-semibold"
-          >
-            ✕
-          </button>
-        </div>
-      )}
 
       {/* Barra de Filtros: Categorias e Status */}
       <div className="space-y-2 p-3.5 rounded-xl border border-border bg-card/50">
