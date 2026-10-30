@@ -88,36 +88,36 @@ export function buildAutoSchedulePlan(
   for (let t = start.getTime(); t <= end.getTime(); t += DAY_MS) {
     const day = new Date(t);
     if (!matchesWeekday(day, options.weekdayMode)) continue;
+    const dateStr = formatYmd(day);
 
-    // Monta a lista de posts do dia respeitando a quantidade por categoria e o total de horários.
-    const picks: AutoScheduleCandidate[] = [];
-    for (const rule of options.rules) {
-      const queue = queues.get(rule.categoryId);
-      if (!queue) continue;
-      for (let i = 0; i < rule.perDay && queue.length > 0 && picks.length < times.length; i++) {
-        picks.push(queue.shift()!);
+    // Em cada horário do dia, cada categoria (na ordem das regras) publica um artigo,
+    // enquanto não atingir o limite diário dela. Artigos sobrando seguem nos próximos horários.
+    const usedToday = new Map<string, number>();
+    for (const time of times) {
+      for (const rule of options.rules) {
+        const queue = queues.get(rule.categoryId);
+        if (!queue || queue.length === 0) continue;
+        const used = usedToday.get(rule.categoryId) ?? 0;
+        if (used >= rule.perDay) continue;
+
+        const scheduled = new Date(`${dateStr}T${time}:00${offset}`);
+        if (scheduled.getTime() <= now.getTime()) {
+          skippedPastSlots++;
+          continue;
+        }
+
+        const pick = queue.shift()!;
+        usedToday.set(rule.categoryId, used + 1);
+        items.push({
+          contentId: pick.id,
+          title: pick.title,
+          categoryName: pick.categoryName,
+          date: dateStr,
+          time,
+          scheduledAt: scheduled.toISOString(),
+        });
       }
     }
-
-    const dateStr = formatYmd(day);
-    picks.forEach((pick, index) => {
-      const time = times[index];
-      const scheduled = new Date(`${dateStr}T${time}:00${offset}`);
-      if (scheduled.getTime() <= now.getTime()) {
-        // Horário já passou: o artigo volta para a fila para o próximo dia válido.
-        skippedPastSlots++;
-        queues.get(pick.categoryId ?? "")?.unshift(pick);
-        return;
-      }
-      items.push({
-        contentId: pick.id,
-        title: pick.title,
-        categoryName: pick.categoryName,
-        date: dateStr,
-        time,
-        scheduledAt: scheduled.toISOString(),
-      });
-    });
   }
 
   return { items, leftoverByCategory: countLeftovers(queues), skippedPastSlots };

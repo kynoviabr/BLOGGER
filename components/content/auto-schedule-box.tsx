@@ -125,11 +125,6 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
   if (items.length === 0 && !loadingItems && blogId) problems.push("Não há artigos aprovados sem data neste blog.");
   if (rules.length === 0) problems.push("Escolha ao menos uma categoria.");
   if (cleanTimes.length === 0) problems.push("Informe ao menos um horário.");
-  if (dailyTotal > cleanTimes.length) {
-    problems.push(
-      `O total por dia (${dailyTotal}) é maior que o número de horários (${cleanTimes.length}). Aumente os horários ou diminua os limites.`
-    );
-  }
 
   const plan = useMemo(() => {
     if (problems.length > 0) return null;
@@ -326,7 +321,7 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Horário de Brasília. Cada horário publica um artigo. O total por dia precisa caber nesses horários.
+              Horário de Brasília. Em cada horário, cada categoria publica um artigo, até o limite diário dela.
             </p>
           </div>
         </div>
@@ -343,7 +338,7 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
                   <strong className="text-foreground">{byDay.length} dia(s)</strong>, de{" "}
                   {formatDay(byDay[0][0])} até {lastDay && formatDay(lastDay)}.
                 </p>
-                <p>Limite do dia: {dailyTotal} de {cleanTimes.length} horário(s) usados.</p>
+                <p>Até {dailyTotal} artigo(s) por dia, distribuídos nos {cleanTimes.length} horário(s).</p>
                 {leftoverTotal > 0 && (
                   <p className="text-amber-700 dark:text-amber-400">
                     {leftoverTotal} artigo(s) não entram nesta programação e seguem aprovados.
