@@ -3,13 +3,13 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CalendarClock, CheckCircle, Clock, Loader2, Send } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle, Clock, Loader2, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
-import { sendReviewedToCalendarAction } from "@/app/actions/content";
+import { deleteReviewedContentAction, sendReviewedToCalendarAction } from "@/app/actions/content";
 import { ContentItemWithRelations } from "@/types/content";
 
 const SELECTABLE_STATUSES = ["reviewing", "draft"];
@@ -68,6 +68,26 @@ export function ContentSelectTable({ items: rawItems }: { items: ContentItemWith
 
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectable));
 
+  const handleDelete = () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    const confirmed = window.confirm(
+      `Excluir ${ids.length} artigo(s)? Eles vão para Arquivados e podem ser recuperados de lá. Nada publicado é afetado.`
+    );
+    if (!confirmed) return;
+    setMessage(null);
+    startTransition(async () => {
+      const result = await deleteReviewedContentAction(ids);
+      if (!result.success) {
+        setMessage(result.error || "Não foi possível excluir os artigos.");
+        return;
+      }
+      setSelected(new Set());
+      setMessage(`${result.count} artigo(s) excluído(s) para Arquivados.`);
+      router.refresh();
+    });
+  };
+
   const handleSend = () => {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
@@ -98,15 +118,27 @@ export function ContentSelectTable({ items: rawItems }: { items: ContentItemWith
           </label>
           {message && <span>{message}</span>}
         </div>
-        <Button
-          size="sm"
-          onClick={handleSend}
-          disabled={isPending || selected.size === 0}
-          className="gap-1.5"
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleDelete}
+            disabled={isPending || selected.size === 0}
+            className="gap-1.5 text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Excluir {selected.size}
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSend}
+            disabled={isPending || selected.size === 0}
+            className="gap-1.5"
         >
           {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
           Enviar {selected.size} para o Calendário
         </Button>
+        </div>
       </div>
 
       <Card>
