@@ -180,8 +180,8 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
       )}
 
               <div className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Blog</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="block text-xs font-medium text-muted-foreground">Blog</label>
             <select
               value={blogId}
               onChange={(e) => setBlogId(e.target.value)}
@@ -201,8 +201,8 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
           ) : (
           <>
           <div className="flex flex-wrap items-end gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Data inicial</label>
+            <div className="flex flex-col gap-1.5">
+              <label className="block text-xs font-medium text-muted-foreground">Data inicial</label>
               <input
                 type="date"
                 value={startDate}
@@ -210,8 +210,8 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
                 className="h-9 w-40 rounded-md border border-input bg-background px-2 text-sm"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Data final</label>
+            <div className="flex flex-col gap-1.5">
+              <label className="block text-xs font-medium text-muted-foreground">Data final</label>
               <input
                 type="date"
                 value={endDate}
@@ -221,7 +221,7 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
             </div>
           </div>
 
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">Dias da semana</span>
             <div className="flex flex-wrap gap-2">
               {WEEKDAY_OPTIONS.map((opt) => (
@@ -274,8 +274,8 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
             )}
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Horários do dia (separados por vírgula)</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="block text-xs font-medium text-muted-foreground">Horários do dia (separados por vírgula)</label>
             <input
               type="text"
               value={timesText}
