@@ -151,19 +151,6 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [includedItems, startDate, weekdayMode, JSON.stringify(rules), cleanTimes.join(","), problems.length]);
 
-  const byDay = useMemo(() => {
-    const groups = new Map<string, { time: string; categoryName: string; title: string }[]>();
-    for (const item of plan?.items ?? []) {
-      const list = groups.get(item.date) ?? [];
-      list.push({ time: item.time, categoryName: item.categoryName, title: item.title });
-      groups.set(item.date, list);
-    }
-    return Array.from(groups.entries());
-  }, [plan]);
-
-  const leftoverTotal = plan ? Object.values(plan.leftoverByCategory).reduce((s, n) => s + n, 0) : 0;
-  const lastDay = byDay.length > 0 ? byDay[byDay.length - 1][0] : null;
-
   const handleSchedule = async () => {
     if (!plan || plan.items.length === 0) return;
     if (!window.confirm(`Agendar ${plan.items.length} artigo(s) a partir de ${formatDay(startDate)}?`)) return;
@@ -222,7 +209,7 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
         </div>
       </header>
 
-      <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <div className="grid gap-6 p-5">
         {/* Configuração */}
         <div className="space-y-6">
           {/* Período */}
@@ -372,30 +359,8 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
           </div>
         </div>
 
-        {/* Prévia */}
-        <div className="flex min-w-0 flex-col gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Prévia da programação</p>
-
-          <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-            {plan && plan.items.length > 0 ? (
-              <div className="space-y-1">
-                <p>
-                  <strong className="text-foreground">{plan.items.length} artigo(s)</strong> em{" "}
-                  <strong className="text-foreground">{byDay.length} dia(s)</strong>, de{" "}
-                  {formatDay(byDay[0][0])} até {lastDay && formatDay(lastDay)}.
-                </p>
-                <p>Até {dailyTotal} artigo(s) por dia, distribuídos nos {cleanTimes.length} horário(s).</p>
-                {leftoverTotal > 0 && (
-                  <p className="text-amber-700 dark:text-amber-400">
-                    {leftoverTotal} artigo(s) não entram nesta programação e seguem aprovados.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p>Configure ao lado para ver a programação.</p>
-            )}
-          </div>
-
+        {/* Alertas e agendamento */}
+        <div className="col-span-full flex flex-col gap-3">
           {problems.length > 0 && (
             <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
               {problems.map((p) => (
@@ -406,37 +371,6 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
               ))}
             </div>
           )}
-
-          <div className="max-h-[320px] overflow-auto rounded-lg border border-border">
-            {byDay.length === 0 ? (
-              <div className="p-6 text-center text-xs text-muted-foreground">Nenhum artigo na programação.</div>
-            ) : (
-              <table className="w-full min-w-[480px] text-xs">
-                <thead className="sticky top-0 bg-muted/70 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Dia</th>
-                    <th className="px-3 py-2 font-medium">Horário</th>
-                    <th className="px-3 py-2 font-medium">Categoria</th>
-                    <th className="px-3 py-2 font-medium">Artigo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {byDay.flatMap(([date, list]) =>
-                    list.map((row, idx) => (
-                      <tr key={`${date}-${row.time}`} className="align-top">
-                        <td className="whitespace-nowrap px-3 py-2 font-medium text-foreground">
-                          {idx === 0 ? formatDay(date) : ""}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 font-mono text-muted-foreground">{row.time}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-foreground">{row.categoryName}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{row.title}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
 
           {message && (
             <div
