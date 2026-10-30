@@ -77,6 +77,7 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
   const [loadingItems, setLoadingItems] = useState(false);
   const [startDate, setStartDate] = useState(isoDate(tomorrow));
   const [weekdayMode, setWeekdayMode] = useState<WeekdayMode>("all");
+  const [excluded, setExcluded] = useState<Record<string, boolean>>({});
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [perDay, setPerDay] = useState<Record<string, number>>({});
   const [times, setTimes] = useState<string[]>(["09:00", "15:00"]);
@@ -110,6 +111,13 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
 
+  const includedItems = useMemo(() => items.filter((i) => !excluded[i.id]), [items, excluded]);
+  const isIncluded = (id: string) => !excluded[id];
+  const setAllIncluded = (value: boolean) => {
+    const next: Record<string, boolean> = {};
+    if (!value) for (const item of items) next[item.id] = true;
+    setExcluded(next);
+  };
   const isEnabled = (id: string) => enabled[id] ?? true;
   const dailyLimit = (id: string) => Math.max(1, Math.min(perDay[id] ?? 1, MAX_PER_DAY_PER_CATEGORY));
 
@@ -123,12 +131,13 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
   const problems: string[] = [];
   if (!blogId) problems.push("Escolha um blog no filtro do topo.");
   if (items.length === 0 && !loadingItems && blogId) problems.push("Não há artigos aprovados sem data neste blog.");
+  if (items.length > 0 && includedItems.length === 0) problems.push("Selecione ao menos um artigo.");
   if (rules.length === 0) problems.push("Escolha ao menos uma categoria.");
   if (cleanTimes.length === 0) problems.push("Informe ao menos um horário.");
 
   const plan = useMemo(() => {
     if (problems.length > 0) return null;
-    const candidates = items
+    const candidates = includedItems
       .filter((i) => i.categoryId)
       .map((i) => ({ id: i.id, categoryId: i.categoryId, categoryName: i.categoryName, title: i.title }));
     const start = new Date(`${startDate}T12:00:00`);
@@ -140,7 +149,7 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
       times: cleanTimes,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, startDate, weekdayMode, JSON.stringify(rules), cleanTimes.join(","), problems.length]);
+  }, [includedItems, startDate, weekdayMode, JSON.stringify(rules), cleanTimes.join(","), problems.length]);
 
   const byDay = useMemo(() => {
     const groups = new Map<string, { time: string; categoryName: string; title: string }[]>();
@@ -283,6 +292,43 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
             )}
           </div>
 
+          {/* Artigos incluídos */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Artigos incluídos ({includedItems.length} de {items.length})
+              </p>
+              <div className="flex items-center gap-1.5">
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAllIncluded(true)}>
+                  Todos
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAllIncluded(false)}>
+                  Nenhum
+                </Button>
+              </div>
+            </div>
+            {items.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nenhum artigo aprovado sem data neste blog.</p>
+            ) : (
+              <div className="max-h-56 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+                {items.map((item) => (
+                  <label key={item.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-muted/40">
+                    <input
+                      type="checkbox"
+                      checked={isIncluded(item.id)}
+                      onChange={(e) => setExcluded((prev) => ({ ...prev, [item.id]: !e.target.checked }))}
+                      className="h-4 w-4 shrink-0 rounded border-input text-primary"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">{item.title}</span>
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {item.categoryName}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Horários */}
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">3. Horários do dia</p>
@@ -361,11 +407,11 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
             </div>
           )}
 
-          <div className="max-h-[320px] overflow-y-auto rounded-lg border border-border">
+          <div className="max-h-[320px] overflow-auto rounded-lg border border-border">
             {byDay.length === 0 ? (
               <div className="p-6 text-center text-xs text-muted-foreground">Nenhum artigo na programação.</div>
             ) : (
-              <table className="w-full text-xs">
+              <table className="w-full min-w-[480px] text-xs">
                 <thead className="sticky top-0 bg-muted/70 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 font-medium">Dia</th>
