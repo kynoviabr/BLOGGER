@@ -15,7 +15,6 @@ import { ArchiveDraftsButton } from "@/components/content/archive-drafts-button"
 import { ApproveReviewedButton } from "@/components/content/approve-reviewed-button";
 import { AutoRefresh } from "@/components/content/auto-refresh";
 import { ContentSelectTable } from "@/components/content/content-select-table";
-import { AutoScheduleBox } from "@/components/content/auto-schedule-box";
 import { ContentItemWithRelations, ContentStatus } from "@/types/content";
 
 export const dynamic = "force-dynamic";
@@ -171,22 +170,7 @@ export default async function ContentListPage({
           icon={<FileText className="h-6 w-6" />}
         />
       ) : (
-        <div className="space-y-6">
-          {status === "ready" && (
-            <AutoScheduleBox
-              blogId={blogId ?? ""}
-              items={contentItems
-                .filter((item) => !item.editorial_calendar?.scheduled_at && item.body?.trim())
-                .map((item) => ({
-                  id: item.id,
-                  title: item.title,
-                  categoryId: item.editorial_calendar?.category_id ?? null,
-                  categoryName: item.editorial_calendar?.category?.name ?? "Geral",
-                }))}
-            />
-          )}
-          <ContentSelectTable items={contentItems} />
-        </div>
+        <ContentSelectTable items={contentItems} />
       )}
     </div>
   );
