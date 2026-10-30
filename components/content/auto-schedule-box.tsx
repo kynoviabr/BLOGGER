@@ -318,7 +318,7 @@ export function AutoScheduleBox({ blogId: initialBlogId }: AutoScheduleBoxProps)
 
           {/* Horários */}
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">3. Horários do dia</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">3. Horário da publicação</p>
             <div className="space-y-2">
               {times.map((time, index) => (
                 <div key={index} className="flex items-center gap-2">
