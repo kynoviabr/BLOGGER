@@ -7,6 +7,7 @@ import { requireAuth } from "@/lib/supabase/auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { updateContentSchema } from "@/lib/validations/content.schema";
 import { logger } from "@/lib/logger";
+import { buildAutoSchedulePlan } from "@/lib/auto-schedule/plan";
 
 export interface ActionResult {
   error?: string;
@@ -409,6 +410,92 @@ export async function sendReviewedToCalendarAction(ids: string[]): Promise<Actio
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível enviar ao calendário.";
     logger.error("ContentAction.sendToCalendar", "Erro ao enviar artigos ao calendário", { err });
+    return { success: false, error: message };
+  }
+}
+
+export interface AutoScheduleInput {
+  blogId: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  weekdayMode: "all" | "workdays" | "weekends";
+  rules: Array<{ categoryId: string; perDay: number }>;
+  times: string[];
+}
+
+/**
+ * Agenda automaticamente os artigos aprovados (status ready) que ainda não têm data,
+ * distribuindo-os no intervalo informado, por categoria e quantidade por dia.
+ * Só mexe no blog informado.
+ */
+export async function autoScheduleApprovedAction(
+  input: AutoScheduleInput
+): Promise<ActionResult & { scheduled?: number; leftover?: number; skippedPastSlots?: number; failed?: number }> {
+  try {
+    await requireAuth();
+    if (!input.blogId) return { success: false, error: "Escolha um blog antes de agendar." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
+      return { success: false, error: "Informe a data inicial e a data final." };
+    }
+    if (input.endDate < input.startDate) return { success: false, error: "A data final é anterior à inicial." };
+    if (input.rules.length === 0) return { success: false, error: "Escolha ao menos uma categoria." };
+    if (input.times.length === 0) return { success: false, error: "Informe ao menos um horário por dia." };
+
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("content_items")
+      .select(
+        "id, title, body, status, created_at, editorial_calendar:editorial_calendar(id, scheduled_at, category_id, category:categories(id, name))"
+      )
+      .eq("blog_id", input.blogId)
+      .eq("status", "ready")
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(`Falha ao carregar artigos aprovados: ${error.message}`);
+
+    type Row = {
+      id: string;
+      title: string;
+      body: string | null;
+      editorial_calendar: {
+        scheduled_at: string | null;
+        category_id: string | null;
+        category: { id: string; name: string } | null;
+      } | null;
+    };
+    const candidates = ((data ?? []) as unknown as Row[])
+      .filter((row) => row.body?.trim() && !row.editorial_calendar?.scheduled_at)
+      .filter((row) => row.editorial_calendar?.category_id && input.rules.some((r) => r.categoryId === row.editorial_calendar?.category_id))
+      .map((row) => ({
+        id: row.id,
+        categoryId: row.editorial_calendar?.category_id ?? null,
+        categoryName: row.editorial_calendar?.category?.name ?? "Geral",
+        title: row.title,
+      }));
+
+    const plan = buildAutoSchedulePlan(candidates, {
+      startDate: input.startDate,
+      endDate: input.endDate,
+      weekdayMode: input.weekdayMode,
+      rules: input.rules,
+      times: input.times,
+    });
+
+    let scheduled = 0;
+    let failed = 0;
+    for (const item of plan.items) {
+      const result = await scheduleContentAction(item.contentId, item.scheduledAt);
+      if (result.success) scheduled++;
+      else {
+        failed++;
+        logger.error("ContentAction.autoSchedule", `Falha ao agendar ${item.contentId}`, { error: result.error });
+      }
+    }
+
+    const leftover = Object.values(plan.leftoverByCategory).reduce((sum, n) => sum + n, 0);
+    return { success: true, scheduled, leftover, skippedPastSlots: plan.skippedPastSlots, failed };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível agendar automaticamente.";
+    logger.error("ContentAction.autoSchedule", "Erro no agendamento automático", { err });
     return { success: false, error: message };
   }
 }
