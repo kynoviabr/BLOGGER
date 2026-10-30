@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { ContentService } from "@/services/content.service";
-import { BlogService } from "@/services/blog.service";
 import { ContentItemUpdate, ContentStatus } from "@/types/content";
 import { requireAuth } from "@/lib/supabase/auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -527,13 +526,6 @@ export async function listApprovedUndatedAction(blogId: string) {
       categoryId: row.editorial_calendar?.category_id ?? null,
       categoryName: row.editorial_calendar?.category?.name ?? "Geral",
     }));
-}
-
-/** Lista de blogs para o seletor da caixa de agendamento automático. */
-export async function listBlogsForScheduleAction() {
-  await requireAuth();
-  const blogs = await BlogService.listBlogs();
-  return blogs.map((b) => ({ id: b.id, name: b.name }));
 }
 
 /**
