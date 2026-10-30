@@ -361,3 +361,54 @@ export async function approveReviewedContentAction(id: string): Promise<ActionRe
     return { success: false, error: message };
   }
 }
+
+/**
+ * Envia os artigos revisados selecionados para o Calendário, sem data: eles ficam
+ * "prontos" e a data é escolhida depois, na etapa Calendário. Não publica nada.
+ */
+export async function sendReviewedToCalendarAction(ids: string[]): Promise<ActionResult & { count?: number; skipped?: number }> {
+  try {
+    await requireAuth();
+    if (!Array.isArray(ids) || ids.length === 0) return { success: true, count: 0, skipped: 0 };
+    const supabase = await getSupabaseServerClient();
+    const { data: items, error } = await supabase
+      .from("content_items")
+      .select("id, body, status, editorial_calendar_id")
+      .in("id", ids.slice(0, 500));
+    if (error) throw new Error(error.message);
+
+    let count = 0;
+    let skipped = 0;
+    for (const item of items ?? []) {
+      if (!["reviewing", "draft"].includes(item.status) || !item.body || item.body.trim().length === 0) {
+        skipped++;
+        continue;
+      }
+      const { error: updateError } = await supabase
+        .from("content_items")
+        .update({ status: "ready", updated_at: new Date().toISOString() })
+        .eq("id", item.id)
+        .in("status", ["reviewing", "draft"]);
+      if (updateError) {
+        skipped++;
+        continue;
+      }
+      if (item.editorial_calendar_id) {
+        await supabase
+          .from("editorial_calendar")
+          .update({ scheduled_at: null, status: "IN_PROGRESS", updated_at: new Date().toISOString() })
+          .eq("id", item.editorial_calendar_id)
+          .neq("status", "PUBLISHED");
+      }
+      count++;
+    }
+
+    revalidatePath("/content");
+    revalidatePath("/calendar");
+    return { success: true, count, skipped };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível enviar ao calendário.";
+    logger.error("ContentAction.sendToCalendar", "Erro ao enviar artigos ao calendário", { err });
+    return { success: false, error: message };
+  }
+}
