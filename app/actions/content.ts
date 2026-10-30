@@ -535,3 +535,30 @@ export async function listBlogsForScheduleAction() {
   const blogs = await BlogService.listBlogs();
   return blogs.map((b) => ({ id: b.id, name: b.name }));
 }
+
+/**
+ * Exclui artigos que ainda estão em revisão ou rascunho. A exclusão é lógica:
+ * o artigo vai para Arquivados, de onde pode ser recuperado. Nada publicado é tocado.
+ */
+export async function deleteReviewedContentAction(ids: string[]): Promise<ActionResult & { count?: number }> {
+  try {
+    await requireAuth();
+    if (!Array.isArray(ids) || ids.length === 0) return { success: true, count: 0 };
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("content_items")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .in("id", ids.slice(0, 500))
+      .in("status", ["reviewing", "draft"])
+      .select("id");
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/content");
+    revalidatePath("/calendar");
+    return { success: true, count: data?.length ?? 0 };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível excluir os artigos.";
+    logger.error("ContentAction.deleteReviewed", "Erro ao excluir artigos", { err });
+    return { success: false, error: message };
+  }
+}
