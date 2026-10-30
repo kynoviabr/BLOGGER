@@ -141,6 +141,9 @@ export async function POST(
       .update({
         status: 'published',
         published_at: actualPublishedAt,
+        last_publish_error: null,
+        publish_failure_code: null,
+        next_publish_attempt_at: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

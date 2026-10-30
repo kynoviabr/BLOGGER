@@ -27,6 +27,7 @@ import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { CalendarItemWithRelations, CalendarStatus } from "@/types/calendar";
 import { updateScheduleAction } from "@/app/actions/calendar";
+import { publishContentNowAction } from "@/app/actions/content";
 import { editorialStage } from "@/lib/editorial-stage";
 
 interface CalendarMonthViewProps {
@@ -277,22 +278,20 @@ export function CalendarMonthView({
     setModalFeedback(null);
 
     try {
-      // 1. Atualiza pauta para READY se não estiver
-      await updateScheduleAction(selectedItem.id, new Date().toISOString(), "READY");
+      const contentId = selectedItem.content_item?.id;
+      if (!contentId) {
+        throw new Error("Esta pauta ainda não tem artigo gerado para publicar.");
+      }
 
-      // 2. Aciona o endpoint de cron/publicação
-      const res = await fetch("/api/cron/publish-content", {
-        method: "POST",
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Falha na publicação no WordPress.");
+      // Enfileira a publicação no Supabase (mesmo caminho das publicações agendadas).
+      const result = await publishContentNowAction(contentId);
+      if (!result.success) {
+        throw new Error(result.error || "Falha ao enviar a publicação.");
       }
 
       setModalFeedback({
         type: "success",
-        message: "Artigo publicado com sucesso no WordPress!",
+        message: "Publicação enviada. O artigo aparece no WordPress em até 2 minutos.",
       });
 
       setTimeout(() => {
