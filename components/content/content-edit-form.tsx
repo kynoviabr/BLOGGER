@@ -31,7 +31,12 @@ import { SUPPORTED_LANGUAGES, getLanguageConfig } from "@/config/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
-import { scheduleContentAction, unscheduleContentAction, updateContentAction } from "@/app/actions/content";
+import {
+  scheduleContentAction,
+  sendReviewedToCalendarAction,
+  unscheduleContentAction,
+  updateContentAction,
+} from "@/app/actions/content";
 import { backfillMonetizationAction } from "@/app/actions/monetization";
 
 interface ContentEditFormProps {
@@ -330,6 +335,26 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
       router.refresh();
     } catch (err) {
       showNotification("error", err instanceof Error ? err.message : "Erro ao agendar o artigo.");
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
+  // Aprova o artigo sem data: ele entra na fila de aprovados sem data do planejamento do Calendário
+  const handleApproveWithoutDate = async () => {
+    setNotification(null);
+    setIsScheduling(true);
+    try {
+      await persistEditorChanges();
+      const result = await sendReviewedToCalendarAction([content.id]);
+      if (!result.success) throw new Error(result.error || "Não foi possível aprovar o artigo.");
+      if (!result.count) throw new Error("O artigo não pôde ser aprovado. Confira se ele tem texto.");
+      setContent((prev) => ({ ...prev, status: "ready" }));
+      setFormData((prev) => ({ ...prev, status: "ready" }));
+      showNotification("success", "Artigo aprovado sem data. Ele aparece em Planejar calendário para ser programado.");
+      router.refresh();
+    } catch (err) {
+      showNotification("error", err instanceof Error ? err.message : "Erro ao aprovar o artigo.");
     } finally {
       setIsScheduling(false);
     }
@@ -664,6 +689,18 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
                     )}
                     Aprovar e agendar
                   </Button>
+                  {(content.status === "reviewing" || content.status === "draft") && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleApproveWithoutDate}
+                      disabled={isAnyActionRunning || !formData.body}
+                    >
+                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                      Aprovar sem data
+                    </Button>
+                  )}
                 </>
               )}
             </div>
