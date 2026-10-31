@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Languages, CheckCircle2, Settings2, Share2, FolderTree } from "lucide-react";
+import { ArrowLeft, Languages, CheckCircle2, Settings2, Share2, FolderTree, Globe } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BlogService } from "@/services/blog.service";
 import { BlogEditForm } from "@/components/blogs/blog-edit-form";
 import { SocialPublishingCard } from "@/components/blogs/social-publishing-card";
+import { WordPressSettingsCard } from "@/components/blogs/wordpress-settings-card";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { CategoryManager } from "@/components/blogs/category-manager";
 import { BlogSettingsTabs } from "@/components/blogs/blog-settings-tabs";
 import { getLanguageConfig } from "@/config/languages";
@@ -29,7 +31,19 @@ export default async function BlogDetailsPage({
   // Never serialize the application password into Client Component props/RSC payloads.
   const editorialConfig = (blog.editorial_config as Record<string, unknown>) || {};
   const wordpressConfig = (editorialConfig.wordpress as WordPressConfig) || {};
-  const wordpressPasswordConfigured = Boolean(wordpressConfig.wp_application_password);
+
+  // Credencial efetiva da publicação: linha por blog com a senha no Vault (só metadados, nunca a senha).
+  const { data: wordpressCredentialRow } = await getSupabaseAdminClient()
+    .from("blog_wordpress_credentials" as never)
+    .select("site_url, wp_username, enabled, updated_at")
+    .eq("blog_id" as never, id as never)
+    .maybeSingle();
+  const wordpressCredential = wordpressCredentialRow as {
+    site_url: string;
+    wp_username: string;
+    enabled: boolean;
+    updated_at: string;
+  } | null;
   const { wp_application_password: _password, ...safeWordpressConfig } = wordpressConfig;
   const safeBlog: BlogWithRelations = {
     ...blog,
@@ -59,7 +73,7 @@ export default async function BlogDetailsPage({
           {
             id: "geral",
             label: "Geral",
-            description: "Dados do blog e WordPress",
+            description: "Dados do blog",
             icon: <Settings2 className="h-4 w-4" />,
             content: (
               <Card>
@@ -70,7 +84,7 @@ export default async function BlogDetailsPage({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <BlogEditForm blog={safeBlog} wordpressPasswordConfigured={wordpressPasswordConfigured} />
+                  <BlogEditForm blog={safeBlog} />
                 </CardContent>
               </Card>
             ),
@@ -133,6 +147,23 @@ export default async function BlogDetailsPage({
                     )}
                   </CardContent>
                 </Card>
+            ),
+          },
+          {
+            id: "wordpress",
+            label: "WordPress",
+            description: "Publicação direta",
+            icon: <Globe className="h-4 w-4" />,
+            badge: wordpressCredential?.enabled ? <Badge variant="success">OK</Badge> : undefined,
+            content: (
+              <WordPressSettingsCard
+                blogId={blog.id}
+                domain={blog.domain}
+                initialSiteUrl={wordpressCredential?.site_url || wordpressConfig.wp_site_url || ""}
+                initialUsername={wordpressCredential?.wp_username || wordpressConfig.wp_username || ""}
+                configured={Boolean(wordpressCredential?.enabled)}
+                updatedAt={wordpressCredential?.updated_at ?? null}
+              />
             ),
           },
         ]}
