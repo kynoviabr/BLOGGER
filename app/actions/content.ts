@@ -19,7 +19,7 @@ export interface ContentFormData {
   slug: string;
   excerpt?: string | null;
   body: string;
-  status: ContentStatus;
+  status?: ContentStatus;
   seo_title?: string | null;
   meta_description?: string | null;
   focus_keyword?: string | null;

@@ -5,9 +5,11 @@ export const updateContentSchema = z.object({
   slug: z.string().trim().min(2, 'O slug é obrigatório.').max(350).regex(/^[a-z0-9-]+$/, 'Slug deve conter apenas letras minúsculas, números e hífens.'),
   excerpt: z.string().trim().max(1000).optional().nullable(),
   body: z.string().default(''),
-  status: z.enum(['draft', 'reviewing', 'ready', 'scheduled', 'published', 'archived'], {
+  // Opcional: salvar só o texto não muda o status. A lista cobre todos os
+  // status do banco, para que um artigo que falhou (publish_failed) possa ser salvo.
+  status: z.enum(['draft', 'researching', 'reviewing', 'ready', 'scheduled', 'publishing', 'publish_failed', 'published', 'archived'], {
     message: 'Status do artigo inválido.',
-  }),
+  }).optional(),
   seo_title: z.string().trim().max(150).optional().nullable(),
   meta_description: z.string().trim().max(300).optional().nullable(),
   focus_keyword: z.string().trim().max(100).optional().nullable(),

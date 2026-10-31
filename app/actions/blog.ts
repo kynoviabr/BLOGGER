@@ -71,7 +71,25 @@ export async function createBlogAction(
     };
 
     // 3. Persistência real no Supabase
-    await BlogService.createBlog(input);
+    const created = await BlogService.createBlog(input);
+
+    // 4. Senha WordPress vai para o Vault deste blog (a fila de publicação só lê de lá).
+    const wpPassVal = wp_application_password?.trim();
+    if (wpPassVal) {
+      const wpSiteUrlForVault = wordpressConfig.wp_site_url || "";
+      const wpUserForVault = wordpressConfig.wp_username || "";
+      if (!wpSiteUrlForVault.startsWith("https://") || !wpUserForVault) {
+        return { error: "Blog criado, mas a senha WordPress não foi salva: informe a URL (https) e o usuário e salve de novo na edição do blog." };
+      }
+      const { getSupabaseServerClient } = await import("@/lib/supabase/server");
+      const supabase = await getSupabaseServerClient();
+      const { error: vaultError } = await supabase.rpc("upsert_blog_wordpress_credentials" as never, {
+        p_blog_id: created.id, p_site_url: wpSiteUrlForVault, p_wp_username: wpUserForVault, p_wp_application_password: wpPassVal, p_enabled: true,
+      } as never);
+      if (vaultError) {
+        return { error: `Blog criado, mas a senha WordPress não foi salva: ${vaultError.message}` };
+      }
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível salvar o blog. Verifique a conexão com o banco e tente novamente.";
     logger.error("BlogAction.create", "Erro ao criar blog", { err });
