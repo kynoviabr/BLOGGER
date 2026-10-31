@@ -1,12 +1,13 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Languages, CheckCircle2, Settings2, Share2, FolderTree } from "lucide-react";
+import { ArrowLeft, Languages, CheckCircle2, Settings2, Share2, FolderTree, Globe } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BlogService } from "@/services/blog.service";
 import { BlogEditForm } from "@/components/blogs/blog-edit-form";
+import { WordPressCredentialsCard } from "@/components/blogs/wordpress-credentials-card";
 import { SocialPublishingCard } from "@/components/blogs/social-publishing-card";
 import { CategoryManager } from "@/components/blogs/category-manager";
 import { BlogSettingsTabs } from "@/components/blogs/blog-settings-tabs";
@@ -33,7 +34,7 @@ export default async function BlogDetailsPage({
   // A senha fica no Vault, por blog; editorial_config não guarda mais a senha.
   const supabase = await getSupabaseServerClient();
   const { data } = await supabase.rpc("list_blog_wordpress_credentials" as never, { p_blog_id: blog.id } as never);
-  const vaultCredentials = (data ?? []) as Array<{ enabled?: boolean }>;
+  const vaultCredentials = (data ?? []) as Array<{ enabled?: boolean; site_url?: string; wp_username?: string }>;
   const wordpressPasswordConfigured =
     vaultCredentials.some((row) => row.enabled) ||
     Boolean(wordpressConfig.wp_application_password);
@@ -66,7 +67,7 @@ export default async function BlogDetailsPage({
           {
             id: "geral",
             label: "Geral",
-            description: "Dados do blog e WordPress",
+            description: "Dados do blog",
             icon: <Settings2 className="h-4 w-4" />,
             content: (
               <Card>
@@ -77,7 +78,7 @@ export default async function BlogDetailsPage({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <BlogEditForm blog={safeBlog} wordpressPasswordConfigured={wordpressPasswordConfigured} />
+                  <BlogEditForm blog={safeBlog} />
                 </CardContent>
               </Card>
             ),
@@ -140,6 +141,22 @@ export default async function BlogDetailsPage({
                     )}
                   </CardContent>
                 </Card>
+            ),
+          },
+          {
+            id: "wordpress",
+            label: "WordPress",
+            description: "Login para publicar",
+            icon: <Globe className="h-4 w-4" />,
+            badge: wordpressPasswordConfigured ? undefined : <Badge variant="outline">Sem senha</Badge>,
+            content: (
+              <WordPressCredentialsCard
+                blogId={blog.id}
+                domain={blog.domain}
+                siteUrl={vaultCredentials[0]?.site_url || wordpressConfig.wp_site_url || ""}
+                username={vaultCredentials[0]?.wp_username || wordpressConfig.wp_username || ""}
+                configured={wordpressPasswordConfigured}
+              />
             ),
           },
         ]}

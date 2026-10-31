@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useActionState, useState } from "react";
-import { AlertCircle, Loader2, Globe, ChevronDown } from "lucide-react";
+import { useActionState } from "react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { updateBlogAction, ActionResult } from "@/app/actions/blog";
-import { BlogWithRelations, WordPressConfig } from "@/types/blog";
+import { BlogWithRelations } from "@/types/blog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,19 +14,14 @@ import { SUPPORTED_LANGUAGES } from "@/config/languages";
 
 interface BlogEditFormProps {
   blog: BlogWithRelations;
-  wordpressPasswordConfigured: boolean;
 }
 
 const initialState: ActionResult = {};
 
-export function BlogEditForm({ blog, wordpressPasswordConfigured }: BlogEditFormProps) {
+export function BlogEditForm({ blog }: BlogEditFormProps) {
   const updateWithId = updateBlogAction.bind(null, blog.id);
   const [state, formAction, isPending] = useActionState(updateWithId, initialState);
 
-  const edConfig = (blog.editorial_config as Record<string, unknown>) || {};
-  const wpConfig = (edConfig.wordpress as WordPressConfig) || {};
-  const wordpressConfigured = wordpressPasswordConfigured;
-  const [wpOpen, setWpOpen] = useState(false);
 
   return (
     <div>
@@ -102,75 +97,6 @@ export function BlogEditForm({ blog, wordpressPasswordConfigured }: BlogEditForm
             rows={3}
             disabled={isPending}
           />
-        </div>
-
-        {/* Seção de Credenciais WordPress (retrátil; os campos continuam no form quando fechada) */}
-        <div className="rounded-brand-card border border-border">
-          <button
-            type="button"
-            onClick={() => setWpOpen((o) => !o)}
-            aria-expanded={wpOpen}
-            className="flex w-full items-center justify-between gap-3 p-3.5 text-left"
-          >
-            <div>
-              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Globe className="h-4 w-4 text-primary" />
-                Integração WordPress (Publicação Direta)
-                <Badge variant={wordpressConfigured ? "success" : "default"}>
-                  {wordpressConfigured ? "Configurado" : "Sem senha"}
-                </Badge>
-              </h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Credenciais da REST API exclusivas deste blog. A publicação usa só a senha salva aqui; sem ela, os posts deste blog não são publicados.
-              </p>
-            </div>
-            <ChevronDown
-              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${wpOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-
-          <div hidden={!wpOpen} className="space-y-4 border-t border-border p-3.5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Usuário WordPress (REST API)
-                </label>
-                <Input
-                  name="wp_username"
-                  defaultValue={wpConfig.wp_username || ""}
-                  placeholder="Ex: admin ou editor_ai"
-                  disabled={isPending}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Senha de Aplicativo (Application Password)
-                </label>
-                <Input
-                  name="wp_application_password"
-                  type="password"
-                  placeholder={wordpressPasswordConfigured ? "•••••••••••• (deixe em branco p/ manter)" : "Ex: abcd efgh ijkl mnop"}
-                  disabled={isPending}
-                  autoComplete="new-password"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                URL do WordPress (Opcional)
-              </label>
-              <Input
-                name="wp_site_url"
-                defaultValue={wpConfig.wp_site_url || ""}
-                placeholder={`Ex: https://${blog.domain}`}
-                disabled={isPending}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Deixe em branco para usar automaticamente https://{blog.domain}.
-              </p>
-            </div>
-          </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
