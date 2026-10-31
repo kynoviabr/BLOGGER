@@ -36,6 +36,7 @@ import {
   sendReviewedToCalendarAction,
   unscheduleContentAction,
   updateContentAction,
+  publishContentNowAction,
 } from "@/app/actions/content";
 import { backfillMonetizationAction } from "@/app/actions/monetization";
 
@@ -274,28 +275,18 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
 
     try {
       await persistEditorChanges();
-      const res = await fetch(`/api/content/${content.id}/publish`, {
-        method: "POST",
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Falha ao publicar post no WordPress.");
+      // Mesmo caminho das publicações agendadas: fila do Supabase com as credenciais do blog.
+      const result = await publishContentNowAction(content.id);
+      if (!result.success) {
+        throw new Error(result.error || "Falha ao enviar a publicação.");
       }
 
-      setContent((prev) => ({
-        ...prev,
-        status: "published",
-        published_at: data.publishResult?.publishedAt || new Date().toISOString(),
-      }));
-      setFormData((prev) => ({
-        ...prev,
-        status: "published",
-      }));
+      setContent((prev) => ({ ...prev, status: "scheduled" }));
+      setFormData((prev) => ({ ...prev, status: "scheduled" }));
 
       showNotification(
         "success",
-        `Artigo publicado com sucesso no WordPress! ID: ${data.publishResult?.postId || ""}`
+        "Publicação enviada. O artigo aparece no WordPress em até 2 minutos."
       );
       router.refresh();
     } catch (err) {
@@ -309,7 +300,8 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
   const persistEditorChanges = async () => {
     const result = await updateContentAction(content.id, null, {
       ...formData,
-      status: content.status,
+      // Só o texto é salvo aqui; o status fica como está no banco.
+      status: undefined,
       tags: formData.tags ? formData.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
     });
     if (!result.success) throw new Error(result.error || "Falha ao salvar o artigo antes de continuar.");
@@ -949,6 +941,8 @@ export function ContentEditForm({ content: initialContent }: ContentEditFormProp
                     <option value="reviewing">Em Revisão</option>
                     <option value="ready">Pronto para Publicar</option>
                     <option value="scheduled">Agendado</option>
+                    <option value="publishing" disabled>Publicando</option>
+                    <option value="publish_failed" disabled>Falha na publicação</option>
                     <option value="published">Publicado</option>
                     <option value="archived">Arquivado</option>
                   </Select>
