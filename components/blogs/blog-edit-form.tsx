@@ -25,7 +25,7 @@ export function BlogEditForm({ blog, wordpressPasswordConfigured }: BlogEditForm
 
   const edConfig = (blog.editorial_config as Record<string, unknown>) || {};
   const wpConfig = (edConfig.wordpress as WordPressConfig) || {};
-  const wordpressConfigured = Boolean(wpConfig.wp_username || wordpressPasswordConfigured);
+  const wordpressConfigured = wordpressPasswordConfigured;
   const [wpOpen, setWpOpen] = useState(false);
 
   return (
@@ -117,11 +117,11 @@ export function BlogEditForm({ blog, wordpressPasswordConfigured }: BlogEditForm
                 <Globe className="h-4 w-4 text-primary" />
                 Integração WordPress (Publicação Direta)
                 <Badge variant={wordpressConfigured ? "success" : "default"}>
-                  {wordpressConfigured ? "Configurado" : "Padrão global"}
+                  {wordpressConfigured ? "Configurado" : "Sem senha"}
                 </Badge>
               </h4>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Credenciais da REST API exclusivas deste blog. Se não preenchidas, o sistema usa as variáveis padrão globais (.env).
+                Credenciais da REST API exclusivas deste blog. A publicação usa só a senha salva aqui; sem ela, os posts deste blog não são publicados.
               </p>
             </div>
             <ChevronDown
