@@ -1,3 +1,4 @@
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Languages, CheckCircle2, Settings2, Share2, FolderTree } from "lucide-react";
@@ -29,7 +30,13 @@ export default async function BlogDetailsPage({
   // Never serialize the application password into Client Component props/RSC payloads.
   const editorialConfig = (blog.editorial_config as Record<string, unknown>) || {};
   const wordpressConfig = (editorialConfig.wordpress as WordPressConfig) || {};
-  const wordpressPasswordConfigured = Boolean(wordpressConfig.wp_application_password);
+  // A senha fica no Vault, por blog; editorial_config não guarda mais a senha.
+  const supabase = await getSupabaseServerClient();
+  const { data } = await supabase.rpc("list_blog_wordpress_credentials" as never, { p_blog_id: blog.id } as never);
+  const vaultCredentials = (data ?? []) as Array<{ enabled?: boolean }>;
+  const wordpressPasswordConfigured =
+    vaultCredentials.some((row) => row.enabled) ||
+    Boolean(wordpressConfig.wp_application_password);
   const { wp_application_password: _password, ...safeWordpressConfig } = wordpressConfig;
   const safeBlog: BlogWithRelations = {
     ...blog,
